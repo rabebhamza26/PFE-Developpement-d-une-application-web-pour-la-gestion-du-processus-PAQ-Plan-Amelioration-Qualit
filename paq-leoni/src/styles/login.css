@@ -1,0 +1,101 @@
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: #f4f6f9;
+}
+
+.login-wrapper {
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(to bottom, #ffffff 70%, #e8eef7);
+}
+
+.login-card {
+  width: 380px;
+  background: white;
+  padding: 40px 30px;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.login-header {
+  margin-bottom: 30px;
+}
+
+.leoni-title {
+  color: #1e63b5;
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.paq-title {
+  font-size: 18px;
+  margin-top: 5px;
+  color: #444;
+}
+
+.form-group {
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  font-size: 14px;
+  color: #555;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #d0d7e2;
+  font-size: 14px;
+  outline: none;
+}
+
+.form-group input:focus {
+  border-color: #1e63b5;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 10px;
+  background: #1e63b5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.login-btn:hover {
+  background: #154a8a;
+}
+
+.login-btn:disabled {
+  background: #8aa9d6;
+  cursor: not-allowed;
+}
+
+.forgot-password {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #1e63b5;
+  cursor: pointer;
+}
+
+.login-error {
+  background: #ffe5e5;
+  color: #cc0000;
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  font-size: 13px;
+}
