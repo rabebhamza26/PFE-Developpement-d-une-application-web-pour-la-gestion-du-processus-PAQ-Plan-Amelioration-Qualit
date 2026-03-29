@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { userService } from "../services/api";
+import { userService } from "../../services/api";
 
 export default function UsersManagement() {
   const [users, setUsers] = useState([]);
@@ -18,7 +18,10 @@ export default function UsersManagement() {
       setLoading(true);
       setError("");
       const res = await userService.getAllUsers();
-      setUsers(res.data || []);
+      const data = Array.isArray(res.data)
+        ? res.data
+        : (res.data?.users || res.data?.data || []);
+      setUsers(data);
     } catch (err) {
       setError("Erreur lors du chargement des utilisateurs: " + (err.response?.data?.message || err.message));
       console.error("Erreur:", err);
@@ -38,6 +41,9 @@ export default function UsersManagement() {
       }
     }
   };
+
+
+  const safeUsers = Array.isArray(users) ? users : [];
 
   return (
     <div className="mt-4">
@@ -67,7 +73,7 @@ export default function UsersManagement() {
             <span className="visually-hidden">Chargement...</span>
           </div>
         </div>
-      ) : users.length === 0 ? (
+      ) : safeUsers.length === 0 ? (
         <div className="text-center py-4">
           <p className="text-muted mb-0">Aucun utilisateur trouve</p>
         </div>
@@ -81,11 +87,12 @@ export default function UsersManagement() {
                 <th>Login</th>
                 <th>Mot de passe</th>
                 <th>Role</th>
+                <th>Statut</th>
                 <th className="text-center">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
+              {safeUsers.map((user) => (
                 <tr key={user.id}>
                   <td>{user.id}</td>
                   <td>{user.nomUtilisateur}</td>
@@ -100,6 +107,11 @@ export default function UsersManagement() {
                       {user.role}
                     </span>
                   </td>
+                  <td>
+  <span className={`badge ${user.active ? 'bg-success' : 'bg-secondary'}`}>
+    {user.active ? "Actif" : "Inactif"}
+  </span>
+</td>
                   <td className="text-center">
                     <div className="btn-group" role="group">
                       <button
@@ -116,6 +128,15 @@ export default function UsersManagement() {
                       >
                         <i className="fas fa-trash"></i>
                       </button>
+                      <button
+  className={`btn btn-sm ${user.active ? 'btn-warning' : 'btn-success'}`}
+  onClick={async () => {
+    await userService.toggleActive(user.id);
+    loadUsers();
+  }}
+>
+  {user.active ? "Désactiver" : "Activer"}
+</button>
                     </div>
                   </td>
                 </tr>

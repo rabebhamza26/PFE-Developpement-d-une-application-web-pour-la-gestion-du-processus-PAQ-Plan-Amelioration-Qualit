@@ -1,183 +1,199 @@
+/* === Variables couleurs === */
 :root {
-  --collab-bg: #f4f7fb;
+  --collab-bg: #f9fafb;
   --collab-card: #ffffff;
-  --collab-border: #e8edf4;
-  --collab-text: #1f2a37;
+  --collab-card-hover: #f1f5f9;
+  --collab-border: #e2e8f0;
+  --collab-text: #1f2937;
+  --collab-muted: #6b7280;
+  --collab-primary: #3b82f6;
+  --collab-success: #16a34a;
+  --collab-warning: #facc15;
+  --collab-danger: #ef4444;
+  --collab-info: #0ea5e9;
 }
 
-body {
-  background: linear-gradient(180deg, #f7f9fc 0%, #eef3f9 100%);
+/* === Page Container === */
+.collab-page {
+  background-color: var(--collab-bg);
+  min-height: 100vh;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* === Topbar === */
+.collab-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.collab-title {
+  font-size: 1.8rem;
+  font-weight: 600;
   color: var(--collab-text);
 }
 
-.collab-page {
-  min-height: calc(100vh - 2rem);
+/* === Actions Buttons === */
+.collab-actions button {
+  background-color: var(--collab-primary);
+  color: white;
+  border: none;
+  transition: all 0.3s ease;
 }
 
+.collab-actions button:hover {
+  background-color: #2563eb;
+}
+
+/* === Stats Cards === */
 .collab-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  display: flex;
   gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
 }
 
 .stat-card {
-  background: linear-gradient(180deg, #0b1323 0%, #0b1d34 100%);
-  border: 1px solid #1b2b45;
-  border-radius: 0.75rem;
-  padding: 14px;
+  background-color: var(--collab-card);
+  border: 1px solid var(--collab-border);
+  border-radius: 12px;
+  padding: 15px 20px;
   text-align: center;
-  color: #e5efff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  flex: 1 1 120px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
 }
 
 .stat-value {
+  font-size: 1.6rem;
   font-weight: 700;
-  font-size: 1.15rem;
+  color: var(--collab-text);
 }
 
 .stat-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #8fb4ff;
+  font-size: 0.85rem;
+  color: var(--collab-muted);
+  margin-top: 4px;
 }
 
-.collab-filters {
-  display: grid;
-  grid-template-columns: minmax(200px, 1.3fr) repeat(3, minmax(140px, 1fr));
-  gap: 12px;
+/* === Search Input === */
+.collab-search-group {
+  display: flex;
   align-items: center;
 }
 
-.filter-input {
-  position: relative;
-}
-
-.filter-input i {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #7d8faa;
-}
-
-.filter-input input {
-  padding-left: 36px;
-}
-
-.collab-card,
-.form-container {
-  background: var(--collab-card);
+.collab-search-group .input-group-text {
+  background-color: var(--collab-card);
   border: 1px solid var(--collab-border);
-  border-radius: 1rem;
 }
 
-.paq-card {
-  background: var(--collab-card);
+.collab-search-group input {
+  border-left: none;
   border: 1px solid var(--collab-border);
-  border-radius: 1rem;
+  border-radius: 0 6px 6px 0;
 }
 
-.paq-feature-list .list-group-item {
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid #eef2f8;
-  color: #223145;
-  padding-top: 0.45rem;
-  padding-bottom: 0.45rem;
+/* === Table Styles === */
+.collab-table-card {
+  background-color: var(--collab-card);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
 }
 
-.paq-feature-list .list-group-item:last-child {
-  border-bottom: 0;
+.collab-table-card table {
+  border-collapse: separate;
+  border-spacing: 0 8px;
 }
 
-.collab-card {
-  overflow: hidden;
+.collab-table-card th, 
+.collab-table-card td {
+  vertical-align: middle !important;
+  border-top: none;
 }
 
-h2 {
-  color: #1b2736;
-  font-weight: 700;
+.collab-table-card tr {
+  background-color: var(--collab-card);
+  transition: all 0.3s ease;
+  border-radius: 8px;
 }
 
-.btn-add {
+.collab-table-card tr:hover {
+  background-color: var(--collab-card-hover);
+  transform: scale(1.01);
+}
+
+/* === Badges === */
+.badge {
+  padding: 5px 10px;
+  font-size: 0.75rem;
   font-weight: 600;
-  border-radius: 0.65rem;
-  padding: 0.55rem 1rem;
-}
-
-.table {
-  margin-bottom: 0;
-}
-
-.table thead th {
-  border-bottom-width: 1px;
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
+  border-radius: 12px;
   text-transform: uppercase;
-  color: #5b6b81;
+  color: white;
 }
 
-.table tbody td {
-  vertical-align: middle;
-  color: #223145;
+.badge-soft-success { background-color: var(--collab-success); }
+.badge-soft-warning { background-color: var(--collab-warning); color: #111; }
+.badge-soft-danger  { background-color: var(--collab-danger); }
+.badge-soft-info    { background-color: var(--collab-info); }
+.badge-soft-secondary { background-color: #9ca3af; }
+
+/* === Niveau Stack === */
+.niveau-stack {
+  display: flex;
+  gap: 4px;
 }
 
-.table-hover > tbody > tr:hover > * {
-  background-color: #f8fbff;
+.niveau-pill {
+  padding: 4px 6px;
+  border-radius: 6px;
+  background-color: #e5e7eb;
+  font-size: 0.7rem;
+  color: #374151;
+  transition: all 0.3s ease;
 }
 
-.badge.text-bg-info {
-  background-color: #dff3ff !important;
-  color: #0a5f8f !important;
+.niveau-pill.active {
+  background-color: var(--collab-primary);
+  color: white;
 }
 
-.form-container {
-  max-width: 680px;
-  margin: 0 auto;
+/* === Buttons inside table === */
+.collab-table-card button {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
 }
 
-.form-label {
-  font-weight: 600;
-  color: #344256;
+.collab-table-card button:hover {
+  transform: translateY(-2px);
 }
 
-.form-control,
-.form-select {
-  border-radius: 0.6rem;
-  border-color: #d5deea;
-}
-
-.form-control:focus,
-.form-select:focus {
-  border-color: #86b7fe;
-  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
-}
-
-.form-control:disabled {
-  background-color: #f3f6fb;
-}
-
-.form-buttons .btn {
-  min-width: 180px;
-  font-weight: 600;
-  border-radius: 0.65rem;
-}
-
-.error-message {
-  margin-bottom: 1rem;
-}
-
-@media (max-width: 768px) {
-  .form-container {
-    max-width: 100%;
+/* === Responsive === */
+@media (max-width: 992px) {
+  .collab-stats {
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .form-buttons .btn {
-    min-width: 100%;
+  .niveau-stack {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 576px) {
+  .collab-topbar {
+    flex-direction: column;
+    gap: 10px;
   }
 
-  .collab-filters {
-    grid-template-columns: 1fr;
+  .collab-actions button {
+    width: 100%;
   }
 }

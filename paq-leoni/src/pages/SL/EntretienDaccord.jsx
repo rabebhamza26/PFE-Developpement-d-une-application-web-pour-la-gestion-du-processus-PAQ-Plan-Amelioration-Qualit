@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import { collaboratorService, paqService } from "../../services/api";
 import { useNavigate, useParams } from "react-router-dom";
-import "../styles/paq-dossier.css";
+import "../../styles/paq-dossier.css";
 
 const DEFAULT_TYPES = ["Collage inverse", "Erreur montage", "Defaut qualite"];
 
-export default function CreateEntretien() {
+export default function EntretienDaccord({ niveau = 2 }) {
   const { matricule } = useParams();
   const navigate = useNavigate();
   const canvasRef = useRef(null);
@@ -29,6 +29,15 @@ export default function CreateEntretien() {
     commentaire: ""
   });
 
+  const entretienConfig = {
+    1: { title: "Entretien explicatif", api: paqService.createPremierEntretien },
+    2: { title: "Entretien d'accord", api: paqService.createDeuxiemeEntretien },
+    3: { title: "Troisieme Entretien", api: paqService.createTroisiemeEntretien },
+    4: { title: "Quatrieme Entretien", api: paqService.createQuatriemeEntretien },
+    5: { title: "Cinquieme Entretien", api: paqService.createCinquiemeEntretien },
+  };
+  const currentEntretien = entretienConfig[niveau] || entretienConfig[1];
+
   useEffect(() => {
     loadCollaborator();
   }, [matricule]);
@@ -36,7 +45,7 @@ export default function CreateEntretien() {
   const loadCollaborator = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`http://localhost:8081/api/collaborators/${matricule}`);
+      const res = await collaboratorService.getById(matricule);
       setCollaborator(res.data);
     } catch (err) {
       console.error("Erreur lors du chargement du collaborateur:", err);
@@ -124,15 +133,16 @@ export default function CreateEntretien() {
 
     try {
       const entretienData = {
-        matricule: matricule,
-        ...formData,
+        notes: formData.commentaire || "",
+        date: formData.dateFaute,
         signatureBase64,
-        typeEntretien: "PREMIER_ENTRETIEN",
-        createdAt: new Date().toISOString(),
-        createdBy: "SL"
+        typeFaute: formData.typeFaute,
+        gravite: formData.gravite,
+        description: formData.description,
+        mesuresCorrectives: formData.mesuresCorrectives,
       };
 
-      await axios.post("http://localhost:8081/api/entretiens", entretienData);
+      await currentEntretien.api(matricule, entretienData);
 
       navigate(`/paq-dossier/${matricule}`);
     } catch (err) {
@@ -159,9 +169,9 @@ export default function CreateEntretien() {
   return (
     <div className="paq-shell">
       <div className="paq-header">
-        <h1>Premier Entretien - {collaborator?.name}</h1>
+        <h1>{currentEntretien.title} - {collaborator?.name}</h1>
         <div className="paq-actions">
-          <button onClick={() => navigate(`/paq-dossier/${matricule}`)} className="btn-secondary">
+          <button onClick={() => navigate(`/paq-dossier/${matricule}`)} className="btn btn-secondary">
             Retour au dossier
           </button>
         </div>
@@ -183,24 +193,28 @@ export default function CreateEntretien() {
           <div className="form-row">
             <div className="form-group">
               <label>Type de faute</label>
-              <select name="typeFaute" value={formData.typeFaute} onChange={handleChange} required>
-                <option value="">Choisir</option>
-                {typeOptions.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="btn-secondary btn-add-defaut"
-                onClick={() => setShowDefautModal(true)}
-              >
-                Ajouter un defaut
-              </button>
+              <div className="type-defaut-row">
+                <select className="form-select" name="typeFaute" value={formData.typeFaute} onChange={handleChange} required>
+                  <option value="">Choisir</option>
+                  {typeOptions.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-add-defaut"
+                  onClick={() => setShowDefautModal(true)}
+                >
+                  Ajouter un defaut
+                </button>
+              </div>
             </div>
+          </div>
 
+          <div className="form-row">
             <div className="form-group">
               <label>Gravite</label>
-              <select name="gravite" value={formData.gravite} onChange={handleChange} required>
+              <select className="form-select" name="gravite" value={formData.gravite} onChange={handleChange} required>
                 <option value="Faible">Faible</option>
                 <option value="Moyenne">Moyenne</option>
                 <option value="Grave">Grave</option>
@@ -213,7 +227,7 @@ export default function CreateEntretien() {
           <div className="form-row">
             <div className="form-group">
               <label>Date</label>
-              <input type="date" name="dateFaute" value={formData.dateFaute} onChange={handleChange} required />
+              <input className="form-control" type="date" name="dateFaute" value={formData.dateFaute} onChange={handleChange} required />
             </div>
           </div>
         </div>
@@ -223,17 +237,17 @@ export default function CreateEntretien() {
 
           <div className="form-group">
             <label>Description</label>
-            <textarea name="description" value={formData.description} onChange={handleChange} />
+            <textarea className="form-control" name="description" value={formData.description} onChange={handleChange} />
           </div>
 
           <div className="form-group">
             <label>Mesures correctives</label>
-            <textarea name="mesuresCorrectives" value={formData.mesuresCorrectives} onChange={handleChange} />
+            <textarea className="form-control" name="mesuresCorrectives" value={formData.mesuresCorrectives} onChange={handleChange} />
           </div>
 
           <div className="form-group">
             <label>Commentaire</label>
-            <textarea name="commentaire" value={formData.commentaire} onChange={handleChange} />
+            <textarea className="form-control" name="commentaire" value={formData.commentaire} onChange={handleChange} />
           </div>
         </div>
 
@@ -259,12 +273,12 @@ export default function CreateEntretien() {
           <button
             type="button"
             onClick={() => navigate(`/paq-dossier/${matricule}`)}
-            className="btn-secondary"
+            className="btn btn-secondary"
             disabled={saving}
           >
             Annuler
           </button>
-          <button type="submit" className="btn-primary" disabled={saving}>
+          <button type="submit" className="btn btn-primary" disabled={saving}>
             {saving ? "Enregistrement..." : "Valider et enregistrer"}
           </button>
         </div>
@@ -284,10 +298,10 @@ export default function CreateEntretien() {
               />
             </div>
             <div className="form-actions">
-              <button type="button" className="btn-secondary" onClick={() => setShowDefautModal(false)}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowDefautModal(false)}>
                 Annuler
               </button>
-              <button type="button" className="btn-primary" onClick={addTypeOption}>
+              <button type="button" className="btn btn-primary" onClick={addTypeOption}>
                 Ajouter
               </button>
             </div>
@@ -297,3 +311,4 @@ export default function CreateEntretien() {
     </div>
   );
 }
+

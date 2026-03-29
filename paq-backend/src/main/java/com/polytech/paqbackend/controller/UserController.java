@@ -3,6 +3,7 @@ package com.polytech.paqbackend.controller;
 
 import com.polytech.paqbackend.entity.User;
 import com.polytech.paqbackend.repository.UserRepository;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -10,7 +11,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = "http://localhost:5177")
 public class UserController {
     private final UserRepository userRepository;
 
@@ -18,52 +18,63 @@ public class UserController {
         this.userRepository = userRepository;
     }
 
-    // Lister tous les utilisateurs
+    // 🔹 GET ALL
     @GetMapping
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
 
-    // Ajouter un utilisateur
+    // 🔹 CREATE
     @PostMapping
     public User createUser(@RequestBody User user) {
+        user.setActive(true);
         return userRepository.save(user);
     }
 
-    // Chercher un utilisateur par ID
+    // 🔹 GET BY ID
     @GetMapping("/{id}")
-    public User getUserById(@PathVariable Long id) {
-        return userRepository.findById(id).orElse(null);
+    public ResponseEntity<User> getUser(@PathVariable Long id) {
+        return userRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    // Mettre à jour un utilisateur
+    // 🔹 UPDATE
     @PutMapping("/{id}")
-    public User updateUser(@PathVariable Long id, @RequestBody User userDetails) {
-        Optional<User> optionalUser = userRepository.findById(id);
-        if (optionalUser.isPresent()) {
-            User user = optionalUser.get();
-            user.setLogin(userDetails.getLogin());
+    public ResponseEntity<User> updateUser(@PathVariable Long id,
+                                           @RequestBody User userDetails) {
+
+        return userRepository.findById(id).map(user -> {
+
             user.setNomUtilisateur(userDetails.getNomUtilisateur());
+            user.setLogin(userDetails.getLogin());
+            user.setRole(userDetails.getRole());
 
             if (userDetails.getPassword() != null && !userDetails.getPassword().isBlank()) {
                 user.setPassword(userDetails.getPassword());
             }
 
-            user.setRole(userDetails.getRole());
-            return userRepository.save(user);
-        }
-        return null;
+            return ResponseEntity.ok(userRepository.save(user));
+        }).orElse(ResponseEntity.notFound().build());
     }
 
-
-    // Supprimer un utilisateur
+    // 🔹 DELETE
     @DeleteMapping("/{id}")
-    public String deleteUser(@PathVariable Long id) {
-        if(userRepository.existsById(id)){
-            userRepository.deleteById(id);
-            return "Deleted";
-        } else {
-            return "User not found";
+    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+        if (!userRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
         }
+        userRepository.deleteById(id);
+        return ResponseEntity.ok().build();
+    }
+
+    // 🔹 ACTIVER / DESACTIVER 🚀
+    @PatchMapping("/{id}/toggle-active")
+    public ResponseEntity<User> toggleActive(@PathVariable Long id) {
+
+        return userRepository.findById(id).map(user -> {
+            user.setActive(!user.isActive());
+            return ResponseEntity.ok(userRepository.save(user));
+        }).orElse(ResponseEntity.notFound().build());
     }
 }

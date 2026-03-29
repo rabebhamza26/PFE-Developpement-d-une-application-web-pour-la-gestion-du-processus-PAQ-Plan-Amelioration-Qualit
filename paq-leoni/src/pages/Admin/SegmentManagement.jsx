@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { getSegments, createSegment, updateSegment, deleteSegment } from "../services/api";
+import { getSegments, createSegment, updateSegment, deleteSegment } from "../../services/api";
 
 export default function SegmentManagement() {
   const [segments, setSegments] = useState([]);

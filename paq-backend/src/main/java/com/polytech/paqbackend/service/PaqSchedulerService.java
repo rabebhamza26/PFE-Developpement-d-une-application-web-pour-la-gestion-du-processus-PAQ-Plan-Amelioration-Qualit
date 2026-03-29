@@ -2,19 +2,29 @@ package com.polytech.paqbackend.service;
 
 
 
+import com.polytech.paqbackend.controller.PaqController;
+import com.polytech.paqbackend.dto.CollaborateurSansFauteDto;
+import com.polytech.paqbackend.dto.EnvoyerSlRequest;
 import com.polytech.paqbackend.entity.Collaborator;
 import com.polytech.paqbackend.entity.PaqDossier;
 
 import com.polytech.paqbackend.repository.CollaboratorRepository;
 import com.polytech.paqbackend.repository.PaqRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
+import java.time.temporal.ChronoUnit;
 
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class PaqSchedulerService {
@@ -25,43 +35,256 @@ public class PaqSchedulerService {
     @Autowired
     private PaqRepository paqRepository;
 
-    // Vérifie chaque jour
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
+    // Add missing dependency
+    @Autowired
+    private EntretienPositifService entretienPositifService;
 
-            @Scheduled(cron = "0 0 2 * * ?") // Tous les jours à 2h00
-            public void createPaqAfterSixMonths() {
-                List<Collaborator> collaborators = collaboratorRepository.findAll();
+    // Classe interne pour l'historique
+    public static class HistoriqueEvent {
+        private LocalDate date;
+        private String action;
+        private String detail;
 
-                for (Collaborator collab : collaborators) {
-                    LocalDate hireDate = collab.getHireDate();
+        public HistoriqueEvent() {}
 
-                    if (hireDate == null) continue;
+        public HistoriqueEvent(LocalDate date, String action, String detail) {
+            this.date = date;
+            this.action = action;
+            this.detail = detail;
+        }
 
-                    long months = ChronoUnit.MONTHS.between(hireDate, LocalDate.now());
+        public LocalDate getDate() { return date; }
+        public void setDate(LocalDate date) { this.date = date; }
+        public String getAction() { return action; }
+        public void setAction(String action) { this.action = action; }
+        public String getDetail() { return detail; }
+        public void setDetail(String detail) { this.detail = detail; }
+    }
 
-                    if (months >= 6) {
-                        Optional<PaqDossier> existing = paqRepository.findByCollaboratorMatricule(collab.getMatricule());
+    private String addHistorique(String historiqueJson, HistoriqueEvent event) {
+        try {
+            List<HistoriqueEvent> list;
+            if (historiqueJson == null || historiqueJson.isBlank() || "[]".equals(historiqueJson)) {
+                list = new ArrayList<>();
+            } else {
+                list = objectMapper.readValue(historiqueJson, new TypeReference<List<HistoriqueEvent>>() {});
+            }
+            list.add(event);
+            list.sort(Comparator.comparing(HistoriqueEvent::getDate));
+            return objectMapper.writeValueAsString(list);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return String.format("[{\"date\":\"%s\",\"action\":\"%s\",\"detail\":\"%s\"}]",
+                    event.getDate(), event.getAction(), event.getDetail());
+        }
+    }
 
-                        if (existing.isEmpty()) {
-                            PaqDossier paq = new PaqDossier();
-                            paq.setCollaboratorMatricule(collab.getMatricule()); // String
-                            paq.setCreatedAt(LocalDate.now().atStartOfDay());                            paq.setNiveau(1);
+    /**
+     * Crée automatiquement un nouveau PAQ tous les 6 mois pour chaque collaborateur actif
+     * Vérifie tous les jours à minuit
+     */
+    @Scheduled(cron = "0 0 0 * * ?")
+    @Transactional
+    public void createPeriodicPaq() {
+        System.out.println("=== Création automatique des PAQ périodiques ===");
+        LocalDate now = LocalDate.now();
+        List<Collaborator> activeCollaborators = collaboratorRepository.findByDepartFalseAndArchivedFalse();
 
-                            paq.setHistorique("""
-                        [
-                          {
-                            "date": "%s",
-                            "action": "Création dossier PAQ",
-                            "detail": "Dossier généré automatiquement après 6 mois"
-                          }
-                        ]
-                    """.formatted(LocalDate.now()));
+        int createdCount = 0;
 
-                            paqRepository.save(paq);
-                            System.out.println("PAQ créé pour : " + collab.getMatricule());
-                        }
+        for (Collaborator collab : activeCollaborators) {
+            if (collab.getHireDate() == null) continue;
+
+            // Vérifier que le collaborateur a au moins 6 mois d'ancienneté
+            if (ChronoUnit.MONTHS.between(collab.getHireDate(), now) < 6) {
+                continue;
+            }
+
+            // Récupérer le dernier PAQ de ce collaborateur
+            List<PaqDossier> paqHistory = paqRepository.findAllByCollaboratorMatriculeOrderByDateCreationDesc(collab.getMatricule());
+            PaqDossier lastPaq = paqHistory.isEmpty() ? null : paqHistory.get(0);
+
+            // Si pas de PAQ
+            if (lastPaq == null) {
+                // Créer le premier PAQ
+                PaqDossier newPaq = new PaqDossier();
+                newPaq.setCollaboratorMatricule(collab.getMatricule());
+                newPaq.setDateCreation(collab.getHireDate()); // Utiliser la date d'embauche comme date de création
+                newPaq.setDateFin(collab.getHireDate().plusMonths(6));
+                newPaq.setCreatedAt(LocalDateTime.now());
+                newPaq.setNiveau(0);
+                newPaq.setStatut("EN_COURS");
+                newPaq.setActif(true);
+                newPaq.setArchived(false);
+                newPaq.setDerniereFaute(null);
+
+                String historique = addHistorique(null, new HistoriqueEvent(
+                        collab.getHireDate(),
+                        "Création du dossier PAQ",
+                        String.format("Dossier créé après %d mois d'ancienneté",
+                                ChronoUnit.MONTHS.between(collab.getHireDate(), now))
+                ));
+                newPaq.setHistorique(historique);
+
+                paqRepository.save(newPaq);
+                createdCount++;
+                System.out.println("Premier PAQ créé pour: " + collab.getMatricule());
+            }
+            // Si le dernier PAQ date de plus de 6 mois
+            else if (lastPaq.getDateCreation().plusMonths(6).isBefore(now)) {
+                // Archiver l'ancien PAQ
+                lastPaq.setArchived(true);
+                lastPaq.setActif(false);
+                lastPaq.setStatut("ARCHIVE");
+                String archiveHistorique = addHistorique(lastPaq.getHistorique(),
+                        new HistoriqueEvent(now, "Archivage automatique",
+                                "Fin de période - Nouveau PAQ créé"));
+                lastPaq.setHistorique(archiveHistorique);
+                paqRepository.save(lastPaq);
+
+                // Créer le nouveau PAQ
+                PaqDossier newPaq = new PaqDossier();
+                newPaq.setCollaboratorMatricule(collab.getMatricule());
+                newPaq.setDateCreation(now);
+                newPaq.setDateFin(now.plusMonths(6));
+                newPaq.setCreatedAt(LocalDateTime.now());
+                newPaq.setNiveau(0);
+                newPaq.setStatut("EN_COURS");
+                newPaq.setActif(true);
+                newPaq.setArchived(false);
+                newPaq.setDerniereFaute(null);
+
+                int periode = paqHistory.size() + 1;
+                String historique = addHistorique(null, new HistoriqueEvent(
+                        now,
+                        "Création automatique du dossier PAQ",
+                        String.format("Période %d: %s - %s", periode, now, now.plusMonths(6))
+                ));
+                newPaq.setHistorique(historique);
+
+                paqRepository.save(newPaq);
+                createdCount++;
+                System.out.println("Nouveau PAQ créé pour: " + collab.getMatricule() + " (Période " + periode + ")");
+            }
+        }
+
+        System.out.println("Création PAQ périodique terminée: " + createdCount + " dossiers créés");
+    }
+
+    /**
+     * Archive automatiquement les PAQ arrivés à terme (6 mois)
+     */
+    @Scheduled(cron = "0 0 1 * * ?")
+    @Transactional
+    public void archiveExpiredPaq() {
+        System.out.println("=== Archivage des PAQ expirés ===");
+        LocalDate now = LocalDate.now();
+
+        List<PaqDossier> activePaqs = paqRepository.findByActifTrueAndArchivedFalse();
+        int archivedCount = 0;
+
+        for (PaqDossier paq : activePaqs) {
+            if (paq.getDateFin() != null && paq.getDateFin().isBefore(now)) {
+                paq.setArchived(true);
+                paq.setActif(false);
+                paq.setStatut("ARCHIVE");
+
+                String newHistorique = addHistorique(paq.getHistorique(),
+                        new HistoriqueEvent(now, "Archivage automatique",
+                                "Fin de période de 6 mois - Dossier archivé"));
+                paq.setHistorique(newHistorique);
+
+                paqRepository.save(paq);
+                archivedCount++;
+                System.out.println("PAQ archivé pour: " + paq.getCollaboratorMatricule());
+            }
+        }
+
+        System.out.println("Archivage terminé: " + archivedCount + " dossiers archivés");
+    }
+
+    /**
+     * Gère les départs des collaborateurs
+     * Archive les PAQ en lecture seule pendant 6 mois après le départ
+     */
+    @Scheduled(cron = "0 0 0  * * ?")
+    @Transactional
+    public void handleDepartures() {
+        System.out.println("=== Gestion des départs collaborateurs ===");
+        LocalDate now = LocalDate.now();
+
+        List<Collaborator> departedCollaborators = collaboratorRepository.findByDepartTrueAndArchivedFalse();
+
+        for (Collaborator collab : departedCollaborators) {
+            LocalDate departureDate = collab.getDepartDate(); // Changed from getDepart() to getDepartDate()
+            if (departureDate == null) continue;
+
+            // Si le départ date de plus de 6 mois, archiver définitivement
+            if (departureDate.plusMonths(6).isBefore(now)) {
+                collab.setArchived(true);
+                collaboratorRepository.save(collab);
+
+                // Archiver tous les PAQ de ce collaborateur
+                List<PaqDossier> paqs = paqRepository.findAllByCollaboratorMatriculeOrderByDateCreationDesc(collab.getMatricule());
+                for (PaqDossier paq : paqs) {
+                    if (!paq.isArchived()) {
+                        paq.setArchived(true);
+                        paq.setActif(false);
+                        paq.setStatut("ARCHIVE_DEPART");
+                        String newHistorique = addHistorique(paq.getHistorique(),
+                                new HistoriqueEvent(now, "Archivage définitif",
+                                        "Collaborateur parti depuis plus de 6 mois - Archivage définitif"));
+                        paq.setHistorique(newHistorique);
+                        paqRepository.save(paq);
+                    }
+                }
+                System.out.println("Collaborateur archivé définitivement: " + collab.getMatricule());
+            }
+            // Sinon, s'assurer que les PAQ sont en lecture seule
+            else {
+                List<PaqDossier> activePaqs = paqRepository.findByActifTrueAndArchivedFalse();
+                for (PaqDossier paq : activePaqs) {
+                    if (paq.getCollaboratorMatricule().equals(collab.getMatricule())) {
+                        paq.setStatut("DEPART_READONLY");
+                        String newHistorique = addHistorique(paq.getHistorique(),
+                                new HistoriqueEvent(now, "Départ collaborateur",
+                                        "Dossier en lecture seule pour 6 mois suite au départ"));
+                        paq.setHistorique(newHistorique);
+                        paqRepository.save(paq);
+                        System.out.println("PAQ mis en lecture seule pour: " + collab.getMatricule());
                     }
                 }
             }
         }
+    }
 
+
+        /**
+         * Vérifie tous les 6 mois (1er mars et 1er septembre) les collaborateurs sans faute
+         * et envoie automatiquement la liste au SL
+         */
+        @Scheduled(cron = "0 0 8 1 3,9 *") // 1er mars et 1er septembre à 8h
+        public void verifierEtEnvoyerListe() {
+            System.out.println("=== Vérification automatique des collaborateurs sans faute (période 6 mois) ===");
+
+            List<CollaborateurSansFauteDto> sansFaute = entretienPositifService.getCollaborateursSansFaute();
+
+            if (!sansFaute.isEmpty()) {
+                EnvoyerSlRequest request = new EnvoyerSlRequest();
+                request.setMatricules(sansFaute.stream()
+                        .map(CollaborateurSansFauteDto::getMatricule)
+                        .collect(Collectors.toList()));
+                request.setSlDestinataire("sl@leoni.com");
+                request.setDateEnvoi(LocalDate.now());
+                request.setMessage("Liste automatique des collaborateurs sans faute depuis 6 mois");
+
+                entretienPositifService.envoyerListeSl(request);
+                System.out.println("✅ Liste envoyée automatiquement pour " + sansFaute.size() + " collaborateurs");
+            } else {
+                System.out.println("📭 Aucun collaborateur sans faute sur les 6 derniers mois");
+            }
+        }
+
+}

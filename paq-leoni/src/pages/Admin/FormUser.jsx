@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { userService } from "../services/api";
+import { userService } from "../../services/api";
 
 export default function FormUser() {
   const [users, setUsers] = useState([]);

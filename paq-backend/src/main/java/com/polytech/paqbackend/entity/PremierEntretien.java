@@ -1,33 +1,30 @@
 package com.polytech.paqbackend.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-
+import jakarta.persistence.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+
 @Entity
-public class premierEntretien {
+@Table(name = "premier_entretien")
+public class PremierEntretien {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    private String matricule;
     private String typeFaute;
     private String gravite;
-    private String source;
-    private String poste;
-
-    private String description;
-    private String mesuresCorrectives;
-    private String commentaire;
-
     private LocalDate dateFaute;
+    @Column(columnDefinition="TEXT") private String description;
+    @Column(columnDefinition="TEXT") private String mesuresCorrectives;
+    @Column(columnDefinition="TEXT") private String commentaire;
+    @Column(columnDefinition="LONGTEXT") private String signatureBase64;
+    private String typeEntretien;
+    private String createdBy;
+    private LocalDateTime createdAt = LocalDateTime.now();
 
-    private int quantiteNonConforme;
-
-    private String signature;
-
-    private Long dossierId;
+    // getters et setters
 
     public Long getId() {
         return id;
@@ -35,6 +32,14 @@ public class premierEntretien {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getMatricule() {
+        return matricule;
+    }
+
+    public void setMatricule(String matricule) {
+        this.matricule = matricule;
     }
 
     public String getTypeFaute() {
@@ -53,20 +58,12 @@ public class premierEntretien {
         this.gravite = gravite;
     }
 
-    public String getSource() {
-        return source;
+    public LocalDate getDateFaute() {
+        return dateFaute;
     }
 
-    public void setSource(String source) {
-        this.source = source;
-    }
-
-    public String getPoste() {
-        return poste;
-    }
-
-    public void setPoste(String poste) {
-        this.poste = poste;
+    public void setDateFaute(LocalDate dateFaute) {
+        this.dateFaute = dateFaute;
     }
 
     public String getDescription() {
@@ -75,38 +72,6 @@ public class premierEntretien {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public Long getDossierId() {
-        return dossierId;
-    }
-
-    public void setDossierId(Long dossierId) {
-        this.dossierId = dossierId;
-    }
-
-    public String getSignature() {
-        return signature;
-    }
-
-    public void setSignature(String signature) {
-        this.signature = signature;
-    }
-
-    public int getQuantiteNonConforme() {
-        return quantiteNonConforme;
-    }
-
-    public void setQuantiteNonConforme(int quantiteNonConforme) {
-        this.quantiteNonConforme = quantiteNonConforme;
-    }
-
-    public LocalDate getDateFaute() {
-        return dateFaute;
-    }
-
-    public void setDateFaute(LocalDate dateFaute) {
-        this.dateFaute = dateFaute;
     }
 
     public String getMesuresCorrectives() {
@@ -123,5 +88,37 @@ public class premierEntretien {
 
     public void setCommentaire(String commentaire) {
         this.commentaire = commentaire;
+    }
+
+    public String getSignatureBase64() {
+        return signatureBase64;
+    }
+
+    public void setSignatureBase64(String signatureBase64) {
+        this.signatureBase64 = signatureBase64;
+    }
+
+    public String getTypeEntretien() {
+        return typeEntretien;
+    }
+
+    public void setTypeEntretien(String typeEntretien) {
+        this.typeEntretien = typeEntretien;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
     }
 }

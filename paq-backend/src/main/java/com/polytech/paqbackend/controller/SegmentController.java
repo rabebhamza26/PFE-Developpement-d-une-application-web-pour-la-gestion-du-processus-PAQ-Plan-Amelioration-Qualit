@@ -11,7 +11,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/segments")
-@CrossOrigin(origins = "http://localhost:5177")
 public class SegmentController {
     @Autowired
     private SegmentRepository segmentRepository;

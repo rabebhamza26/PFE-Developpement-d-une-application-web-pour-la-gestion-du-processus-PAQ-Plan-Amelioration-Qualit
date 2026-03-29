@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { userService } from "../services/api";
+import { userService } from "../../services/api";
 
 export default function EditUser() {
   const { id } = useParams();
@@ -8,7 +8,8 @@ export default function EditUser() {
     nomUtilisateur: "",
     login: "",
     password: "",
-    role: "ADMIN"
+    role: "ADMIN",
+    active: true
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,7 +29,8 @@ export default function EditUser() {
         nomUtilisateur: res.data.nomUtilisateur,
         login: res.data.login,
         password: "", // Ne pas pré-remplir le mot de passe
-        role: res.data.role
+        role: res.data.role,
+        active: res.data.active ?? true
       });
     } catch (err) {
       setError("Erreur lors du chargement de l'utilisateur: " + (err.response?.data?.message || err.message));
@@ -56,6 +58,7 @@ export default function EditUser() {
       if (!form.password.trim()) {
         delete dataToSend.password;
       }
+      dataToSend.active = dataToSend.active === undefined ? true : !!dataToSend.active;
 
       await userService.updateUser(id, dataToSend);
       navigate("/admin/users");
@@ -159,19 +162,16 @@ export default function EditUser() {
                   <label htmlFor="role" className="form-label">
                     <i className="fas fa-user-tag me-2"></i>Rôle *
                   </label>
-                  <select
-                    className="form-select"
-                    id="role"
-                    name="role"
-                    value={form.role}
-                    onChange={handleChange}
-                    required
-                  >
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="RH">RH</option>
-                    <option value="SGL">SGL</option>
-                    <option value="QM">QM</option>
-                  </select>
+                 <select name="role" value={form.role} onChange={handleChange} className="form-select">
+  <option value="ADMIN">ADMIN</option>
+  <option value="SL">SL</option>
+  <option value="QM_SEGMENT">QM Segment</option>
+  <option value="QM_PLANT">QM Plant</option>
+  <option value="SGL">SGL</option>
+  <option value="HP">HP</option>
+  <option value="RH">RH</option>
+  <option value="COORDINATEUR_FORMATION">Coordinateur Formation</option>
+</select>
                 </div>
 
                 <div className="d-flex gap-2 justify-content-end">

@@ -6,8 +6,11 @@ import com.polytech.paqbackend.repository.CollaboratorRepository;
 import com.polytech.paqbackend.repository.PaqRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class CollaboratorService {
@@ -18,31 +21,65 @@ public class CollaboratorService {
     @Autowired
     private PaqRepository paqRepository;
 
-    public Collaborator create(Collaborator collaborator){
-
+    @Transactional
+    public Collaborator create(Collaborator collaborator) {
+        // Initialisation des valeurs par défaut
         collaborator.setNiveau(0);
         collaborator.setStatus("ACTIF");
+        collaborator.setActif(true);
+        collaborator.setArchived(false);
+        collaborator.setDepart(false);
 
+        // Sauvegarde du collaborateur
         Collaborator saved = collaboratorRepository.save(collaborator);
 
-        if(collaborator.getHireDate().plusMonths(6).isBefore(LocalDate.now())){
-
-            PaqDossier paq = new PaqDossier();
-
-            paq.setCollaboratorMatricule(saved.getMatricule());
-            paq.setCreatedAt(LocalDate.now().atStartOfDay());
-            paq.setNiveau(0);
-
-            paq.setHistorique("""
-            [
-              {"date":"%s","action":"Création du dossier PAQ","detail":"Créé automatiquement"}
-            ]
-            """.formatted(LocalDate.now()));
-
-            paqRepository.save(paq);
-
-        }
+        // Note: Le PAQ ne sera créé qu'après 6 mois, pas immédiatement
+        // Un scheduler s'occupe de la création automatique
 
         return saved;
+    }
+
+    @Transactional
+    public Collaborator update(String matricule, Collaborator collaborator) {
+        Optional<Collaborator> existingOpt = collaboratorRepository.findById(matricule);
+        if (!existingOpt.isPresent()) {
+            throw new RuntimeException("Collaborateur non trouvé");
+        }
+
+        Collaborator existing = existingOpt.get();
+
+        if (collaborator.getName() != null && !collaborator.getName().trim().isEmpty()) {
+            existing.setName(collaborator.getName());
+        }
+        if (collaborator.getPrenom() != null && !collaborator.getPrenom().trim().isEmpty()) {
+            existing.setPrenom(collaborator.getPrenom());
+        }
+        if (collaborator.getSegment() != null && !collaborator.getSegment().trim().isEmpty()) {
+            existing.setSegment(collaborator.getSegment());
+        }
+        if (collaborator.getHireDate() != null) {
+            existing.setHireDate(collaborator.getHireDate());
+        }
+
+        return collaboratorRepository.save(existing);
+    }
+
+    @Transactional
+    public void delete(String matricule) {
+        if (!collaboratorRepository.existsById(matricule)) {
+            throw new RuntimeException("Collaborateur non trouvé");
+        }
+
+        // Archiver les dossiers PAQ associés
+        Optional<PaqDossier> activePaq = paqRepository.findFirstByCollaboratorMatriculeAndActifTrue(matricule);
+        if (activePaq.isPresent()) {
+            PaqDossier paq = activePaq.get();
+            paq.setArchived(true);
+            paq.setActif(false);
+            paq.setStatut("ARCHIVE");
+            paqRepository.save(paq);
+        }
+
+        collaboratorRepository.deleteById(matricule);
     }
 }

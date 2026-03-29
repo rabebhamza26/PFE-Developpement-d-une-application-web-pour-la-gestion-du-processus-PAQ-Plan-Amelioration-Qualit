@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { userService } from "../services/api";
+import { userService } from "../../services/api";
 
 export default function AddUser() {
   const initialForm = {
     nomUtilisateur: "",
     login: "",
     password: "",
-    role: "ADMIN"
+    role: "ADMIN",
+    active: true
   };
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,8 @@ export default function AddUser() {
     setLoading(true);
 
     try {
-      await userService.createUser(form);
+      const payload = { ...form, active: form.active === undefined ? true : !!form.active };
+      await userService.createUser(payload);
       navigate("/admin/users", { replace: true });
     } catch (err) {
       setError("Erreur lors de l'ajout de l'utilisateur: " + (err.response?.data?.message || err.message));
@@ -115,19 +117,16 @@ export default function AddUser() {
                   <label htmlFor="role" className="form-label">
                     <i className="fas fa-user-tag me-2"></i>Rôle *
                   </label>
-                  <select
-                    className="form-select"
-                    id="role"
-                    name="role"
-                    value={form.role}
-                    onChange={handleChange}
-                    required
-                  >
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="RH">RH</option>
-                    <option value="SGL">SGL</option>
-                    <option value="QM">QM</option>
-                  </select>
+                 <select name="role" value={form.role} onChange={handleChange} className="form-select">
+  <option value="ADMIN">ADMIN</option>
+  <option value="SL">SL</option>
+  <option value="QM_SEGMENT">QM Segment</option>
+  <option value="QM_PLANT">QM Plant</option>
+  <option value="SGL">SGL</option>
+  <option value="HP">HP</option>
+  <option value="RH">RH</option>
+  <option value="COORDINATEUR_FORMATION">Coordinateur Formation</option>
+</select>
                 </div>
 
                 <div className="d-flex gap-2 justify-content-end">
