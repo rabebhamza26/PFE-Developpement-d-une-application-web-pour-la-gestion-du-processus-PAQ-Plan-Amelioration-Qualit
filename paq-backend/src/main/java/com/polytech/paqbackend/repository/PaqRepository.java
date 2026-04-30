@@ -30,5 +30,11 @@ public interface PaqRepository extends JpaRepository<PaqDossier, Long> {
     // Add this method with @Query
     @Query("SELECT p FROM PaqDossier p WHERE p.createdAt < :date AND p.statut != :statut")
     List<PaqDossier> findOldPaqsNotArchived(@Param("date") LocalDateTime date, @Param("statut") String statut);
+
+    List<PaqDossier> findByCollaboratorMatriculeOrderByDateCreationDesc(String matricule);
+
+    Optional<PaqDossier> findByCollaboratorMatricule(String matricule);
+
+
 }
 

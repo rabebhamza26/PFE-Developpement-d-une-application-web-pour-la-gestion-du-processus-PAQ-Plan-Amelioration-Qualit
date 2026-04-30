@@ -89,6 +89,7 @@ export default function FormUser() {
                         <th>ID</th>
                         <th>Nom complet</th>
                         <th>Login</th>
+                        <th>Email</th>
                         <th>Rôle</th>
                         <th className="text-center">Actions</th>
                       </tr>
@@ -99,6 +100,7 @@ export default function FormUser() {
                           <td>{user.id}</td>
                           <td>{user.nomUtilisateur}</td>
                           <td>{user.login}</td>
+                          <td>{user.email}</td>
                           <td>
                             <span className={`badge ${
                               user.role === 'ADMIN' ? 'bg-danger' :

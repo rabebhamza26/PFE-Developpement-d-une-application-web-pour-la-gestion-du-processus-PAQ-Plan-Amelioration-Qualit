@@ -1,80 +1,96 @@
+// UserController.java - Version avec DTOs séparés
 package com.polytech.paqbackend.controller;
 
-
+import com.polytech.paqbackend.dto.CreateUserRequest;
+import com.polytech.paqbackend.dto.UpdateUserRequest;
+import com.polytech.paqbackend.dto.UserResponseDto;
 import com.polytech.paqbackend.entity.User;
 import com.polytech.paqbackend.repository.UserRepository;
+import com.polytech.paqbackend.service.UserService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
     private final UserRepository userRepository;
+    private final UserService userService;
 
-    public UserController(UserRepository userRepository) {
+    public UserController(UserRepository userRepository, UserService userService) {
         this.userRepository = userRepository;
+        this.userService = userService;
     }
 
-    // 🔹 GET ALL
+    @GetMapping("/basic")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<UserResponseDto>> getAllUsersBasic() {
+        List<User> users = userRepository.findAll();
+        List<UserResponseDto> result = users.stream()
+                .map(u -> UserResponseDto.builder()
+                        .id(u.getId())
+                        .nomUtilisateur(u.getNomUtilisateur())
+                        .login(u.getLogin())
+                        .email(u.getEmail())
+                        .role(u.getRole())
+                        .active(u.isActive())
+                        .createdAt(u.getCreatedAt())
+                        .build())
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/all")
+    public ResponseEntity<List<String>> getAllEmails() {
+        return ResponseEntity.ok(userService.getAllEmails());
+    }
+
     @GetMapping
-    public List<User> getAllUsers() {
-        return userRepository.findAll();
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<UserResponseDto>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    // 🔹 CREATE
     @PostMapping
-    public User createUser(@RequestBody User user) {
-        user.setActive(true);
-        return userRepository.save(user);
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponseDto> createUser(@RequestBody CreateUserRequest request) {
+        return ResponseEntity.ok(userService.createUser(request));
     }
 
-    // 🔹 GET BY ID
     @GetMapping("/{id}")
-    public ResponseEntity<User> getUser(@PathVariable Long id) {
-        return userRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponseDto> getUser(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.getUserById(id));
     }
 
-    // 🔹 UPDATE
     @PutMapping("/{id}")
-    public ResponseEntity<User> updateUser(@PathVariable Long id,
-                                           @RequestBody User userDetails) {
-
-        return userRepository.findById(id).map(user -> {
-
-            user.setNomUtilisateur(userDetails.getNomUtilisateur());
-            user.setLogin(userDetails.getLogin());
-            user.setRole(userDetails.getRole());
-
-            if (userDetails.getPassword() != null && !userDetails.getPassword().isBlank()) {
-                user.setPassword(userDetails.getPassword());
-            }
-
-            return ResponseEntity.ok(userRepository.save(user));
-        }).orElse(ResponseEntity.notFound().build());
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> updateUser(@PathVariable Long id,
+                                        @RequestBody UpdateUserRequest request) {
+        try {
+            UserResponseDto updated = userService.updateUser(id, request);
+            return ResponseEntity.ok(updated);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
-    // 🔹 DELETE
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteUser(@PathVariable Long id) {
         if (!userRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
-        userRepository.deleteById(id);
+        userService.deleteUser(id);
         return ResponseEntity.ok().build();
     }
 
-    // 🔹 ACTIVER / DESACTIVER 🚀
     @PatchMapping("/{id}/toggle-active")
-    public ResponseEntity<User> toggleActive(@PathVariable Long id) {
-
-        return userRepository.findById(id).map(user -> {
-            user.setActive(!user.isActive());
-            return ResponseEntity.ok(userRepository.save(user));
-        }).orElse(ResponseEntity.notFound().build());
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserResponseDto> toggleActive(@PathVariable Long id) {
+        return ResponseEntity.ok(userService.toggleActive(id));
     }
 }

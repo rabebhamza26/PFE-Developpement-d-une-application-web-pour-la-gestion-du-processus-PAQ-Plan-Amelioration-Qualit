@@ -1,0 +1,124 @@
+/* Entretien D'accord — Extensions au design system Leoni */
+/* Les styles de base (shell, header, cards, boutons, modale) viennent de : */
+/*   - paq-dossier.css      → layout, header, cartes, boutons, modale */
+/*   - entretien-explicatif.css → formulaires, inputs, grilles, signatures */
+
+/* ============================================================ */
+/*  DROPDOWN recherche faute                                   */
+/* ============================================================ */
+
+.leoni-dropdown-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--ln-surface);
+  border: 1px solid var(--ln-border);
+  border-radius: var(--ln-radius);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: var(--ln-shadow);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.leoni-dropdown-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: var(--ln-tr);
+  border-bottom: 1px solid var(--ln-border-soft);
+  font-size: 14px;
+}
+
+.leoni-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.leoni-dropdown-item:hover,
+.leoni-dropdown-item:focus {
+  background: var(--ln-surface-2);
+  outline: none;
+}
+
+.leoni-dropdown-empty {
+  padding: 14px;
+  color: var(--ln-muted);
+  text-align: center;
+  font-style: italic;
+  font-size: 13px;
+}
+
+/* ============================================================ */
+/*  CHAMPS READ-ONLY & MUTED                                    */
+/* ============================================================ */
+
+.leoni-readonly {
+  background: var(--ln-surface-2);
+  padding: 10px 12px;
+  border-radius: var(--ln-radius);
+  border: 1px solid var(--ln-border-soft);
+  color: var(--ln-text-2);
+  font-weight: 500;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.leoni-muted {
+  color: var(--ln-muted);
+  font-style: italic;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ============================================================ */
+/*  CHECKBOX                                                    */
+/* ============================================================ */
+
+.leoni-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.leoni-checkbox-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ln-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+}
+
+.leoni-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ln-blue);
+  cursor: pointer;
+}
+
+/* ============================================================ */
+/*  UTILITAIRES                                                 */
+/* ============================================================ */
+
+.leoni-inline-reverse {
+  flex-direction: row-reverse;
+}
+
+/* ============================================================ */
+/*  RESPONSIVE                                                  */
+/* ============================================================ */
+
+@media (max-width: 640px) {
+  .leoni-inline-reverse {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+

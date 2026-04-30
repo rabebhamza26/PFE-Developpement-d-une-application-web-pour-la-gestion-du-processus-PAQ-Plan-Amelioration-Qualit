@@ -27,7 +27,6 @@ public class PaqDossier {
     @Column(name = "statut")
     private String statut = "EN_COURS";
 
-    private boolean archived = false;
 
     @Column(columnDefinition = "TEXT")
     private String historique;
@@ -42,12 +41,15 @@ public class PaqDossier {
     private LocalDate dateTroisiemeEntretien;
     private String troisiemeEntretienNotes;
 
+
+
     private LocalDate dateQuatriemeEntretien;
     private String quatriemeEntretienNotes;
 
     private LocalDate dateCinquiemeEntretien;
     private String cinquiemeEntretienNotes;
-
+    private boolean archived = false;
+    private LocalDate dateArchivage; // nouvelle ligne
     // Constructeurs
     public PaqDossier() {}
 
@@ -92,9 +94,15 @@ public class PaqDossier {
     public String getStatut() { return statut; }
     public void setStatut(String statut) { this.statut = statut; }
 
+    // ...
+
+
     public boolean isArchived() { return archived; }
     public void setArchived(boolean archived) { this.archived = archived; }
 
+    public LocalDate getDateArchivage() { return dateArchivage; }
+    public void setDateArchivage(LocalDate dateArchivage) { this.dateArchivage = dateArchivage; }
+    // ...
     public String getHistorique() { return historique; }
     public void setHistorique(String historique) { this.historique = historique; }
 

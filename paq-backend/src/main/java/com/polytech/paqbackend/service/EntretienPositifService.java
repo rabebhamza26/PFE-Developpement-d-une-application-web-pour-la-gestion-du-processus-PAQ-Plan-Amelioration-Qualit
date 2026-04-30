@@ -1,23 +1,35 @@
 package com.polytech.paqbackend.service;
 
+import com.itextpdf.kernel.colors.ColorConstants;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Cell;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Table;
+import com.itextpdf.layout.properties.UnitValue;
 import com.polytech.paqbackend.dto.CollaborateurSansFauteDto;
 import com.polytech.paqbackend.dto.EnvoyerSlRequest;
 import com.polytech.paqbackend.dto.ValiderEntretienPositifRequest;
+import com.polytech.paqbackend.entity.Archive;
 import com.polytech.paqbackend.entity.Collaborator;
 import com.polytech.paqbackend.entity.EntretienPositif;
 import com.polytech.paqbackend.entity.PaqDossier;
+import com.polytech.paqbackend.repository.ArchiveRepository;
 import com.polytech.paqbackend.repository.CollaboratorRepository;
 import com.polytech.paqbackend.repository.EntretienPositifRepository;
 import com.polytech.paqbackend.repository.PaqRepository;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -37,15 +49,17 @@ public class EntretienPositifService {
     @Autowired
     private EntretienPositifRepository entretienPositifRepository;
 
+    @Autowired
+    private ArchiveRepository archiveRepository;
+
     @Autowired(required = false)
     private JavaMailSender mailSender;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    /**
-     * Classe interne pour l'historique
-     */
+    // ── Historique helper ──────────────────────────────────────────────────────
+
     public static class HistoriqueEvent {
         private String date;
         private String action;
@@ -59,7 +73,7 @@ public class EntretienPositifService {
             this.detail = detail;
         }
 
-        public String getDate() { return date; }
+        public String getDate()   { return date; }
         public void setDate(String date) { this.date = date; }
         public String getAction() { return action; }
         public void setAction(String action) { this.action = action; }
@@ -67,9 +81,6 @@ public class EntretienPositifService {
         public void setDetail(String detail) { this.detail = detail; }
     }
 
-    /**
-     * Ajoute un événement à l'historique JSON
-     */
     private String addHistoriqueEvent(String historiqueJson, String action, String detail) {
         try {
             List<HistoriqueEvent> list;
@@ -78,104 +89,87 @@ public class EntretienPositifService {
             } else {
                 list = objectMapper.readValue(historiqueJson, new TypeReference<List<HistoriqueEvent>>() {});
             }
-
             list.add(new HistoriqueEvent(LocalDate.now().toString(), action, detail));
             return objectMapper.writeValueAsString(list);
         } catch (Exception e) {
-            e.printStackTrace();
             return String.format("[{\"date\":\"%s\",\"action\":\"%s\",\"detail\":\"%s\"}]",
                     LocalDate.now(), action, detail);
         }
     }
 
-    /**
-     * Récupère les collaborateurs sans aucune faute depuis 6 mois
-     * Pour les collaborateurs niveau 0, on vérifie depuis la date d'embauche
-     * Pour les autres, on vérifie depuis la dernière faute
-     */
+    // ── Collaborateurs sans faute ──────────────────────────────────────────────
+
     public List<CollaborateurSansFauteDto> getCollaborateursSansFaute() {
         LocalDate now = LocalDate.now();
-        LocalDate sixMonthsAgo = now.minusMonths(6);
-
         List<Collaborator> actifs = collaboratorRepository.findByDepartFalseAndArchivedFalse();
 
-        return actifs.stream()
-                .map(c -> {
-                    LocalDate derniereFaute = null;
-                    LocalDate dateDebut = c.getHireDate(); // Utiliser date d'embauche par défaut
-                    long joursSansFaute = 0;
-                    boolean hasActivePaq = false;
+        System.out.println("Nombre total de collaborateurs actifs: " + actifs.size());
 
-                    Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(c.getMatricule());
+        List<CollaborateurSansFauteDto> result = new ArrayList<>();
 
-                    if (paqOpt.isPresent()) {
-                        PaqDossier paq = paqOpt.get();
-                        derniereFaute = paq.getDerniereFaute();
-                        hasActivePaq = true;
+        for (Collaborator c : actifs) {
+            try {
+                LocalDate derniereFaute = null;
+                long joursSansFaute = 0;
+                LocalDate dateDebut = c.getHireDate();
 
-                        // Si le collaborateur a une faute enregistrée
-                        if (derniereFaute != null) {
-                            joursSansFaute = ChronoUnit.DAYS.between(derniereFaute, now);
-                            dateDebut = derniereFaute;
-                        }
-                        // Si le collaborateur n'a jamais eu de faute (niveau 0)
-                        else {
-                            // Pour les collaborateurs niveau 0, on utilise la date d'embauche
-                            // ou la date de création du PAQ si elle est plus ancienne
-                            if (paq.getNiveau() == 0) {
-                                dateDebut = c.getHireDate();
-                                // Si le PAQ a été créé après la date d'embauche, utiliser la date d'embauche
-                                if (paq.getDateCreation() != null && paq.getDateCreation().isAfter(c.getHireDate())) {
-                                    dateDebut = c.getHireDate();
-                                } else if (paq.getDateCreation() != null) {
-                                    dateDebut = paq.getDateCreation();
-                                }
-                            } else {
-                                // Pour les niveaux > 0, utiliser la date de création du PAQ
-                                dateDebut = paq.getDateCreation() != null ? paq.getDateCreation() : c.getHireDate();
-                            }
-                            joursSansFaute = ChronoUnit.DAYS.between(dateDebut, now);
-                        }
+                Optional<PaqDossier> paqOpt = paqRepository
+                        .findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(c.getMatricule());
+
+                if (paqOpt.isPresent()) {
+                    PaqDossier paq = paqOpt.get();
+                    derniereFaute = paq.getDerniereFaute();
+
+                    if (derniereFaute != null) {
+                        joursSansFaute = ChronoUnit.DAYS.between(derniereFaute, now);
                     } else {
-                        // Pas de PAQ actif, le collaborateur n'a jamais eu de PAQ
-                        // Donc il est au niveau 0 par défaut
-                        joursSansFaute = ChronoUnit.DAYS.between(c.getHireDate(), now);
-                        dateDebut = c.getHireDate();
+                        dateDebut = paq.getDateCreation() != null ? paq.getDateCreation() : c.getHireDate();
+                        joursSansFaute = ChronoUnit.DAYS.between(dateDebut, now);
                     }
+                } else {
+                    joursSansFaute = ChronoUnit.DAYS.between(c.getHireDate(), now);
+                }
 
-                    System.out.println("Collaborateur: " + c.getMatricule() +
-                            " - Nom: " + c.getName() +
-                            " - Niveau PAQ: " + (hasActivePaq ? paqOpt.get().getNiveau() : "0") +
-                            " - Date embauche: " + c.getHireDate() +
-                            " - Date début: " + dateDebut +
-                            " - Jours sans faute: " + joursSansFaute +
-                            " - Dernière faute: " + derniereFaute);
-
-                    return new CollaborateurSansFauteDto(
+                if (joursSansFaute >= 180) {
+                    CollaborateurSansFauteDto dto = new CollaborateurSansFauteDto(
                             c.getMatricule(),
                             c.getName(),
-                            c.getPrenom(),
+                            c.getPrenom() != null ? c.getPrenom() : "",
                             c.getSegment(),
                             c.getHireDate(),
                             derniereFaute,
                             joursSansFaute
                     );
-                })
-                .filter(dto -> dto.getJoursSansFaute() >= 180) // 6 mois = 180 jours
-                .collect(Collectors.toList());
+                    result.add(dto);
+                }
+            } catch (Exception e) {
+                System.err.println("Erreur pour collaborateur " + c.getMatricule() + ": " + e.getMessage());
+            }
+        }
+
+        System.out.println("Nombre de collaborateurs éligibles (>=180 jours): " + result.size());
+        return result;
     }
 
-    /**
-     * Envoie la liste au SL par email et enregistre dans la base
-     */
+    // ── Envoi email au SL ──────────────────────────────────────────────────────
+
     @Transactional
     public Map<String, Object> envoyerListeSl(EnvoyerSlRequest request) {
         Map<String, Object> response = new HashMap<>();
-
         try {
+            if (request.getSlDestinataire() == null || request.getSlDestinataire().isBlank()) {
+                throw new RuntimeException("Email SL obligatoire");
+            }
+            if (!request.getSlDestinataire().matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
+                throw new RuntimeException("Adresse email invalide");
+            }
+            if (request.getDateEnvoi() == null || request.getDateEnvoi().isBlank()) {
+                throw new RuntimeException("Date d'envoi obligatoire");
+            }
+
+            LocalDate dateEnvoi = LocalDate.parse(request.getDateEnvoi());
             List<CollaborateurSansFauteDto> collaborateurs = getCollaborateursSansFaute();
 
-            // Filtrer par matricules si spécifiés
             List<CollaborateurSansFauteDto> aEnvoyer = collaborateurs;
             if (request.getMatricules() != null && !request.getMatricules().isEmpty()) {
                 aEnvoyer = collaborateurs.stream()
@@ -183,189 +177,244 @@ public class EntretienPositifService {
                         .collect(Collectors.toList());
             }
 
-            // Enregistrer dans la base
+            if (aEnvoyer.isEmpty()) {
+                throw new RuntimeException("Aucun collaborateur correspondant trouvé");
+            }
+
             EntretienPositif entretien = new EntretienPositif();
             entretien.setSlDestinataire(request.getSlDestinataire());
-            entretien.setDateEnvoi(request.getDateEnvoi());
+            entretien.setDateEnvoi(dateEnvoi);
             entretien.setNote(request.getMessage());
             entretien.setCreatedAt(LocalDateTime.now());
-
-            // Enregistrer les matricules des collaborateurs (optionnel)
-            if (aEnvoyer != null && !aEnvoyer.isEmpty()) {
-                StringBuilder matriculesStr = new StringBuilder();
-                for (CollaborateurSansFauteDto c : aEnvoyer) {
-                    if (matriculesStr.length() > 0) matriculesStr.append(",");
-                    matriculesStr.append(c.getMatricule());
-                }
-                entretien.setMatriculeCollaborateur(matriculesStr.toString());
-            }
-
+            entretien.setMatriculeCollaborateur(
+                    aEnvoyer.stream()
+                            .map(CollaborateurSansFauteDto::getMatricule)
+                            .collect(Collectors.joining(","))
+            );
             entretienPositifRepository.save(entretien);
 
-            // Envoyer l'email si mailSender est configuré
-            boolean emailEnvoye = false;
-            if (mailSender != null) {
-                try {
-                    envoyerEmail(request.getSlDestinataire(), aEnvoyer, request.getMessage(), request.getDateEnvoi());
-                    emailEnvoye = true;
-                } catch (Exception e) {
-                    System.err.println("Erreur envoi email: " + e.getMessage());
-                }
-            }
+            envoyerEmail(request.getSlDestinataire(), aEnvoyer, request.getMessage(), dateEnvoi);
 
             response.put("success", true);
-            response.put("message", emailEnvoye ? "Liste envoyée par email au SL" : "Liste enregistrée (email non configuré)");
-            response.put("destinataire", request.getSlDestinataire());
-            response.put("dateEnvoi", request.getDateEnvoi());
-            response.put("nbCollaborateurs", aEnvoyer.size());
-            response.put("collaborateurs", aEnvoyer);
+            response.put("message", "Email envoyé avec succès à " + request.getSlDestinataire());
+            response.put("nb", aEnvoyer.size());
 
         } catch (Exception e) {
             e.printStackTrace();
             response.put("success", false);
-            response.put("message", "Erreur: " + e.getMessage());
+            response.put("message", e.getMessage());
         }
-
         return response;
     }
-    /**
-     * Archive l'ancien PAQ et crée un nouveau PAQ niveau 0
-     */
-    @Transactional
-    public Map<String, Object> archiverEtCreerNouveauPaq(ValiderEntretienPositifRequest request) {
-        List<String> matricules = request.getMatricules();
-        LocalDate now = LocalDate.now();
 
+    private void envoyerEmail(String destinataire,
+                              List<CollaborateurSansFauteDto> collaborateurs,
+                              String message,
+                              LocalDate dateEnvoi) throws Exception {
+
+        if (mailSender == null) {
+            throw new RuntimeException("Service mail non configuré (vérifiez application.properties)");
+        }
+
+        byte[] pdfBytes = generatePdf(collaborateurs);
+
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+
+        helper.setTo(destinataire);
+        helper.setSubject("Entretien Positif – Collaborateurs à féliciter – "
+                + dateEnvoi.format(DateTimeFormatter.ofPattern("MMMM yyyy", new Locale("fr"))));
+
+        StringBuilder html = new StringBuilder();
+        html.append("<!DOCTYPE html>")
+                .append("<html>")
+                .append("<head>")
+                .append("<meta charset='UTF-8'>")
+                .append("<style>")
+                .append("  .email-container { font-family: 'Segoe UI', Arial, sans-serif; max-width: 700px; margin: 0 auto; }")
+                .append("  .email-header { background: #C8102E; padding: 20px 28px; border-radius: 8px 8px 0 0; }")
+                .append("  .email-header h1 { color: white; margin: 0; font-size: 20px; }")
+                .append("  .email-header p { color: rgba(255,255,255,0.8); margin: 4px 0 0; font-size: 13px; }")
+                .append("  .email-body { background: #FFFFFF; border: 1px solid #E0E0E0; border-top: none; padding: 24px 28px; border-radius: 0 0 8px 8px; }")
+                .append("  .email-message { background: #FBF0F2; border-left: 4px solid #C8102E; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; }")
+                .append("  .email-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }")
+                .append("  .email-table th { background: #1a3a5c; color: white; padding: 12px 12px; text-align: left; border: 1px solid #2a4a6c; font-weight: 600; }")
+                .append("  .email-table td { padding: 10px 12px; border: 1px solid #E0E0E0; }")
+                .append("  .email-table tr:hover { background-color: #f5f5f5; }")
+                .append("  .email-table .matricule { font-family: monospace; font-weight: 500; }")
+                .append("  .email-table .jours { text-align: right; color: #1A7A46; font-weight: 600; }")
+                .append("  .email-footer { color: #6B6B6B; font-size: 12px; margin-top: 20px; text-align: center; border-top: 1px solid #E0E0E0; padding-top: 16px; }")
+                .append("</style>")
+                .append("</head>")
+                .append("<body>");
+
+        html.append("<div class='email-container'>")
+                .append("<div class='email-header'>")
+                .append("<h1>🏭 Entretien Positif</h1>")
+                .append("<p>").append(dateEnvoi.format(DATE_FORMATTER)).append("</p>")
+                .append("</div>")
+                .append("<div class='email-body'>")
+                .append("<p style='color:#4A4A4A;'>Bonjour,</p>")
+                .append("<p style='color:#4A4A4A;'>")
+                .append("Veuillez trouver ci-dessous la liste des ")
+                .append("<strong style='color:#C8102E;'>").append(collaborateurs.size()).append(" collaborateur(s)</strong>")
+                .append(" sans faute depuis plus de 6 mois, éligibles à un <strong>entretien positif</strong>.")
+                .append("</p>");
+
+        if (message != null && !message.isBlank()) {
+            html.append("<div class='email-message'>")
+                    .append("<p style='margin:0;color:#4A4A4A;font-size:14px;'>")
+                    .append("<strong>📝 Message :</strong> ").append(message)
+                    .append("</p></div>");
+        }
+
+        html.append("<table class='email-table'>")
+                .append("<thead>")
+                .append("<tr>")
+                .append("<th>👤 Nom</th>")
+                .append("<th>👤 Prénom</th>")
+                .append("<th>🆔 Matricule</th>")
+                .append("<th>📅 Jours sans faute</th>")
+                .append("</tr>")
+                .append("</thead>")
+                .append("<tbody>");
+
+        for (CollaborateurSansFauteDto c : collaborateurs) {
+            html.append("<tr>")
+                    .append("<td>").append(escapeHtml(c.getNom() != null ? c.getNom() : "")).append("</td>")
+                    .append("<td>").append(escapeHtml(c.getPrenom() != null ? c.getPrenom() : "")).append("</td>")
+                    .append("<td class='matricule'>").append(escapeHtml(c.getMatricule() != null ? c.getMatricule() : "")).append("</td>")
+                    .append("<td class='jours'>").append(c.getJoursSansFaute()).append(" j</td>")
+                    .append("</tr>");
+        }
+
+        html.append("</tbody>")
+                .append("</table>")
+                .append("<div class='email-footer'>")
+                .append("<p>ℹ️ Ce message est envoyé automatiquement par le système PAQ.</p>")
+                .append("<p style='margin-top:8px;'>&copy; 2026 PAQ System - LEONI</p>")
+                .append("</div>")
+                .append("</div>")
+                .append("</div>")
+                .append("</body>")
+                .append("</html>");
+
+        helper.setText(html.toString(), true);
+        helper.addAttachment(
+                "collaborateurs_sans_faute_" + dateEnvoi + ".pdf",
+                new ByteArrayResource(pdfBytes)
+        );
+
+        mailSender.send(mimeMessage);
+    }
+
+    // ── Helper pour échapper les caractères HTML ───────────────────────────────
+    private String escapeHtml(String text) {
+        if (text == null) return "";
+        return text
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
+    }
+
+    // ── Archivage entretien positif ────────────────────────────────────────────
+
+    @Transactional
+    public Map<String, Object> archiverPaq(ValiderEntretienPositifRequest request) {
+        List<String> matricules = request.getMatricules();
         int archivedCount = 0;
-        int createdCount = 0;
         List<String> erreurs = new ArrayList<>();
 
-        // Récupérer les collaborateurs éligibles
-        List<CollaborateurSansFauteDto> eligibles = getCollaborateursSansFaute();
-        List<String> matriculesEligibles = eligibles.stream()
-                .map(CollaborateurSansFauteDto::getMatricule)
-                .collect(Collectors.toList());
-
-        // Si aucun matricule spécifié, prendre tous les éligibles
-        List<String> aTraiter = (matricules == null || matricules.isEmpty())
-                ? matriculesEligibles
-                : matricules.stream()
-                .filter(matriculesEligibles::contains)
-                .collect(Collectors.toList());
-
-        for (String matricule : aTraiter) {
+        for (String matricule : matricules) {
             try {
-                // Récupérer le collaborateur pour avoir sa date d'embauche
                 Optional<Collaborator> collaboratorOpt = collaboratorRepository.findById(matricule);
                 if (!collaboratorOpt.isPresent()) {
                     erreurs.add(matricule + ": Collaborateur non trouvé");
                     continue;
                 }
                 Collaborator collaborator = collaboratorOpt.get();
+                String nomPrenom = collaborator.getName() + " " + collaborator.getPrenom();
 
-                // 1. Archiver l'ancien PAQ actif
-                Optional<PaqDossier> ancienPaqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
+                Optional<PaqDossier> ancienPaqOpt = paqRepository
+                        .findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
+
+                Long paqDossierId = null;
 
                 if (ancienPaqOpt.isPresent()) {
                     PaqDossier ancienPaq = ancienPaqOpt.get();
                     ancienPaq.setArchived(true);
                     ancienPaq.setActif(false);
                     ancienPaq.setStatut("ARCHIVE_POSITIF");
-                    ancienPaq.setDateFin(now);
-
-                    // Ajouter à l'historique
-                    String newHistorique = addHistoriqueEvent(ancienPaq.getHistorique(),
+                    ancienPaq.setDateFin(LocalDate.now());
+                    String newHistorique = addHistoriqueEvent(
+                            ancienPaq.getHistorique(),
                             "Archivage suite entretien positif",
-                            "Dossier archivé après entretien positif, nouveau dossier créé");
+                            "Dossier archivé après entretien positif"
+                    );
                     ancienPaq.setHistorique(newHistorique);
-
                     paqRepository.save(ancienPaq);
-                    archivedCount++;
+                    paqDossierId = ancienPaq.getId();
                 }
 
-                // 2. Créer un nouveau PAQ niveau 0 avec la date d'embauche comme référence
-                PaqDossier nouveauPaq = new PaqDossier();
-                nouveauPaq.setCollaboratorMatricule(matricule);
-                // Utiliser la date d'embauche comme date de création pour les nouveaux PAQ
-                nouveauPaq.setDateCreation(collaborator.getHireDate());
-                nouveauPaq.setDateFin(collaborator.getHireDate().plusMonths(6));
-                nouveauPaq.setCreatedAt(LocalDateTime.now());
-                nouveauPaq.setNiveau(0);
-                nouveauPaq.setStatut("EN_COURS");
-                nouveauPaq.setActif(true);
-                nouveauPaq.setArchived(false);
-                nouveauPaq.setDerniereFaute(null); // Réinitialiser les fautes
+                Archive archive = new Archive();
+                archive.setType("ENTRETIEN_POSITIF");
+                archive.setMatricule(matricule);
+                archive.setNomPrenom(nomPrenom);
+                archive.setDateArchivage(LocalDate.now());
+                if (paqDossierId != null) {
+                    archive.setPaqDossierId(paqDossierId);
+                }
+                archiveRepository.save(archive);
 
-                // Ajouter à l'historique
-                String historique = addHistoriqueEvent(null,
-                        "Création suite entretien positif",
-                        "Nouveau dossier créé après validation de l'entretien positif");
-                nouveauPaq.setHistorique(historique);
-
-                paqRepository.save(nouveauPaq);
-                createdCount++;
-
-                System.out.println("Entretien positif validé pour: " + matricule);
+                archivedCount++;
 
             } catch (Exception e) {
                 erreurs.add(matricule + ": " + e.getMessage());
-                System.err.println("Erreur pour " + matricule + ": " + e.getMessage());
             }
         }
 
         Map<String, Object> response = new HashMap<>();
         response.put("success", erreurs.isEmpty());
-        response.put("message", "Entretien positif validé pour " + createdCount + " collaborateurs");
         response.put("archivedCount", archivedCount);
-        response.put("createdCount", createdCount);
         response.put("errors", erreurs);
-
         return response;
     }
 
-    /**
-     * Envoie un email au SL avec la liste des collaborateurs à féliciter
-     */
-    private void envoyerEmail(String destinataire, List<CollaborateurSansFauteDto> collaborateurs,
-                              String message, LocalDate dateEnvoi) throws Exception {
-        if (mailSender == null) return;
+    // ── Génération PDF ─────────────────────────────────────────────────────────
 
-        MimeMessage mimeMessage = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+    public byte[] generatePdf(List<CollaborateurSansFauteDto> list) throws Exception {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PdfWriter writer = new PdfWriter(out);
+        PdfDocument pdf = new PdfDocument(writer);
+        Document document = new Document(pdf);
 
-        helper.setTo(destinataire);
-        helper.setSubject("Entretien Positif - Collaborateurs sans faute");
+        document.add(new Paragraph("Liste des collaborateurs sans faute")
+                .setBold().setFontSize(16));
+        document.add(new Paragraph("Générée le : " + LocalDate.now().format(DATE_FORMATTER))
+                .setFontSize(10));
 
-        StringBuilder html = new StringBuilder();
-        html.append("<html><body>");
-        html.append("<h2>🏆 Entretien Positif</h2>");
-        html.append("<p>📅 Date d'envoi: <strong>").append(dateEnvoi.format(DATE_FORMATTER)).append("</strong></p>");
-        html.append("<h3>✨ Collaborateurs sans aucune faute depuis 6 mois :</h3>");
-        html.append("<table border='1' cellpadding='8' cellspacing='0' style='border-collapse: collapse; width: 100%;'>");
-        html.append("<tr style='background-color: #4CAF50; color: white;'>");
-        html.append("<th>Matricule</th><th>Nom</th><th>Prénom</th><th>Segment</th><th>Jours sans faute</th>");
-        html.append("</tr>");
+        Table table = new Table(new float[]{3, 3, 3, 2});
+        table.setWidth(UnitValue.createPercentValue(100));
 
-        for (CollaborateurSansFauteDto c : collaborateurs) {
-            html.append("<tr>");
-            html.append("<td>").append(c.getMatricule()).append("</td>");
-            html.append("<td>").append(c.getNom()).append("</td>");
-            html.append("<td>").append(c.getPrenom() != null ? c.getPrenom() : "").append("</td>");
-            html.append("<td>").append(c.getSegment()).append("</td>");
-            html.append("<td>").append(c.getJoursSansFaute()).append(" jours</td>");
-            html.append("</tr>");
+        String[] headers = {"Nom", "Prénom", "Matricule", "Jours sans faute"};
+        for (String header : headers) {
+            table.addHeaderCell(new Cell()
+                    .add(new Paragraph(header))
+                    .setBold()
+                    .setBackgroundColor(ColorConstants.LIGHT_GRAY));
         }
 
-        html.append("</table>");
-        if (message != null && !message.isEmpty()) {
-            html.append("<p><strong>📝 Note:</strong> ").append(message).append("</p>");
+        for (CollaborateurSansFauteDto c : list) {
+            table.addCell(new Cell().add(new Paragraph(c.getNom() != null ? c.getNom() : "")));
+            table.addCell(new Cell().add(new Paragraph(c.getPrenom() != null ? c.getPrenom() : "")));
+            table.addCell(new Cell().add(new Paragraph(c.getMatricule() != null ? c.getMatricule() : "")));
+            table.addCell(new Cell().add(new Paragraph(String.valueOf(c.getJoursSansFaute()))));
         }
-        html.append("<p><br/>✅ <strong>Action requise:</strong> Veuillez organiser un entretien positif avec ces collaborateurs.</p>");
-        html.append("</body></html>");
 
-        helper.setText(html.toString(), true);
-        mailSender.send(mimeMessage);
-
-        System.out.println("Email envoyé à: " + destinataire + " pour " + collaborateurs.size() + " collaborateurs");
+        document.add(table);
+        document.close();
+        return out.toByteArray();
     }
 }

@@ -1,9 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { collaboratorService } from "../../services/api";
+import { collaboratorService, getSegments } from "../../services/api";
 import "../../styles/collaborator.css";
-
-const SEGMENT_OPTIONS = ["SEG-01", "SEG-02", "SEG-03", "SEG-04"];
 
 export default function AddCollaborator() {
     const [formData, setFormData] = useState({
@@ -16,7 +14,37 @@ export default function AddCollaborator() {
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
     const [loading, setLoading] = useState(false);
+    const [segments, setSegments] = useState([]);
+    const [segmentsLoading, setSegmentsLoading] = useState(true);
     const navigate = useNavigate();
+
+    const getSegmentLabel = (segment) =>
+        segment?.nomSegment ||
+        segment?.name ||
+        segment?.code ||
+        segment?.segment ||
+        segment?.libelle ||
+        String(segment ?? "");
+
+    useEffect(() => {
+        const loadSegments = async () => {
+            try {
+                setSegmentsLoading(true);
+                const res = await getSegments();
+                const list = Array.isArray(res.data) ? res.data : [];
+                const sorted = [...list].sort((a, b) =>
+                    getSegmentLabel(a).localeCompare(getSegmentLabel(b), "fr", { sensitivity: "base" })
+                );
+                setSegments(sorted);
+            } catch (err) {
+                console.error("Erreur chargement segments:", err);
+                setSegments([]);
+            } finally {
+                setSegmentsLoading(false);
+            }
+        };
+        loadSegments();
+    }, []);
 
     /**
      * Gère les changements dans les champs du formulaire
@@ -77,12 +105,11 @@ export default function AddCollaborator() {
             };
             
             await collaboratorService.create(payload);
+            const newCollabResponse = await collaboratorService.getById(formData.matricule);
+            const newCollaborator = newCollabResponse.data;
+            sessionStorage.setItem("latest_collaborator_matricule", String(formData.matricule));
             setSuccess("Collaborateur ajouté avec succès !");
-            
-            // Redirection après 1.5 secondes
-            setTimeout(() => {
-                navigate("/collaborateurs");
-            }, 1500);
+            navigate("/collaborateurs", { state: { newCollaborator } });
             
         } catch (err) {
             const errorMessage = err.response?.data?.message || 
@@ -96,10 +123,15 @@ export default function AddCollaborator() {
     };
 
     return (
-        <div className="container py-4">
-            <div className="form-container card shadow-sm border-0">
+        <div className="container py-4 collab-form-page">
+            <div className="collab-form-shell">
+                <div className="collab-form-header">
+                    <div>
+                        <h2 className="collab-form-title">Ajouter un Collaborateur</h2>
+                    </div>
+                </div>
+            <div className="form-container card shadow-sm border-0 collab-form-card">
                 <div className="card-body p-4 p-md-5">
-                    <h2 className="mb-4">Ajouter un Collaborateur</h2>
 
                     {error && (
                         <div className="alert alert-danger alert-dismissible fade show" role="alert">
@@ -117,8 +149,8 @@ export default function AddCollaborator() {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit}>
-                        <div className="form-group mb-3">
+                    <form onSubmit={handleSubmit} className="collab-form-grid">
+                        <div className="form-group mb-3 collab-field">
                             <label htmlFor="matricule" className="form-label">
                                 Matricule <span className="text-danger">*</span>
                             </label>
@@ -138,7 +170,7 @@ export default function AddCollaborator() {
                             <small className="text-muted">8 chiffres uniquement</small>
                         </div>
 
-                        <div className="form-group mb-3">
+                        <div className="form-group mb-3 collab-field">
                             <label htmlFor="name" className="form-label">
                                 Nom <span className="text-danger">*</span>
                             </label>
@@ -154,7 +186,7 @@ export default function AddCollaborator() {
                             />
                         </div>
 
-                        <div className="form-group mb-3">
+                        <div className="form-group mb-3 collab-field">
                             <label htmlFor="prenom" className="form-label">
                                 Prénom <span className="text-danger">*</span>
                             </label>
@@ -170,7 +202,7 @@ export default function AddCollaborator() {
                             />
                         </div>
 
-                        <div className="form-group mb-3">
+                        <div className="form-group mb-3 collab-field">
                             <label htmlFor="segment" className="form-label">
                                 Segment <span className="text-danger">*</span>
                             </label>
@@ -182,16 +214,22 @@ export default function AddCollaborator() {
                                 className="form-select"
                                 required
                             >
-                                <option value="">Sélectionner un segment</option>
-                                {SEGMENT_OPTIONS.map((segment) => (
-                                    <option key={segment} value={segment}>
-                                        {segment}
-                                    </option>
-                                ))}
+                                <option value="">
+                                    {segmentsLoading ? "Chargement..." : "Sélectionner un segment"}
+                                </option>
+                                {segments.map((segment) => {
+                                    const label = getSegmentLabel(segment);
+                                    const key = segment?.idSegment ?? segment?.id ?? label;
+                                    return (
+                                        <option key={key} value={label}>
+                                            {label}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
 
-                        <div className="form-group mb-4">
+                        <div className="form-group mb-4 collab-field collab-field-full">
                             <label htmlFor="hireDate" className="form-label">
                                 Date d'embauche <span className="text-danger">*</span>
                             </label>
@@ -206,7 +244,7 @@ export default function AddCollaborator() {
                             />
                         </div>
 
-                        <div className="form-buttons d-flex flex-column flex-sm-row gap-2">
+                        <div className="form-buttons d-flex flex-column flex-sm-row gap-2 collab-form-actions collab-field-full">
                             <button 
                                 type="submit" 
                                 disabled={loading} 
@@ -229,6 +267,7 @@ export default function AddCollaborator() {
                         </div>
                     </form>
                 </div>
+            </div>
             </div>
         </div>
     );

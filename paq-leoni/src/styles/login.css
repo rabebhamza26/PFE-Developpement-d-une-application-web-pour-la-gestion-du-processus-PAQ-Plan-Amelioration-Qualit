@@ -1,101 +1,358 @@
+/* =============================================
+   LOGIN — LEONI PAQ Web
+   Palette : bleu Leoni #1e63b5 / #002857
+   Background : usine Leoni (image locale)
+============================================= */
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 body {
-  margin: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background: #f4f6f9;
+  font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+  background: #eaf0f9;
 }
 
-.login-wrapper {
-  height: 100vh;
+/* =============================================
+   WRAPPER PLEIN ÉCRAN
+============================================= */
+.lc-wrapper {
+  position: relative;
+  min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(to bottom, #ffffff 70%, #e8eef7);
+  overflow: hidden;
 }
 
-.login-card {
-  width: 380px;
-  background: white;
-  padding: 40px 30px;
-  border-radius: 10px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-  text-align: center;
+/* ── Image de fond ── */
+/* Remplacez l'url() par le chemin réel de votre image d'usine Leoni */
+.lc-bg {
+  position: absolute;
+  inset: 0;
+  background: url('../assets/leoni-factory.jpg') center center / cover no-repeat;
+  /* Fallback si l'image n'est pas disponible */
+  background-color: #0a2a5e;
+  z-index: 0;
 }
 
-.login-header {
-  margin-bottom: 30px;
+/* ── Dégradé par-dessus l'image ── */
+.lc-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(0, 30, 80, 0.72) 0%,
+    rgba(10, 60, 140, 0.55) 50%,
+    rgba(30, 99, 181, 0.40) 100%
+  );
+  z-index: 1;
 }
-
-.leoni-title {
-  color: #1e63b5;
-  font-size: 32px;
-  font-weight: bold;
-  margin: 0;
-}
-
-.paq-title {
-  font-size: 18px;
-  margin-top: 5px;
-  color: #444;
-}
-
-.form-group {
-  text-align: left;
-  margin-bottom: 20px;
-}
-
-.form-group label {
-  font-size: 14px;
-  color: #555;
+.lc-logo-img {
+  width: 130px;
+  height: auto;
   display: block;
-  margin-bottom: 5px;
+  margin: 0 auto 4px;
+  object-fit: contain;
 }
 
-.form-group input {
-  width: 100%;
-  padding: 10px;
-  border-radius: 6px;
-  border: 1px solid #d0d7e2;
-  font-size: 14px;
-  outline: none;
+/* =============================================
+   CARTE CENTRALE
+============================================= */
+.lc-card {
+  position: relative;
+  z-index: 2;
+  width: 360px;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(12px);
+  border-radius: 18px;
+  padding: 40px 36px 32px;
+  box-shadow:
+    0 20px 60px rgba(0, 30, 80, 0.30),
+    0 2px 8px  rgba(0, 0, 0, 0.08);
+  animation: lc-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.form-group input:focus {
-  border-color: #1e63b5;
+@keyframes lc-rise {
+  from { opacity: 0; transform: translateY(28px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
 }
 
-.login-btn {
-  width: 100%;
-  padding: 10px;
-  background: #1e63b5;
-  color: white;
-  border: none;
-  border-radius: 6px;
+/* ── Barre décorative haut de carte ── */
+.lc-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 36px; right: 36px;
+  height: 4px;
+  background: linear-gradient(90deg, #1e63b5, #00b2e3);
+  border-radius: 0 0 6px 6px;
+}
+
+/* =============================================
+   LOGO BLOCK
+============================================= */
+.lc-logo-block {
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.lc-logo-svg {
+  width: 130px;
+  height: auto;
+  display: block;
+  margin: 0 auto 4px;
+}
+
+.lc-subtitle {
+  font-size: 15px;
   font-weight: 500;
-  cursor: pointer;
-  transition: 0.3s;
+  color: #4a5568;
+  letter-spacing: 0.5px;
+  margin-bottom: 24px;
 }
 
-.login-btn:hover {
-  background: #154a8a;
+/* =============================================
+   CONTEXTE SITE / PLANT
+============================================= */
+.lc-context {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e63b5;
+  background: #eaf3ff;
+  border: 1px solid #c3d9f4;
+  border-radius: 20px;
+  padding: 5px 14px;
+  margin-bottom: 18px;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.login-btn:disabled {
-  background: #8aa9d6;
+.lc-context-dot {
+  width: 7px; height: 7px;
+  background: #1e63b5;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.lc-context-sep {
+  opacity: 0.4;
+}
+
+/* =============================================
+   ERREUR
+============================================= */
+.lc-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff5f5;
+  color: #cc0000;
+  border: 1px solid #ffc5c5;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  animation: lc-shake 0.35s ease;
+}
+
+@keyframes lc-shake {
+  0%, 100% { transform: translateX(0); }
+  25%       { transform: translateX(-5px); }
+  75%       { transform: translateX(5px); }
+}
+
+/* =============================================
+   FORMULAIRE
+============================================= */
+.lc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lc-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+/* ── Input wrap (icône gauche + bouton œil) ── */
+.lc-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lc-field-icon {
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.lc-input-wrap input {
+  width: 100%;
+  padding: 11px 40px 11px 38px;
+  border: 1.5px solid #d1dce8;
+  border-radius: 9px;
+  font-size: 14px;
+  color: #1a202c;
+  background: #f9fbfd;
+  outline: none;
+  transition: border 0.22s, box-shadow 0.22s, background 0.22s;
+  font-family: inherit;
+}
+
+.lc-input-wrap input::placeholder {
+  color: #b0bec5;
+  font-size: 13px;
+}
+
+.lc-input-wrap input:focus {
+  border-color: #1e63b5;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(30, 99, 181, 0.12);
+}
+
+.lc-input-wrap input:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
-.forgot-password {
-  margin-top: 12px;
-  font-size: 13px;
-  color: #1e63b5;
+/* ── Bouton œil ── */
+.lc-eye {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
   cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+  transition: opacity 0.2s;
 }
 
-.login-error {
-  background: #ffe5e5;
-  color: #cc0000;
-  padding: 8px;
-  border-radius: 6px;
-  margin-bottom: 15px;
+.lc-eye:hover { opacity: 1; }
+
+/* =============================================
+   BOUTON SUBMIT
+============================================= */
+.lc-submit {
+  width: 100%;
+  padding: 12px;
+  margin-top: 4px;
+  background: linear-gradient(135deg, #1a4fa0, #1e63b5);
+  color: #fff;
+  border: none;
+  border-radius: 9px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.4px;
+  transition: background 0.25s, transform 0.18s, box-shadow 0.25s;
+  box-shadow: 0 4px 16px rgba(30, 99, 181, 0.35);
+  font-family: inherit;
+}
+
+.lc-submit:hover:not(:disabled) {
+  background: linear-gradient(135deg, #154a8a, #1a56a8);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(30, 99, 181, 0.40);
+}
+
+.lc-submit:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(30, 99, 181, 0.25);
+}
+
+.lc-submit:disabled {
+  background: #8aa9d6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ── Loader 3 points ── */
+.lc-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+}
+
+.lc-dot {
+  width: 7px; height: 7px;
+  background: #fff;
+  border-radius: 50%;
+  animation: lc-bounce 0.8s ease-in-out infinite;
+}
+
+.lc-dot:nth-child(2) { animation-delay: 0.15s; }
+.lc-dot:nth-child(3) { animation-delay: 0.30s; }
+
+@keyframes lc-bounce {
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.6; }
+  40%            { transform: translateY(-6px); opacity: 1; }
+}
+
+/* =============================================
+   LIENS BAS DE CARTE
+============================================= */
+.lc-forgot {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 16px;
+  background: none;
+  border: none;
+  color: #1e63b5;
   font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s;
+  font-family: inherit;
+}
+
+.lc-forgot:hover { color: #154a8a; text-decoration: underline; }
+
+.lc-back {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: #8899aa;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.2s;
+  font-family: inherit;
+}
+
+.lc-back:hover { color: #374151; }
+
+/* =============================================
+   RESPONSIVE
+============================================= */
+@media (max-width: 420px) {
+  .lc-card {
+    width: 92vw;
+    padding: 32px 24px 26px;
+    border-radius: 14px;
+  }
+
+  .lc-card::before {
+    left: 24px; right: 24px;
+  }
 }

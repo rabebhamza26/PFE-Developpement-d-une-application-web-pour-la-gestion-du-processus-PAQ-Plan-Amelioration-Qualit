@@ -1,43 +1,36 @@
+// Segment.java - Version avec relation Many-to-Many
 package com.polytech.paqbackend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Entity
 @Table(name = "segments")
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 @Builder
-
 public class Segment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idSegment;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String nomSegment;
 
-    // Constructeurs
-    public Segment() {}
-    public Segment(String nomSegment) {
-        this.nomSegment = nomSegment;
-    }
+    @ManyToMany(mappedBy = "segments")
+    private Set<User> users = new HashSet<>();
 
-    // Getters & Setters
-    public Long getIdSegment() {
+    // Getter explicite pour l'ID
+    public Long getId() {
         return idSegment;
     }
 
-    public void setIdSegment(Long idSegment) {
-        this.idSegment = idSegment;
-    }
-
-    public String getNomSegment() {
-        return nomSegment;
-    }
-
-    public void setNomSegment(String nomSegment) {
-        this.nomSegment = nomSegment;
+    public void setId(Long id) {
+        this.idSegment = id;
     }
 }

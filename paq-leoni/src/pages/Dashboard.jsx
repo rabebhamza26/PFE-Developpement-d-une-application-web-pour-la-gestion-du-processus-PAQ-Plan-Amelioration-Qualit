@@ -152,7 +152,6 @@ export default function Dashboard() {
       <div className="dashboard-header">
         <div>
           <h2>Tableau de Bord PAQ</h2>
-          <p className="dashboard-subtitle">Synthese visuelle des indicateurs et suivi des dossiers.</p>
         </div>
         <div className="dashboard-actions">
           <button className="btn btn-primary" onClick={() => navigate("/paq-dossier")}>

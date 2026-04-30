@@ -2,33 +2,18 @@ import React from "react";
 import { Outlet } from "react-router-dom";
 import Navbar from "./Navbar";
 import Sidebar from "./Sidebar";
+import "../styles/layout.css";
 
 export default function AppLayout() {
   return (
-    <div style={styles.layout}>
+    <div className="app-layout">
       <Sidebar />
-      <div style={styles.main}>
+      <div className="app-main">
         <Navbar />
-        <div style={styles.content}>
+        <div className="app-content">
           <Outlet />
         </div>
       </div>
     </div>
   );
 }
-
-const styles = {
-  layout: {
-    display: "flex",
-    minHeight: "100vh",
-    background: "#f8fafc"
-  },
-  main: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column"
-  },
-  content: {
-    padding: "20px"
-  }
-};

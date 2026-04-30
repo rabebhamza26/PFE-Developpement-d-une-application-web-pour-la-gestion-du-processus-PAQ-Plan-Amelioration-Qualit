@@ -79,6 +79,31 @@
   color: #6b7280;
 }
 
+.admin-topbar-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 10px 20px rgba(220, 38, 38, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.admin-topbar-logout:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px rgba(220, 38, 38, 0.28);
+  filter: brightness(1.03);
+}
+
+.admin-topbar-logout i {
+  font-size: 12px;
+}
+
 .admin-hero {
   background: linear-gradient(120deg, #0b4a88 0%, #0d6efd 60%, #0b4a88 100%);
   color: #eef5ff;
@@ -90,6 +115,10 @@
   gap: 16px;
   box-shadow: 0 16px 32px rgba(2, 11, 30, 0.22);
   margin-bottom: 18px;
+}
+
+.admin-hero-compact {
+  margin-bottom: 8px;
 }
 
 .admin-hero h2 {
@@ -306,6 +335,9 @@
   .admin-user {
     justify-content: space-between;
   }
+  .admin-topbar-logout {
+    justify-content: center;
+  }
   .admin-actions {
     flex-direction: column;
   }
@@ -319,5 +351,162 @@
   .role-percent,
   .role-count {
     text-align: left;
+  }
+}
+
+/* --- LAYOUT GLOBAL --- */
+.admin-layout-wrapper {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  background: #f4f6fb;
+}
+
+/* --- SIDEBAR DESIGN --- */
+.admin-sidebar {
+  width: 260px;
+  background: #0a1f44; /* Couleur Leoni */
+  color: white;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 800;
+  flex-shrink: 0;
+}
+
+.sidebar-brand {
+  padding: 30px 20px;
+  text-align: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sidebar-brand h5 {
+  color: white;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+
+.sidebar-brand span { color: #00bcd4; }
+
+.sidebar-nav ul {
+  list-style: none;
+  padding: 20px 10px;
+  margin: 0;
+}
+
+.sidebar-nav li { margin-bottom: 8px; }
+
+.sidebar-nav a {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  border-radius: 10px;
+  transition: 0.2s;
+  font-size: 14px;
+}
+
+.sidebar-nav a i {
+  width: 25px;
+  font-size: 1rem;
+}
+
+.sidebar-nav a:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.sidebar-nav a.active {
+  background: #00bcd4; /* Cyan accent */
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 188, 212, 0.3);
+}
+
+.admin-sidebar-footer {
+  margin-top: auto;
+  padding: 14px 14px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.admin-logout-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.96) 0%, rgba(220, 38, 38, 0.96) 100%);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.admin-logout-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.28);
+  filter: brightness(1.04);
+}
+
+.admin-logout-btn i {
+  font-size: 12px;
+}
+
+/* --- MAIN CONTENT --- */
+.admin-main-content {
+  flex-grow: 1;
+  min-width: 0; /* Empêche le débordement des graphiques */
+  padding: 0; /* On laisse le padding interne au composant shell */
+}
+
+/* --- MOBILE TOGGLE & RESPONSIVE --- */
+.mobile-toggle {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: #0a1f44;
+  color: white;
+  border: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  z-index: 2000;
+  cursor: pointer;
+}
+
+@media (max-width: 1024px) {
+  .admin-sidebar {
+    position: fixed;
+    left: -260px; /* Caché par défaut */
+  }
+  
+  .admin-sidebar.open {
+    left: 0;
+  }
+
+  .mobile-toggle {
+    display: block;
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-sidebar {
+    width: 80%; /* Plus large sur tout petit écran */
   }
 }

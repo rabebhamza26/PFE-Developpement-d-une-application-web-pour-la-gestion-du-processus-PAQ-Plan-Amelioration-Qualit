@@ -1,0 +1,314 @@
+/* =========================
+   🎨 VARIABLES LEONI
+========================= */
+:root {
+  --leoni-blue: #002857;
+  --leoni-blue-dark: #001932;
+  --leoni-accent: #00b2ff;
+  --leoni-accent-soft: #e6f7ff;
+  --leoni-gray-bg: #f4f6f9;
+  --leoni-white: #ffffff;
+  --leoni-border: #e5e7eb;
+  --leoni-danger: #ff4d4f;
+}
+
+/* =========================
+   GLOBAL
+========================= */
+body {
+  font-family: "Segoe UI", Roboto, Arial;
+  background: var(--leoni-gray-bg);
+}
+
+/* =========================
+   PAGE ANIMATION
+========================= */
+.admin-content-fade {
+  animation: fadeIn 0.4s ease;
+  min-height: 100vh;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================
+   HEADER TITLE
+========================= */
+h2 {
+  letter-spacing: 0.5px;
+}
+
+/* =========================
+   BUTTONS
+========================= */
+.btn-primary {
+  background: linear-gradient(135deg, var(--leoni-blue), var(--leoni-accent));
+  color: white;
+  padding: 12px 20px;
+  border-radius: 14px;
+  font-weight: bold;
+  transition: 0.3s;
+  box-shadow: 0 10px 20px rgba(0, 40, 87, 0.15);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 25px rgba(0, 40, 87, 0.25);
+}
+
+/* =========================
+   ✅ ESPACE ENTRE BOUTON ET TABLE
+========================= */
+.table-spacer {
+  height: 24px;
+}
+
+/* =========================
+   TABLE CONTAINER
+========================= */
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+/* =========================
+   TABLE STYLE
+========================= */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 500px;
+}
+
+thead {
+  background: var(--leoni-blue);
+}
+
+th {
+  padding: 16px;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: white;
+  letter-spacing: 1px;
+}
+
+td {
+  padding: 16px;
+  border-bottom: 1px solid var(--leoni-border);
+  font-size: 14px;
+}
+
+/* HOVER ROW */
+tr:hover {
+  background: var(--leoni-accent-soft);
+  transition: 0.2s;
+}
+
+/* =========================
+   ✅ GROUPE D'ACTIONS (Modifier + Supprimer côte à côte)
+========================= */
+.action-group {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ACTION BUTTONS */
+.action-btn {
+ width: 30px;          
+  height: 30px;
+  border-radius: 8px;   
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.05);
+}
+
+/* ✏️ Modifier */
+.edit-btn {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.edit-btn:hover {
+  background: #0284c7;
+  color: #fff;
+  transform: scale(1.1);
+}
+
+/* 🗑 Supprimer */
+.delete-btn {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.delete-btn:hover {
+  background: #dc2626;
+  color: #fff;
+  transform: scale(1.1);
+}
+
+/* Icônes */
+.action-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.2;
+
+  
+}
+
+/* =========================
+   MODAL OVERLAY
+========================= */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 40, 87, 0.5);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+/* =========================
+   MODAL BOX
+========================= */
+.modal-box {
+  width: 95%;
+  max-width: 480px;
+  background: white;
+  border-radius: 24px;
+  overflow: hidden;
+  animation: popup 0.3s ease;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes popup {
+  from {
+    transform: translateY(30px) scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* MODAL HEADER */
+.modal-header {
+  background: var(--leoni-blue);
+  color: white;
+  padding: 18px 24px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* MODAL BODY */
+.modal-body {
+  padding: 24px;
+}
+
+/* INPUT */
+.modal-input {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: 2px solid var(--leoni-border);
+  transition: 0.3s;
+}
+
+.modal-input:focus {
+  border-color: var(--leoni-accent);
+  outline: none;
+}
+
+/* MODAL BUTTONS */
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.btn-cancel {
+  flex: 1;
+  background: #eee;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-submit {
+  flex: 1;
+  background: var(--leoni-blue);
+  color: white;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-submit:hover {
+  background: var(--leoni-blue-dark);
+}
+
+/* =========================
+   RESPONSIVE
+========================= */
+@media (max-width: 768px) {
+  th, td {
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .btn-primary {
+    width: 100%;
+  }
+}
+
+/* =========================
+   HEADER BANNER
+========================= */
+.leoni-header {
+  background: linear-gradient(135deg, #5680f1 0%, #2563eb 50%, #3b82f6 100%);
+  border-radius: 16px;
+  padding: 26px 34px;
+  width: 100%;
+  margin-bottom: 30px;
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.25);
+}
+
+.header-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.header-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  margin-bottom: 6px;
+}
+
+
+.header-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.70);
+  margin: 0;
+}

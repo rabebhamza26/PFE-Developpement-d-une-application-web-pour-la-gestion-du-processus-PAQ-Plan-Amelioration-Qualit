@@ -1,0 +1,301 @@
+/* ─── Site Selection ─────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Outfit:wght@300;400;500;600&display=swap');
+
+/* ── Reset / Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+
+/* 🔐 Admin button container */
+.ss-admin-access {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+}
+
+/* 🔐 Admin button */
+.ss-admin-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  color: #005baa;
+  border: 1px solid rgba(0,91,170,0.2);
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+/* Icon */
+.ss-admin-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Hover */
+.ss-admin-btn:hover {
+  background: #005baa;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,91,170,0.3);
+}
+
+
+.ss-root {
+  min-height: 100vh;
+  background: #ffffff;
+  font-family: 'Outfit', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(24px, 5vw, 64px) clamp(16px, 4vw, 32px);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle background texture */
+.ss-root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 15% 15%, rgba(0,91,170,.05) 0%, transparent 50%),
+    radial-gradient(circle at 85% 85%, rgba(0,91,170,.04) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* Decorative corner accents */
+.ss-bg-grid {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,91,170,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,91,170,.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+.ss-bg-glow { display: none; } /* not needed on white */
+
+/* ── Content wrapper ── */
+.ss-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 960px;
+}
+
+/* ── Hero ── */
+.ss-hero {
+  text-align: center;
+  margin-bottom: 32px;
+  padding: 28px 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #005baa, #007bff);
+  color: white;
+  box-shadow: 0 10px 30px rgba(0, 91, 170, 0.2);
+}
+
+/* TITLE */
+.ss-hero-title {
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 700;
+  margin: 0 0 8px;
+  letter-spacing: -0.5px;
+}
+
+.ss-logo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #005baa;
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  padding: 6px 16px;
+  border-radius: 100px;
+  margin-bottom: 24px;
+}
+
+
+
+/* SUBTITLE */
+.ss-hero-sub {
+  font-size: 14px;
+  opacity: 0.85;
+  margin: 0;
+}
+
+/* SECTION HEADER */
+.ss-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 24px 0 28px;
+}
+
+/* LINES */
+.ss-section-line {
+  flex: 1;
+  height: 2px;
+  max-width: 120px;
+  background: linear-gradient(to right, transparent, #007bff, transparent);
+  opacity: 0.6;
+}
+
+/* TITLE */
+.ss-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #005baa;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+/* ── Grid ── */
+.ss-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: clamp(10px, 2vw, 16px);
+}
+
+/* ── Card ── */
+.ss-card {
+  background: #ffffff;
+  border: 1px solid #e4e9f2;
+  border-radius: 16px;
+  padding: clamp(18px, 3vw, 26px) clamp(16px, 2.5vw, 22px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  animation: ssCardIn .45s cubic-bezier(.22,.68,0,1.2) both;
+  position: relative;
+  overflow: hidden;
+}
+
+.ss-card:hover {
+  border-color: #005baa;
+  box-shadow: 0 8px 32px rgba(0,91,170,.12), 0 1px 4px rgba(0,91,170,.08);
+  transform: translateY(-2px);
+}
+
+.ss-card:hover .ss-card-arrow {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.ss-card:hover .ss-card-icon {
+  background: #005baa;
+  color: #fff;
+}
+
+@keyframes ssCardIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Card icon */
+.ss-card-icon {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 12px;
+  background: #eef4fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #005baa;
+  transition: background .2s, color .2s;
+}
+.ss-card-icon svg { width: 24px; height: 24px; }
+
+/* Card body */
+.ss-card-body { flex: 1; min-width: 0; }
+
+.ss-card-label {
+  font-size: 10px;
+  color: #9aa3b5;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 3px;
+}
+
+.ss-card-name {
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(14px, 2vw, 17px);
+  font-weight: 600;
+  color: #0a0f1a;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Card arrow */
+.ss-card-arrow {
+  color: #005baa;
+  opacity: 0;
+  transform: translateX(-8px);
+  transition: opacity .2s ease, transform .2s ease;
+  flex-shrink: 0;
+}
+.ss-card-arrow svg { width: 18px; height: 18px; }
+
+/* ── Skeleton ── */
+.ss-skeleton {
+  min-height: 88px;
+  background: linear-gradient(
+    90deg,
+    #f3f6fb 25%,
+    #e8edf5 50%,
+    #f3f6fb 75%
+  );
+  background-size: 200% 100%;
+  animation: ssSkeleton 1.4s infinite;
+  cursor: default;
+  border-color: transparent !important;
+}
+@keyframes ssSkeleton {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Error / Empty ── */
+.ss-error {
+  text-align: center;
+  color: #c0392b;
+  background: #fdf2f2;
+  border: 1px solid #f5c6c6;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.ss-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #9aa3b5;
+  font-size: 15px;
+  padding: 56px 0;
+}
+
+/* ── Responsive tweaks ── */
+@media (max-width: 480px) {
+  .ss-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ss-card-arrow {
+    display: none;
+  }
+}

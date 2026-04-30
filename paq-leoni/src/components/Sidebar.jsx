@@ -1,6 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useI18n } from "../context/I18nContext";
 import "../styles/sidebar.css";
+
+
 
 function Sidebar() {
   const navigate = useNavigate();
@@ -13,8 +16,6 @@ function Sidebar() {
   return (
     <aside className="app-sidebar">
       <div className="sidebar-header">
-        <span className="sidebar-dot"></span>
-        <h3>PAQ System</h3>
       </div>
       <ul className="sidebar-menu">
         <li><NavLink to="/dashboard">Dashboard</NavLink></li>
@@ -74,9 +75,22 @@ function Sidebar() {
                   <span className="step-index">5</span> Final
                 </button>
               </li>
+
             </ul>
           </details>
         </li>
+
+         <li>
+            <NavLink to="/notifications">
+              Notifications
+            </NavLink>
+          </li>
+
+          <li>
+            <NavLink to="/archive">
+              Archive
+            </NavLink>
+          </li>
 
       </ul>
     </aside>

@@ -1,497 +1,708 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { collaboratorService, paqService } from "../../services/api";
+import { collaboratorService, paqService, fauteService } from "../../services/api";
 import "../../styles/paq-dossier.css";
 
 export default function PaqDossier() {
-    const { matricule } = useParams();
-    const navigate = useNavigate();
+  const { matricule } = useParams();
+  const navigate      = useNavigate();
 
-    const [collaborator, setCollaborator] = useState(null);
-    const [currentPaq, setCurrentPaq] = useState(null);
-    const [historicalPaqs, setHistoricalPaqs] = useState([]);
-    const [historique, setHistorique] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
-    const [showEntretienModal, setShowEntretienModal] = useState(false);
-    const [showFauteModal, setShowFauteModal] = useState(false);
-    const [entretienNotes, setEntretienNotes] = useState("");
-    const [fauteDetail, setFauteDetail] = useState("");
-    const [selectedEntretien, setSelectedEntretien] = useState(null);
-    const [actionMessage, setActionMessage] = useState("");
-    const [selectedHistoricalPaq, setSelectedHistoricalPaq] = useState(null);
+  const [collaborator,  setCollaborator]  = useState(null);
+  const [currentPaq,    setCurrentPaq]    = useState(null);
+  const [historique,    setHistorique]    = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [showFauteModal, setShowFauteModal] = useState(false);
+  const [fauteDetail,   setFauteDetail]   = useState("");
+  const [fautesList,    setFautesList]    = useState([]);
+  const [fautesLoading, setFautesLoading] = useState(false);
 
-    useEffect(() => {
-        loadData();
-    }, [matricule]);
+  useEffect(() => { loadData(); }, [matricule]);
 
-    const loadData = async () => {
-        try {
-            setLoading(true);
-            setError("");
-            
-            const collabRes = await collaboratorService.getById(matricule);
-            setCollaborator(collabRes.data);
-            
-            try {
-                const paqsRes = await paqService.getAllByMatricule(matricule);
-                const paqs = paqsRes.data || [];
-                
-                const active = paqs.find(p => p.actif === true && p.archived === false);
-                const historical = paqs.filter(p => p.archived === true || p.actif === false);
-                
-                setCurrentPaq(active);
-                setHistoricalPaqs(historical);
-                
-                if (active?.historique) {
-                    try {
-                        const history = JSON.parse(active.historique);
-                        setHistorique(history);
-                    } catch (e) {
-                        setHistorique([]);
-                    }
-                } else {
-                    setHistorique([]);
-                }
-            } catch (err) {
-                if (err.response?.status === 404) {
-                    setCurrentPaq(null);
-                    setHistoricalPaqs([]);
-                } else {
-                    throw err;
-                }
-            }
-        } catch (err) {
-            setError("Impossible de charger les donnees");
-            console.error(err);
-        } finally {
-            setLoading(false);
+  // ── Chargement données ────────────────────────────────────────────────────
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      // 1. Collaborateur
+      const collabRes = await collaboratorService.getById(matricule);
+      setCollaborator(collabRes.data);
+
+      // 2. PAQ actif uniquement (période en cours, 6 mois)
+      try {
+        const paqsRes = await paqService.getAllByMatricule(matricule);
+        const paqs    = paqsRes.data || [];
+
+        // On prend UNIQUEMENT le PAQ actif (actif=true, archived=false)
+        const active = paqs.find(p => p.actif === true && p.archived === false) || null;
+        setCurrentPaq(active);
+
+        // Historique du PAQ actif uniquement
+        if (active?.historique) {
+          try { setHistorique(JSON.parse(active.historique)); }
+          catch { setHistorique([]); }
+        } else {
+          setHistorique([]);
         }
-    };
-    
-    const viewHistoricalPaq = (paq) => {
-        setSelectedHistoricalPaq(paq);
-        try {
-            const history = JSON.parse(paq.historique || "[]");
-            setHistorique(history);
-        } catch (e) {
-            setHistorique([]);
-        }
-    };
-    
-    const closeHistoricalView = () => {
-        setSelectedHistoricalPaq(null);
-        loadData();
-    };
-
-    const createPaq = async () => {
-        try {
-            setLoading(true);
-            const res = await paqService.create(matricule);
-            if (res.data) {
-                setCurrentPaq(res.data);
-                if (res.data.historique) {
-                    setHistorique(JSON.parse(res.data.historique));
-                }
-                setActionMessage("Dossier PAQ cree avec succes !");
-                setTimeout(() => setActionMessage(""), 3000);
-                await loadData();
-                navigate(`/paq-dossier/${matricule}`);
-            }
-        } catch (err) {
-            const errorMsg = err.response?.data?.message || "Erreur lors de la creation";
-            setError(errorMsg);
-            setTimeout(() => setError(""), 3000);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const enregistrerFaute = async () => {
-        try {
-            setLoading(true);
-            const res = await paqService.enregistrerFaute(matricule, { 
-                detail: fauteDetail || "Faute professionnelle",
-                type: "STANDARD"
-            });
-            if (res.data) {
-                setCurrentPaq(res.data.paq || res.data);
-                if (res.data.paq?.historique) {
-                    setHistorique(JSON.parse(res.data.paq.historique));
-                }
-                setShowFauteModal(false);
-                setFauteDetail("");
-                setActionMessage(res.data.message || "Faute enregistree");
-                setTimeout(() => setActionMessage(""), 3000);
-                await loadData();
-            }
-        } catch (err) {
-            alert(err.response?.data?.message || "Erreur lors de l'enregistrement");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const upgradeNiveau = async () => {
-        try {
-            setLoading(true);
-            const res = await paqService.upgradeNiveau(matricule);
-            if (res.data) {
-                setCurrentPaq(res.data.paq || res.data);
-                if (res.data.paq?.historique) {
-                    setHistorique(JSON.parse(res.data.paq.historique));
-                }
-                setActionMessage(res.data.message || "Niveau augmente !");
-                setTimeout(() => setActionMessage(""), 3000);
-                await loadData();
-            }
-        } catch (err) {
-            alert(err.response?.data?.message || "Erreur");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const archiverPaq = async () => {
-        if (window.confirm("Etes-vous sur de vouloir archiver ce dossier ?")) {
-            try {
-                setLoading(true);
-                const res = await paqService.archive(matricule);
-                if (res.data) {
-                    setCurrentPaq(null);
-                    setActionMessage("Dossier archive");
-                    setTimeout(() => setActionMessage(""), 3000);
-                    await loadData();
-                }
-            } catch (err) {
-                alert(err.response?.data?.message || "Erreur");
-            } finally {
-                setLoading(false);
-            }
-        }
-    };
-
-    const getProchainEntretien = () => {
-        if (!currentPaq) return null;
-        if (currentPaq.statut === "CLOTURE" || currentPaq.archived) return null;
-        if (currentPaq.niveau === 0) return { niveau: 1, nom: "Entretien explicatif", route: `/entretien-explicatif/${matricule}` };
-        if (currentPaq.niveau === 1) return { niveau: 2, nom: "Entretien d'accord", route: `/entretien-daccord/${matricule}` };
-        if (currentPaq.niveau === 2) return { niveau: 3, nom: "Entretien de mesure", route: `/entretien-de-mesure/${matricule}` };
-        if (currentPaq.niveau === 3) return { niveau: 4, nom: "Entretien de decision", route: `/entretien-de-decision/${matricule}` };
-        if (currentPaq.niveau === 4) return { niveau: 5, nom: "Entretien final", route: `/entretien-final/${matricule}` };
-        return null;
-    };
-
-    const isBlocked = currentPaq?.statut === "CLOTURE" || currentPaq?.archived;
-    const prochainEntretien = getProchainEntretien();
-    const peutCreerPaq = collaborator && !currentPaq;
-
-    const peutCreerPaqApres6Mois = () => {
-        if (!collaborator || !collaborator.hireDate) return false;
-        const hireDate = new Date(collaborator.hireDate);
-        const sixMonthsAgo = new Date();
-        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-        return hireDate <= sixMonthsAgo;
-    };
-
-    if (loading) {
-        return (
-            <div className="paq-loading">
-                <div className="spinner-border text-primary"></div>
-                <p>Chargement...</p>
-            </div>
-        );
+      } catch (err) {
+        if (err.response?.status === 404) {
+          setCurrentPaq(null);
+          setHistorique([]);
+        } else throw err;
+      }
+    } catch (err) {
+      setError("Impossible de charger les données");
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const formatHistoriqueDetail = (detail) => {
-        if (!detail) return detail;
-        const match = detail.match(/Niveau\s+desc\w*\s+de\s+(\d+)\s+à\s+(\d+)/i);
-        if (!match) return detail;
-        const from = Number(match[1]);
-        const to = Number(match[2]);
-        if (Number.isNaN(from) || Number.isNaN(to)) return detail;
-        if (from < to) {
-            return detail.replace(match[0], `Niveau descendant de ${to} à ${from}`);
-        }
-        return detail.replace(match[0], `Niveau descendant de ${from} à ${to}`);
+  // ── Chargement liste de fautes ────────────────────────────────────────────
+  const loadFautes = async () => {
+    try {
+      setFautesLoading(true);
+      const res = await fauteService.getAll();
+      setFautesList(res.data || []);
+    } catch {
+      setFautesList([]);
+    } finally {
+      setFautesLoading(false);
+    }
+  };
+
+  const openFauteModal = () => {
+    setFauteDetail("");
+    setShowFauteModal(true);
+    loadFautes();
+  };
+
+  // ── Créer PAQ ─────────────────────────────────────────────────────────────
+  const createPaq = async () => {
+    try {
+      setLoading(true);
+      const res = await paqService.create(matricule);
+      if (res.data) {
+        setCurrentPaq(res.data);
+        if (res.data.historique) setHistorique(JSON.parse(res.data.historique));
+        showSuccess("Dossier PAQ créé avec succès !");
+       
+      }
+    } catch (err) {
+      showError(err.response?.data?.message || "Erreur lors de la création");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Enregistrer faute ──────────────────────────────────────────────────────
+  const enregistrerFaute = async () => {
+    if (!fauteDetail) {
+      showError("Veuillez sélectionner un type de faute.");
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await paqService.enregistrerFaute(matricule, {
+        detail: fauteDetail,
+        type:   "STANDARD",
+      });
+      if (res.data) {
+        const updatedPaq = res.data.paq || res.data;
+        setCurrentPaq(updatedPaq);
+        if (updatedPaq?.historique) setHistorique(JSON.parse(updatedPaq.historique));
+        setShowFauteModal(false);
+        setFauteDetail("");
+        showSuccess(res.data.message || "Faute enregistrée avec succès");
+       
+      }
+    } catch (err) {
+      showError(err.response?.data?.message || "Erreur lors de l'enregistrement de la faute");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Archiver PAQ ───────────────────────────────────────────────────────────
+  const archiverPaq = async () => {
+    if (!window.confirm("Êtes-vous sûr de vouloir archiver ce dossier ?")) return;
+    try {
+      setLoading(true);
+      await paqService.archive(matricule);
+      setCurrentPaq(null);
+      setHistorique([]);
+      showSuccess("Dossier archivé avec succès");
+    } catch (err) {
+      showError(err.response?.data?.message || "Erreur lors de l'archivage");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Helpers messages ──────────────────────────────────────────────────────
+  const showSuccess = (msg) => { setActionMessage(msg); setTimeout(() => setActionMessage(""), 4000); };
+  const showError   = (msg) => { setError(msg);         setTimeout(() => setError(""),         4000); };
+
+  // ── Logique boutons ───────────────────────────────────────────────────────
+
+  /** PAQ clôturé ou archivé → lecture seule */
+  const isBlocked = currentPaq?.statut === "CLOTURE" || currentPaq?.archived;
+
+  /** true si la date de fin du PAQ est dépassée */
+  const isPaqExpire = () =>
+    !!currentPaq?.dateFin && new Date(currentPaq.dateFin) <= new Date();
+
+  /** true si une faute a été déclarée */
+  const aUneFaute = () => !!currentPaq?.derniereFaute;
+
+  /**
+   * RÈGLE PRINCIPALE :
+   * "Déclarer Faute" s'affiche UNIQUEMENT si niveau === 0 ET aucune faute.
+   * Dès qu'une faute est déclarée, ce bouton disparaît et les boutons
+   * d'entretien apparaissent.
+   */
+  const peutDeclarerFaute = () =>
+    !!currentPaq && !isBlocked && currentPaq.niveau === 0 && !aUneFaute();
+
+  /**
+   * Les boutons d'entretien ne s'affichent QUE si une faute a été déclarée
+   * (ou si le niveau > 0, ce qui signifie qu'un entretien a déjà eu lieu).
+   */
+  const peutVoirEntretiens = () =>
+    !!currentPaq && !isBlocked && (aUneFaute() || currentPaq.niveau > 0);
+
+  /** Prochain entretien selon le niveau actuel */
+  const getProchainEntretien = () => {
+    if (!peutVoirEntretiens()) return null;
+    const map = {
+      0: { nom: "Entretien Explicatif",  route: `/entretien-explicatif/${matricule}` },
+      1: { nom: "Entretien d'Accord",    route: `/entretien-daccord/${matricule}` },
+      2: { nom: "Entretien de Mesure",   route: `/entretien-de-mesure/${matricule}` },
+      3: { nom: "Entretien de Décision", route: `/entretien-de-decision/${matricule}` },
+      4: { nom: "Entretien Final",       route: `/entretien-final/${matricule}` },
     };
+    return map[currentPaq.niveau] || null;
+  };
 
+  /** Peut créer un PAQ ? (pas de PAQ actif + ancienneté OK) */
+  const peutCreerPaq = () => {
+    if (currentPaq) return false;
+    if (!collaborator?.hireDate) return false;
+    const limit = new Date(collaborator.hireDate);
+    limit.setMonth(limit.getMonth() + 6);
+    return new Date() >= limit;
+  };
+
+  // ── Progression période ───────────────────────────────────────────────────
+  const getPaqProgress = () => {
+    if (!currentPaq?.dateCreation || !currentPaq?.dateFin) return 0;
+    const start   = new Date(currentPaq.dateCreation);
+    const end     = new Date(currentPaq.dateFin);
+    const elapsed = new Date() - start;
+    return Math.min(100, Math.max(0, Math.round((elapsed / (end - start)) * 100)));
+  };
+
+  // ── Formatage ─────────────────────────────────────────────────────────────
+  const formatDate = (d) => {
+    if (!d) return "–";
+    try {
+      return new Date(d).toLocaleDateString("fr-FR", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+      });
+    } catch { return d; }
+  };
+
+  const formatHistoriqueDetail = (detail, date) => {
+    if (!detail) return detail;
+    let s = String(detail)
+      .replace(/\s*-\s*Niveau\s+(descendant|ascendant)\s+de\s+(\d+)\s+à\s+(\d+)\s*/gi,
+        (m, _d, from, to) => (from === to ? " - " : m))
+      .replace(/\s*-\s*-\s*/g, " - ")
+      .replace(/^\s*-\s*/g, "")
+      .replace(/\s*-\s*$/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    return s.replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, (_, y, m, d) => `${d}/${m}/${y}`);
+  };
+
+  const getBadgeClass = (action = "") => {
+    const a = action.toLowerCase();
+    if (a.includes("entretien"))  return "leoni-badge leoni-badge-blue";
+    if (a.includes("faute"))      return "leoni-badge leoni-badge-red";
+    if (a.includes("création"))   return "leoni-badge leoni-badge-green";
+    if (a.includes("archiv"))     return "leoni-badge leoni-badge-gray";
+    return "leoni-badge leoni-badge-gray";
+  };
+
+  const handleHistoriqueClick = (action) => {
+   if (!action) return;
+    const a = action.toLowerCase();
+
+    // Chaque action ouvre la page de l'entretien correspondant
+    if (a.includes("explicatif"))                               navigate(`/entretien-explicatif/${matricule}`);
+    else if (a.includes("accord"))                              navigate(`/entretien-daccord/${matricule}`);
+    else if (a.includes("mesure"))                              navigate(`/entretien-de-mesure/${matricule}`);
+    else if (a.includes("décision") || a.includes("decision")) navigate(`/entretien-de-decision/${matricule}`);
+    else if (a.includes("final"))                               navigate(`/entretien-final/${matricule}`);
+  };
+
+  // ── Rendu ─────────────────────────────────────────────────────────────────
+  if (loading) {
     return (
-        <div className="paq-shell">
-            <div className="paq-header">
-                <button onClick={() => navigate("/collaborateurs")} className="btn btn-secondary">
-                    &larr; Retour
+      <div className="leoni-loading">
+        <div className="leoni-spinner"></div>
+        <p>Chargement du dossier...</p>
+      </div>
+    );
+  }
+
+  const prochainEntretien = getProchainEntretien();
+
+  return (
+    <div className="leoni-shell">
+
+      {/* ── HEADER ─────────────────────────────────────────────────────────── */}
+      <div className="leoni-header">
+
+        <div className="leoni-header-left">
+          <button onClick={() => navigate("/collaborateurs")} className="leoni-btn-back">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M19 12H5M5 12l7 7M5 12l7-7" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Retour
+          </button>
+        </div>
+
+        <div className="leoni-header-title">
+          <div className="leoni-logo-bar">
+            <div className="leoni-logo-accent"></div>
+            <h1>Dossier PAQ</h1>
+          </div>
+          {collaborator && (
+            <span className="leoni-header-sub">
+              {collaborator.name} {collaborator.prenom} — {collaborator.matricule}
+            </span>
+          )}
+        </div>
+
+        <div className="leoni-header-actions">
+
+          {/* Créer PAQ — uniquement si pas de PAQ actif et 6 mois atteints */}
+          {!currentPaq && peutCreerPaq() && (
+            <button onClick={createPaq} className="leoni-btn leoni-btn-success">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              Créer PAQ
+            </button>
+          )}
+
+          {currentPaq && !isBlocked && (
+            <>
+              {/* ── ÉTAPE 1 : Déclarer la faute (niveau 0, pas encore de faute) ── */}
+              {peutDeclarerFaute() && (
+                <button onClick={openFauteModal} className="leoni-btn leoni-btn-warning">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Déclarer Faute
                 </button>
-                <h1>Dossier PAQ</h1>
-                <div className="paq-actions">
-                    {peutCreerPaq && (
-                        <button 
-                            onClick={createPaq} 
-                            className="btn btn-success"
-                            disabled={!peutCreerPaqApres6Mois()}
-                            title={!peutCreerPaqApres6Mois() ? "Necessite 6 mois d'anciennete" : ""}
-                        >
-                            Creer PAQ
-                        </button>
-                    )}
-                    {currentPaq && !isBlocked && (
-                        <>
-                            {prochainEntretien && (
-                                <button 
-                                    onClick={() => navigate(prochainEntretien.route)} 
-                                    className="btn btn-primary"
-                                >
-                                    {prochainEntretien.nom}
-                                </button>
-                            )}
-                            <button 
-                                onClick={() => setShowFauteModal(true)} 
-                                className="btn btn-warning"
-                            >
-                                Enregistrer Faute
-                            </button>
-                            <button onClick={archiverPaq} className="btn btn-secondary">
-                                Archiver
-                            </button>
-                        </>
-                    )}
+              )}
+
+              {/* ── ÉTAPE 2 : Passer à l'entretien (après faute déclarée) ── */}
+              {prochainEntretien && (
+                <button
+                  onClick={() => navigate(prochainEntretien.route)}
+                  className="leoni-btn leoni-btn-primary"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M8 12h8M13 8l4 4-4 4" stroke="currentColor" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  {prochainEntretien.nom}
+                </button>
+              )}
+
+              {/* ── Archiver manuellement (période expirée) ── */}
+              {isPaqExpire() && (
+                <button onClick={archiverPaq} className="leoni-btn leoni-btn-outline">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <polyline points="21 8 21 21 3 21 3 8" stroke="currentColor" strokeWidth="2"/>
+                    <rect x="1" y="3" width="22" height="5" rx="1" stroke="currentColor" strokeWidth="2"/>
+                  </svg>
+                  Archiver
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── ALERTES ────────────────────────────────────────────────────────── */}
+      {actionMessage && (
+        <div className="leoni-alert leoni-alert-success">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5"
+              strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          {actionMessage}
+          <button className="leoni-alert-close" onClick={() => setActionMessage("")}>✕</button>
+        </div>
+      )}
+      {error && (
+        <div className="leoni-alert leoni-alert-error">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+            <path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          {error}
+          <button className="leoni-alert-close" onClick={() => setError("")}>✕</button>
+        </div>
+      )}
+      {isBlocked && (
+        <div className="leoni-alert leoni-alert-warning">
+          Ce dossier est <strong>{currentPaq?.statut === "CLOTURE" ? "clôturé" : "archivé"}</strong> — mode lecture seule
+        </div>
+      )}
+      {currentPaq && !isBlocked && isPaqExpire() && (
+        <div className="leoni-alert leoni-alert-warning">
+          La période de 6 mois est <strong>écoulée</strong>. Ce dossier sera archivé automatiquement.
+          Vous pouvez l'archiver manuellement dès maintenant.
+        </div>
+      )}
+
+      {/* ── CONTENU PRINCIPAL ──────────────────────────────────────────────── */}
+      <div className="leoni-grid-main">
+
+        {/* ── COLONNE GAUCHE ────────────────────────────────────────────────── */}
+        <div className="leoni-col-left">
+
+          {/* Fiche collaborateur */}
+          {collaborator && (
+            <div className="leoni-card">
+              <div className="leoni-card-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" strokeWidth="2"/>
+                  <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+                Informations Collaborateur
+              </div>
+              <div className="leoni-card-body">
+                <div className="leoni-collab-avatar">
+                  {`${collaborator.name?.[0] || ""}${collaborator.prenom?.[0] || ""}`.toUpperCase()}
                 </div>
+                <div className="leoni-collab-name">{collaborator.name} {collaborator.prenom}</div>
+                <div className="leoni-collab-info-grid">
+                  <div className="leoni-info-item">
+                    <span className="leoni-info-label">Matricule</span>
+                    <span className="leoni-info-value leoni-mono">{collaborator.matricule}</span>
+                  </div>
+                  <div className="leoni-info-item">
+                    <span className="leoni-info-label">Segment</span>
+                    <span className="leoni-info-value">{collaborator.segment || "–"}</span>
+                  </div>
+                  <div className="leoni-info-item">
+                    <span className="leoni-info-label">Date d'embauche</span>
+                    <span className="leoni-info-value leoni-mono">{formatDate(collaborator.hireDate)}</span>
+                  </div>
+                  <div className="leoni-info-item">
+                    <span className="leoni-info-label">Statut</span>
+                    <span className={`leoni-badge ${collaborator.status === "ACTIF" ? "leoni-badge-green" : "leoni-badge-gray"}`}>
+                      {collaborator.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Niveau PAQ */}
+          {currentPaq && (
+            <div className="leoni-card leoni-card-niveau">
+              <div className="leoni-card-header">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                Niveau PAQ Actuel
+                {currentPaq.statut === "CRITIQUE" && (
+                  <span className="leoni-badge leoni-badge-red ms-auto">CRITIQUE</span>
+                )}
+              </div>
+              <div className="leoni-card-body leoni-niveau-body">
+
+                {/* Cercle de progression */}
+                <div className="leoni-niveau-circle">
+                  <svg viewBox="0 0 80 80" className="leoni-niveau-svg">
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="#e2e8f0" strokeWidth="6"/>
+                    <circle cx="40" cy="40" r="34" fill="none"
+                      stroke={currentPaq.niveau === 0
+                        ? "#f59e0b"
+                        : currentPaq.statut === "CRITIQUE"
+                          ? "#ef4444"
+                          : "#005baa"}
+                      strokeWidth="6"
+                      strokeDasharray={`${(currentPaq.niveau / 5) * 213.6} 213.6`}
+                      strokeDashoffset="53.4"
+                      strokeLinecap="round"/>
+                  </svg>
+                  <div className="leoni-niveau-num">{currentPaq.niveau}<span>/5</span></div>
+                </div>
+
+                {/* Étapes */}
+                <div className="leoni-niveau-steps">
+                  {[1,2,3,4,5].map(n => (
+                    <div key={n} className={`leoni-step ${n <= currentPaq.niveau ? "done" : n === currentPaq.niveau + 1 ? "next" : ""}`}>
+                      <div className="leoni-step-dot">{n <= currentPaq.niveau ? "✓" : n}</div>
+                      <div className="leoni-step-label">N{n}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Description état */}
+                <div className="leoni-niveau-desc">
+                  {currentPaq.niveau === 0 && !aUneFaute() && (
+                    <span>⏳ En attente de la déclaration de faute</span>
+                  )}
+                  {currentPaq.niveau === 0 && aUneFaute() && (
+                    <span>⚠️ Faute déclarée — Lancer l'entretien explicatif</span>
+                  )}
+                  {currentPaq.niveau === 1 && "Entretien explicatif réalisé"}
+                  {currentPaq.niveau === 2 && "Entretien d'accord réalisé"}
+                  {currentPaq.niveau === 3 && "Entretien de mesure réalisé"}
+                  {currentPaq.niveau === 4 && "Entretien de décision réalisé"}
+                  {currentPaq.niveau === 5 && "✅ Dossier clôturé avec succès"}
+                </div>
+
+                {/* Barre de progression période */}
+                <div className="leoni-periode-bar">
+                  <div className="leoni-periode-labels">
+                    <span className="leoni-mono">{formatDate(currentPaq.dateCreation)}</span>
+                    <span className="leoni-mono">{formatDate(currentPaq.dateFin)}</span>
+                  </div>
+                  <div className="leoni-progress-track">
+                    <div className="leoni-progress-fill" style={{ width: `${getPaqProgress()}%` }}></div>
+                  </div>
+                  <div className="leoni-periode-pct">{getPaqProgress()}% de la période écoulée</div>
+                </div>
+
+                {/* Dernière faute */}
+                {currentPaq.derniereFaute && (
+                  <div className="leoni-last-faute">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                      <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                        stroke="currentColor" strokeWidth="2"/>
+                    </svg>
+                    Dernière faute : {formatDate(currentPaq.derniereFaute)}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Pas de PAQ actif */}
+          {!currentPaq && collaborator && (
+            <div className="leoni-card">
+              <div className="leoni-card-body" style={{ textAlign: "center", padding: "32px 16px" }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style={{ color: "#cbd5e1", marginBottom: 12 }}>
+                  <polyline points="21 8 21 21 3 21 3 8" stroke="currentColor" strokeWidth="1.5"/>
+                  <rect x="1" y="3" width="22" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+                </svg>
+                <p style={{ color: "#64748b", fontWeight: 500 }}>Aucun dossier PAQ en cours</p>
+                {peutCreerPaq() ? (
+                  <button onClick={createPaq} className="leoni-btn leoni-btn-success" style={{ marginTop: 12 }}>
+                    Créer un dossier PAQ
+                  </button>
+                ) : (
+                  <p className="leoni-info-notice" style={{ marginTop: 12 }}>
+                    Disponible après 6 mois d'ancienneté
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── COLONNE DROITE ─────────────────────────────────────────────────── */}
+        <div className="leoni-col-right">
+
+          {/*
+           * HISTORIQUE DU PAQ ACTIF (6 mois en cours) UNIQUEMENT
+           * Les dossiers précédents ne s'affichent plus ici :
+           * ils sont consultables via la page Archivage.
+           */}
+          <div className="leoni-card">
+            <div className="leoni-card-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                <polyline points="12 6 12 12 16 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              Historique des Événements
+              {currentPaq && (
+                <span className="leoni-badge leoni-badge-blue ms-auto" style={{ fontSize: "11px" }}>
+                  Période en cours
+                </span>
+              )}
+              {historique.length > 0 && (
+                <span className="leoni-badge leoni-badge-blue ms-2">{historique.length}</span>
+              )}
+            </div>
+            <div className="leoni-card-body p-0">
+              {!currentPaq ? (
+                <div className="leoni-empty">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>
+                    <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  <p>Aucun dossier PAQ actif</p>
+                  <small style={{ color: "#94a3b8" }}>
+                    Les archives des dossiers précédents sont consultables dans la section Archivage.
+                  </small>
+                </div>
+              ) : historique.length === 0 ? (
+                <div className="leoni-empty">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>
+                    <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  <p>Aucun événement enregistré</p>
+                  {peutDeclarerFaute() && (
+                    <small style={{ color: "#94a3b8" }}>
+                      Commencez par déclarer une faute pour démarrer le processus.
+                    </small>
+                  )}
+                </div>
+              ) : (
+                <div className="leoni-table-wrap">
+                  <table className="leoni-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Action</th>
+                        <th>Détail</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                     {historique
+  .filter(h => {
+    const action = (h.action || "").toLowerCase();
+    return (
+      !action.includes("creation suite entretien positif") &&
+      !action.includes("augmentation")
+    );
+  })
+  .map((h, i) => {
+    const isEntretien = (h.action || "").toLowerCase().includes("entretien");
+    return (
+      <tr key={i}>
+        <td className="leoni-mono leoni-td-date">{formatDate(h.date)}</td>
+        <td>
+          {isEntretien ? (
+            // ✅ Cliquable → ouvre l'entretien spécifique
+            <button
+              onClick={() => handleHistoriqueClick(h.action)}
+              className={`${getBadgeClass(h.action)} leoni-action-link`}
+              style={{ cursor: "pointer" }}
+            >
+              {h.action}
+            </button>
+          ) : (
+            // Non cliquable (création dossier, faute)
+            <span className={getBadgeClass(h.action)}>
+              {h.action}
+            </span>
+          )}
+        </td>
+        <td className="leoni-td-detail">
+          {formatHistoriqueDetail(h.detail, h.date)}
+        </td>
+      </tr>
+    );
+  })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── MODAL DÉCLARER FAUTE ────────────────────────────────────────────── */}
+      {showFauteModal && (
+        <div className="leoni-modal-overlay" onClick={() => setShowFauteModal(false)}>
+          <div className="leoni-modal" onClick={e => e.stopPropagation()}>
+
+            <div className="leoni-modal-header">
+              <div className="leoni-modal-icon leoni-modal-icon-warning">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <div>
+                <h3>Déclarer une Faute</h3>
+                <p>Sélectionnez le type de faute à enregistrer</p>
+              </div>
+              <button className="leoni-modal-close" onClick={() => setShowFauteModal(false)}>✕</button>
             </div>
 
-            {actionMessage && (
-                <div className="alert alert-success alert-dismissible fade show">
-                    {actionMessage}
-                    <button type="button" className="btn-close" onClick={() => setActionMessage("")}></button>
-                </div>
-            )}
-
-            {error && (
-                <div className="alert alert-danger alert-dismissible fade show">
-                    {error}
-                    <button type="button" className="btn-close" onClick={() => setError("")}></button>
-                </div>
-            )}
-
-            {isBlocked && (
-                <div className="alert alert-warning paq-banner">
-                    Ce dossier est {currentPaq?.statut === "CLOTURE" ? "cloture" : "archive"} (lecture seule)
-                </div>
-            )}
-
-            {collaborator && (
-                <div className="paq-meta card">
-                    <div className="card-body">
-                        <h3 className="card-title">Informations collaborateur</h3>
-                        <div className="row">
-                            <div className="col-md-6">
-                                <p><strong>Matricule :</strong> {collaborator.matricule}</p>
-                                <p><strong>Nom :</strong> {collaborator.name} {collaborator.prenom}</p>
-                                <p><strong>Segment :</strong> {collaborator.segment}</p>
-                            </div>
-                            <div className="col-md-6">
-                                <p><strong>Date embauche :</strong> {collaborator.hireDate}</p>
-                                <p><strong>Statut :</strong> 
-                                    <span className={`badge ${collaborator.status === "ACTIF" ? "bg-success" : "bg-secondary"} ms-2`}>
-                                        {collaborator.status}
-                                    </span>
-                                </p>
-                                {!currentPaq && !peutCreerPaqApres6Mois() && (
-                                    <p className="text-warning">
-                                        PAQ disponible apres 6 mois d'anciennete
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {currentPaq && !selectedHistoricalPaq && (
-                <div className="paq-niveau card">
-                    <div className="card-body text-center">
-                        <h3>Niveau actuel</h3>
-                        <div className="niveau-display">
-                            <div className={`niveau-value ${currentPaq.niveau === 0 ? "text-warning" : "text-primary"}`}>
-                                {currentPaq.niveau}
-                            </div>
-                            <div className="niveau-max">/ 5</div>
-                        </div>
-                        <div className="niveau-bar-large">
-                            {[1, 2, 3, 4, 5].map(n => (
-                                <span key={n} className={n <= currentPaq.niveau ? "active" : ""}></span>
-                            ))}
-                        </div>
-                        <p className="mt-2">
-                            <strong>Periode :</strong> {currentPaq.dateCreation} &rarr; {currentPaq.dateFin}
-                        </p>
-                        <p>
-                            {currentPaq.niveau === 0 && "Dossier cree, en attente du premier entretien"}
-                            {currentPaq.niveau === 1 && "Premier entretien realise"}
-                            {currentPaq.niveau === 2 && "Deuxieme entretien realise"}
-                            {currentPaq.niveau === 3 && "Troisieme entretien realise"}
-                            {currentPaq.niveau === 4 && "Quatrieme entretien realise"}
-                            {currentPaq.niveau === 5 && "Dossier cloture avec succes"}
-                        </p>
-                        {currentPaq.statut === "CRITIQUE" && (
-                            <div className="alert alert-danger mt-2">
-                                STATUT CRITIQUE - Action immediate requise !
-                            </div>
-                        )}
-                        {currentPaq.derniereFaute && (
-                            <p className="text-muted small">
-                                Derniere faute: {currentPaq.derniereFaute}
-                            </p>
-                        )}
-                    </div>
-                </div>
-            )}
-            
-            {selectedHistoricalPaq && (
-                <div className="paq-niveau card historical">
-                    <div className="card-body text-center">
-                        <h3>Dossier PAQ Historique</h3>
-                        <div className="niveau-display">
-                            <div className="niveau-value text-secondary">
-                                {selectedHistoricalPaq.niveau}
-                            </div>
-                            <div className="niveau-max">/ 5</div>
-                        </div>
-                        <div className="niveau-bar-large">
-                            {[1, 2, 3, 4, 5].map(n => (
-                                <span key={n} className={n <= selectedHistoricalPaq.niveau ? "active" : ""}></span>
-                            ))}
-                        </div>
-                        <p className="mt-2">
-                            <strong>Periode :</strong> {selectedHistoricalPaq.dateCreation} &rarr; {selectedHistoricalPaq.dateFin}
-                        </p>
-                        <p className="mt-2">
-                            <strong>Statut final :</strong> {selectedHistoricalPaq.statut}
-                        </p>
-                        <button onClick={closeHistoricalView} className="btn btn-primary mt-2">
-                            Retour au dossier actif
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {historicalPaqs.length > 0 && !selectedHistoricalPaq && (
-                <section className="paq-block">
-                    <h3>Dossiers PAQ precedents</h3>
-                    <div className="table-responsive">
-                        <table className="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Periode</th>
-                                    <th>Niveau final</th>
-                                    <th>Statut</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {historicalPaqs.map((paq, idx) => (
-                                    <tr key={idx}>
-                                        <td>{paq.dateCreation} &rarr; {paq.dateFin}</td>
-                                        <td>{paq.niveau}/5</td>
-                                        <td>
-                                            <span className={`badge ${
-                                                paq.statut === "CLOTURE" ? "bg-success" : "bg-secondary"
-                                            }`}>
-                                                {paq.statut}
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <button 
-                                                onClick={() => viewHistoricalPaq(paq)}
-                                                className="btn btn-sm btn-outline-info"
-                                            >
-                                                Voir details
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            )}
-
-            <section className="paq-block">
-                <h3>Historique des evenements</h3>
-                {historique.length === 0 ? (
-                    <p className="text-muted">Aucun historique disponible</p>
+            <div className="leoni-modal-body">
+              <div className="leoni-form-group">
+                <label>Type de faute <span className="leoni-required">*</span></label>
+                {fautesLoading ? (
+                  <div className="leoni-select-loading">
+                    <div className="leoni-spinner leoni-spinner-sm"></div>
+                    Chargement des fautes...
+                  </div>
                 ) : (
-                    <div className="table-responsive">
-                        <table className="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Action</th>
-                                    <th>Detail</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {historique.map((h, i) => (
-                                    <tr key={i}>
-                                        <td>{h.date}</td>
-                                        <td>
-                                            <span className={`badge ${
-                                                h.action.includes("entretien") ? "bg-primary" :
-                                                h.action.includes("Faute") ? "bg-danger" :
-                                                h.action.includes("Augmentation") ? "bg-success" :
-                                                h.action.includes("Creation") ? "bg-info" :
-                                                "bg-secondary"
-                                            }`}>
-                                                {h.action}
-                                            </span>
-                                        </td>
-                                        <td>{formatHistoriqueDetail(h.detail)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                  <select
+                    className="leoni-select"
+                    value={fauteDetail}
+                    onChange={(e) => setFauteDetail(e.target.value)}
+                  >
+                    <option value="">— Sélectionner une faute —</option>
+                    {fautesList.map((f, i) => (
+                      <option key={i} value={f.nom || f.name || f}>
+                        {f.nom || f.name || f}
+                      </option>
+                    ))}
+                  </select>
                 )}
-            </section>
+              </div>
 
-            {showFauteModal && (
-                <div className="modal-overlay">
-                    <div className="modal-content">
-                        <h3>Enregistrer une faute</h3>
-                        <div className="form-group">
-                            <label>Choisir la faute :</label>
-                            <select
-                                className="form-select"
-                                value={fauteDetail}
-                                onChange={(e) => setFauteDetail(e.target.value)}
-                            >
-                                <option value="">Selectionner</option>
-                                <option value="Collage inverse">Collage inverse</option>
-                                <option value="Erreur montage">Erreur montage</option>
-                                <option value="Defaut qualite">Defaut qualite</option>
-                                <option value="Non respect consigne">Non respect consigne</option>
-                                <option value="Autre">Autre</option>
-                            </select>
-                        </div>
-                        <div className="alert alert-warning mt-2">
-                            Une faute fera descendre le niveau d'un cran (minimum 0)
-                        </div>
-                        <div className="modal-buttons">
-                            <button onClick={enregistrerFaute} className="btn btn-warning">
-                                Valider
-                            </button>
-                            <button 
-                                onClick={() => {
-                                    setShowFauteModal(false);
-                                    setFauteDetail("");
-                                }}
-                                className="btn btn-secondary"
-                            >
-                                Annuler
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+              <div className="leoni-modal-notice leoni-modal-notice-warning">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                    stroke="currentColor" strokeWidth="2"/>
+                </svg>
+                Après validation, le bouton <strong>"Entretien Explicatif"</strong> s'affichera automatiquement.
+              </div>
+            </div>
+
+            <div className="leoni-modal-footer">
+              <button
+                onClick={() => { setShowFauteModal(false); setFauteDetail(""); }}
+                className="leoni-btn leoni-btn-outline"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={enregistrerFaute}
+                className="leoni-btn leoni-btn-warning"
+                disabled={!fauteDetail}
+              >
+                Valider la faute
+              </button>
+            </div>
+
+          </div>
         </div>
-    );
+      )}
+    </div>
+  );
 }

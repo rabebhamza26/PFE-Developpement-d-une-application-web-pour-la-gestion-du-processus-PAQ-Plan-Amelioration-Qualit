@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { collaboratorService } from "../../services/api";
+import { collaboratorService, getSegments } from "../../services/api";
 import "../../styles/collaborator.css";
-
-const SEGMENT_OPTIONS = ["SEG-01", "SEG-02", "SEG-03", "SEG-04"];
 
 export default function EditCollaborator() {
     const { matricule } = useParams();
@@ -18,7 +16,17 @@ export default function EditCollaborator() {
     const [success, setSuccess] = useState("");
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [segments, setSegments] = useState([]);
+    const [segmentsLoading, setSegmentsLoading] = useState(true);
     const navigate = useNavigate();
+
+    const getSegmentLabel = (segment) =>
+        segment?.nomSegment ||
+        segment?.name ||
+        segment?.code ||
+        segment?.segment ||
+        segment?.libelle ||
+        String(segment ?? "");
 
     /**
      * Charge les données du collaborateur au montage
@@ -26,6 +34,26 @@ export default function EditCollaborator() {
     useEffect(() => {
         loadCollaborator();
     }, [matricule]);
+
+    useEffect(() => {
+        const loadSegments = async () => {
+            try {
+                setSegmentsLoading(true);
+                const res = await getSegments();
+                const list = Array.isArray(res.data) ? res.data : [];
+                const sorted = [...list].sort((a, b) =>
+                    getSegmentLabel(a).localeCompare(getSegmentLabel(b), "fr", { sensitivity: "base" })
+                );
+                setSegments(sorted);
+            } catch (err) {
+                console.error("Erreur chargement segments:", err);
+                setSegments([]);
+            } finally {
+                setSegmentsLoading(false);
+            }
+        };
+        loadSegments();
+    }, []);
 
     /**
      * Récupère les informations du collaborateur à modifier
@@ -51,17 +79,13 @@ export default function EditCollaborator() {
         }
     };
 
-    /**
-     * Gère les changements dans les champs du formulaire
-     */
+    
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
     };
 
-    /**
-     * Gère la soumission du formulaire
-     */
+   
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError("");
@@ -111,23 +135,29 @@ export default function EditCollaborator() {
 
     if (loading) {
         return (
-            <div className="container py-4 text-center">
-                <div className="spinner-border text-primary" role="status">
-                    <span className="visually-hidden">Chargement...</span>
+            <div className="container py-4 collab-form-page">
+                <div className="collab-form-loading">
+                    <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Chargement...</span>
+                    </div>
+                    <p className="mt-2">Chargement des informations...</p>
                 </div>
-                <p className="mt-2">Chargement des informations...</p>
             </div>
         );
     }
 
     return (
-        <div className="container py-4">
-            <div className="form-container card shadow-sm border-0">
-                <div className="card-body p-4 p-md-5">
-                    <h2 className="mb-4">
-                        <i className="fas fa-edit me-2"></i>
+        <div className="container py-4 collab-form-page">
+            <div className="collab-form-shell">
+                <div className="collab-form-header">
+                    <div>
+                        <h2 className="collab-form-title">
                         Modifier le Collaborateur
-                    </h2>
+                        </h2>
+                    </div>
+                </div>
+            <div className="form-container card shadow-sm border-0 collab-form-card">
+                <div className="card-body p-4 p-md-5">
 
                     {error && (
                         <div className="alert alert-danger alert-dismissible fade show">
@@ -145,8 +175,8 @@ export default function EditCollaborator() {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit}>
-                        <div className="form-group mb-3">
+                    <form onSubmit={handleSubmit} className="collab-form-grid">
+                        <div className="form-group mb-3 collab-field">
                             <label htmlFor="matricule" className="form-label">Matricule:</label>
                             <input
                                 type="text"
@@ -159,7 +189,7 @@ export default function EditCollaborator() {
                             <small className="text-muted">Le matricule ne peut pas être modifié</small>
                         </div>
 
-                        <div className="form-group mb-3">
+                        <div className="form-group mb-3 collab-field">
                             <label htmlFor="name" className="form-label">
                                 Nom <span className="text-danger">*</span>
                             </label>
@@ -174,7 +204,7 @@ export default function EditCollaborator() {
                             />
                         </div>
 
-                        <div className="form-group mb-3">
+                        <div className="form-group mb-3 collab-field">
                             <label htmlFor="prenom" className="form-label">
                                 Prénom <span className="text-danger">*</span>
                             </label>
@@ -189,7 +219,7 @@ export default function EditCollaborator() {
                             />
                         </div>
 
-                        <div className="form-group mb-3">
+                        <div className="form-group mb-3 collab-field">
                             <label htmlFor="segment" className="form-label">
                                 Segment <span className="text-danger">*</span>
                             </label>
@@ -201,16 +231,22 @@ export default function EditCollaborator() {
                                 className="form-select"
                                 required
                             >
-                                <option value="">Sélectionner un segment</option>
-                                {SEGMENT_OPTIONS.map((segment) => (
-                                    <option key={segment} value={segment}>
-                                        {segment}
-                                    </option>
-                                ))}
+                                <option value="">
+                                    {segmentsLoading ? "Chargement..." : "Sélectionner un segment"}
+                                </option>
+                                {segments.map((segment) => {
+                                    const label = getSegmentLabel(segment);
+                                    const key = segment?.idSegment ?? segment?.id ?? label;
+                                    return (
+                                        <option key={key} value={label}>
+                                            {label}
+                                        </option>
+                                    );
+                                })}
                             </select>
                         </div>
 
-                        <div className="form-group mb-4">
+                        <div className="form-group mb-4 collab-field collab-field-full">
                             <label htmlFor="hireDate" className="form-label">
                                 Date d'embauche <span className="text-danger">*</span>
                             </label>
@@ -225,7 +261,7 @@ export default function EditCollaborator() {
                             />
                         </div>
 
-                        <div className="form-buttons d-flex flex-column flex-sm-row gap-2">
+                        <div className="form-buttons d-flex flex-column flex-sm-row gap-2 collab-form-actions collab-field-full">
                             <button 
                                 type="submit" 
                                 disabled={submitting} 
@@ -248,6 +284,7 @@ export default function EditCollaborator() {
                         </div>
                     </form>
                 </div>
+            </div>
             </div>
         </div>
     );

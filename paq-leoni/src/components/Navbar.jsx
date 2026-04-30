@@ -1,57 +1,58 @@
+// src/components/Navbar.jsx
 import React from "react";
-import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import NotificationBell from "./NotificationBell";
+import "../styles/navbar.css";
 
 function Navbar() {
-  const logout = () => {
-    localStorage.removeItem("token");
-    window.location.href = "/";
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await API.post("/auth/logout");
+    } catch (err) {
+      console.warn("Logout backend échoué:", err.message);
+    } finally {
+      logout();
+      window.location.href = "/";
+    }
   };
 
   return (
-    <nav style={styles.navbar}>
-      <div style={styles.left}>
-        <h2 style={styles.title}>PAQ System</h2>
-      
+    <nav className="navbar">
+      <div className="navbar-left">
+        <div className="navbar-title">
+          <h2>PAQ System</h2>
+          <span>Processus d'amélioration qualité</span>
+        </div>
       </div>
-      <button onClick={logout} style={styles.button}>Logout</button>
+      <div className="navbar-right">
+        {user && (
+          <>
+            {/* ✅ Cloche de notifications */}
+            <NotificationBell />
+
+            <div className="navbar-user">
+              <div className="navbar-avatar">
+                {user.fullName?.[0] || user.login?.[0] || "U"}
+              </div>
+              <div className="navbar-user-meta">
+                <span className="navbar-user-name">
+                  {user.fullName || user.login || "Utilisateur"}
+                </span>
+                <span className="navbar-user-role">
+                  {user.role || "ROLE"}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+        <button onClick={handleLogout} className="navbar-logout">
+          Logout
+        </button>
+      </div>
     </nav>
   );
 }
-
-const styles = {
-  navbar: {
-    height: "60px",
-    background: "#1e293b",
-    color: "white",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "0 20px",
-  },
-  left: {
-    display: "flex",
-    alignItems: "center",
-    gap: "16px"
-  },
-  title: {
-    margin: 0,
-    fontSize: "1.25rem"
-  },
-  link: {
-    color: "white",
-    textDecoration: "none",
-    padding: "6px 10px",
-    border: "1px solid rgba(255,255,255,0.2)",
-    borderRadius: "6px"
-  },
-  button: {
-    background: "#ef4444",
-    color: "white",
-    border: "none",
-    padding: "8px 12px",
-    cursor: "pointer",
-    borderRadius: "5px",
-  },
-};
 
 export default Navbar;

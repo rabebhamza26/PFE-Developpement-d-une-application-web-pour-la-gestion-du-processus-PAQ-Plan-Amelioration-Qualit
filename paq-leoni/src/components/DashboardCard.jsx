@@ -10,15 +10,30 @@ function DashboardCard({ title, value }) {
 }
 
 const styles = {
+ 
   card: {
-    background: "#1e293b",
-    color: "white",
+    background: "#1a1a2e",
+    color: "#fff",
     padding: "20px",
-    borderRadius: "10px",
-    width: "150px",
+    borderRadius: "8px",
+    width: "160px",
     textAlign: "center",
-    boxShadow: "0px 2px 5px rgba(0,0,0,0.3)",
+    borderLeft: "4px solid #e8a020",
   },
+  title: {
+    fontSize: "11px",
+    color: "#9aa3b2",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+    marginBottom: "8px",
+  },
+  value: {
+    fontSize: "28px",
+    fontWeight: "700",
+    color: "#e8a020",
+    margin: 0,
+  },
+
 };
 
 export default DashboardCard;

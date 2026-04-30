@@ -2,7 +2,7 @@ package com.polytech.paqbackend.service;
 
 
 
-import com.polytech.paqbackend.controller.PaqController;
+
 import com.polytech.paqbackend.dto.CollaborateurSansFauteDto;
 import com.polytech.paqbackend.dto.EnvoyerSlRequest;
 import com.polytech.paqbackend.entity.Collaborator;
@@ -16,6 +16,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
+
 import java.time.temporal.ChronoUnit;
 
 import java.time.LocalDate;
@@ -40,6 +41,12 @@ public class PaqSchedulerService {
     // Add missing dependency
     @Autowired
     private EntretienPositifService entretienPositifService;
+
+
+    @Autowired
+    private EntretienMesureService service;
+
+
 
     // Classe interne pour l'historique
     public static class HistoriqueEvent {
@@ -277,8 +284,7 @@ public class PaqSchedulerService {
                         .map(CollaborateurSansFauteDto::getMatricule)
                         .collect(Collectors.toList()));
                 request.setSlDestinataire("sl@leoni.com");
-                request.setDateEnvoi(LocalDate.now());
-                request.setMessage("Liste automatique des collaborateurs sans faute depuis 6 mois");
+                request.setDateEnvoi(LocalDate.now().toString()); // format ISO yyyy-MM-dd                request.setMessage("Liste automatique des collaborateurs sans faute depuis 6 mois");
 
                 entretienPositifService.envoyerListeSl(request);
                 System.out.println("✅ Liste envoyée automatiquement pour " + sansFaute.size() + " collaborateurs");
@@ -287,4 +293,9 @@ public class PaqSchedulerService {
             }
         }
 
+
+
+
 }
+
+
