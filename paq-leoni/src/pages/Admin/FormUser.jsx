@@ -27,14 +27,22 @@ export default function FormUser() {
   };
 
   const deleteUser = async (id) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ?")) {
-      try {
-        await userService.deleteUser(id);
-        loadUsers();
-      } catch (err) {
-        setError("Erreur lors de la suppression: " + (err.response?.data?.message || err.message));
-        console.error("Erreur:", err);
-      }
+    const result = await showConfirmAlert({
+      title: "Supprimer cet utilisateur ?",
+      text: "Cette action est irreversible.",
+      confirmButtonText: "Supprimer",
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      await userService.deleteUser(id);
+      await showSuccessAlert("Utilisateur supprime", "Le compte a ete supprime avec succes.");
+      loadUsers();
+    } catch (err) {
+      const message = "Erreur lors de la suppression: " + (err.response?.data?.message || err.message);
+      setError(message);
+      await showErrorAlert("Suppression impossible", message);
+      console.error("Erreur:", err);
     }
   };
 

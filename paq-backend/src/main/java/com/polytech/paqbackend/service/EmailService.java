@@ -8,6 +8,9 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+
 @Service
 public class EmailService {
 
@@ -18,6 +21,57 @@ public class EmailService {
 
     @Autowired
     private NotificationService notificationService;
+
+
+
+    @Value("${spring.mail.username}")
+    private String fromEmail;
+
+    public void sendPasswordResetRequestToAdmin(String userEmail, String userLogin, String userName) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromEmail);
+        message.setTo(getAdminEmails());
+        message.setSubject("Demande de réinitialisation de mot de passe");
+        message.setText(String.format(
+                "Bonjour Admin,\n\n" +
+                        "Un utilisateur a demandé la réinitialisation de son mot de passe.\n\n" +
+                        "Détails de l'utilisateur :\n" +
+                        "• Nom : %s\n" +
+                        "• Login : %s\n" +
+                        "• Email : %s\n\n" +
+                        "Veuillez vous connecter à l'interface d'administration pour réinitialiser son mot de passe.\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe technique",
+                userName, userLogin, userEmail
+        ));
+        mailSender.send(message);
+    }
+
+    public void sendNewPasswordToUser(String userEmail, String userLogin, String newPassword) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(fromEmail);
+        message.setTo(userEmail);
+        message.setSubject("Votre nouveau mot de passe");
+        message.setText(String.format(
+                "Bonjour %s,\n\n" +
+                        "Suite à votre demande, votre mot de passe a été réinitialisé.\n\n" +
+                        "Vos nouvelles identifiants de connexion :\n" +
+                        "• Login : %s\n" +
+                        "• Nouveau mot de passe : %s\n\n" +
+                        "Nous vous recommandons de changer ce mot de passe lors de votre prochaine connexion.\n\n" +
+                        "Cordialement,\n" +
+                        "L'équipe technique",
+                userLogin, userLogin, newPassword
+        ));
+        mailSender.send(message);
+    }
+
+    private String[] getAdminEmails() {
+        // Récupérer les emails des administrateurs depuis la base de données
+        // Cette méthode peut être améliorée pour récupérer dynamiquement les emails des admins
+        return new String[]{"admin@example.com"};
+    }
+
 
     /**
      * Envoie un email via Gmail SMTP

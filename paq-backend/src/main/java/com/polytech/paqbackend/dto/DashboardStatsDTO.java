@@ -9,24 +9,20 @@ public class DashboardStatsDTO {
     private long activeUsers;
     private long totalPaqs;
     private long totalCollaborateurs;
-
     private long newUsersThisMonth;
     private long newPaqsThisMonth;
     private long activeCollaborators;
-
     private long inactiveUsers;
     private long totalSegments;
     private Map<String, Long> roleCounts;
-
     private List<CollaborateurDTO> sansFaute;
-    private Map<Integer, Long> paqParNiveau; // ✅ ajouté
-    private long paqEnCours; // ✅ ajouté
+    private Map<Integer, Long> paqParNiveau;
+    private long paqEnCours;
 
-    public List<CollaborateurDTO> getSansFaute() { return sansFaute; }
-    public void setSansFaute(List<CollaborateurDTO> sansFaute) { this.sansFaute = sansFaute; }
-
+    // Constructeurs
     public DashboardStatsDTO() {}
 
+    // Getters et Setters
     public long getTotalUsers() { return totalUsers; }
     public void setTotalUsers(long totalUsers) { this.totalUsers = totalUsers; }
 
@@ -48,41 +44,21 @@ public class DashboardStatsDTO {
     public long getActiveCollaborators() { return activeCollaborators; }
     public void setActiveCollaborators(long activeCollaborators) { this.activeCollaborators = activeCollaborators; }
 
+    public long getInactiveUsers() { return inactiveUsers; }
+    public void setInactiveUsers(long inactiveUsers) { this.inactiveUsers = inactiveUsers; }
 
+    public long getTotalSegments() { return totalSegments; }
+    public void setTotalSegments(long totalSegments) { this.totalSegments = totalSegments; }
 
+    public Map<String, Long> getRoleCounts() { return roleCounts; }
+    public void setRoleCounts(Map<String, Long> roleCounts) { this.roleCounts = roleCounts; }
 
+    public List<CollaborateurDTO> getSansFaute() { return sansFaute; }
+    public void setSansFaute(List<CollaborateurDTO> sansFaute) { this.sansFaute = sansFaute; }
 
+    public Map<Integer, Long> getPaqParNiveau() { return paqParNiveau; }
+    public void setPaqParNiveau(Map<Integer, Long> paqParNiveau) { this.paqParNiveau = paqParNiveau; }
 
-
-
-
-        public long getInactiveUsers() { return inactiveUsers; }
-        public void setInactiveUsers(long inactiveUsers) { this.inactiveUsers = inactiveUsers; }
-
-        public long getTotalSegments() { return totalSegments; }
-        public void setTotalSegments(long totalSegments) { this.totalSegments = totalSegments; }
-
-        public Map<String, Long> getRoleCounts() { return roleCounts; }
-        public void setRoleCounts(Map<String, Long> roleCounts) { this.roleCounts = roleCounts; }
-
-    public Map<Integer, Long> getPaqParNiveau() {
-        return paqParNiveau;
-    }
-
-    public void setPaqParNiveau(Map<Integer, Long> paqParNiveau) {
-        this.paqParNiveau = paqParNiveau;
-    }
-
-    public long getPaqEnCours() {
-        return paqEnCours;
-    }
-
-    public void setPaqEnCours(long paqEnCours) {
-        this.paqEnCours = paqEnCours;
-    }
+    public long getPaqEnCours() { return paqEnCours; }
+    public void setPaqEnCours(long paqEnCours) { this.paqEnCours = paqEnCours; }
 }
-
-
-
-
-

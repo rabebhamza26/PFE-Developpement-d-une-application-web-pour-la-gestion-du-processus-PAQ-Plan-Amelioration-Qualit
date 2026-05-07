@@ -8,43 +8,122 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import static com.polytech.paqbackend.entity.Permission.*;
+
 @RequiredArgsConstructor
 public enum Role {
 
-    SL(Set.of(USER_READ)),
-
-    QM_SEGMENT(Set.of(USER_READ, USER_UPDATE)),
-
-    QM_PLANT(Set.of(USER_READ, USER_UPDATE)),
-
-    SGL(Set.of(USER_READ)),
-
-    HP(Set.of(USER_READ)),
-
-    RH(Set.of(USER_READ, USER_UPDATE)),
-
-    COORDINATEUR_FORMATION(Set.of(USER_READ)),
-
-    ADMIN(Set.of(
-            ADMIN_READ,
-            ADMIN_CREATE,
-            ADMIN_UPDATE,
-            ADMIN_DELETE,
+    /**
+     * SL — Chef de ligne
+     * Explicatif : Créer / Modifier / Supprimer / Valider
+     * Accord     : Créer / Modifier / Supprimer / Valider
+     * Mesure     : Créer
+     * Décision   : Créer / Modifier
+     * Positif    : Tout
+     * Défaut grave : peut notifier SGL
+     */
+    SL(Set.of(
             USER_READ,
-            USER_CREATE,
-            USER_UPDATE,
-            USER_DELETE
+            PAQ_READ, PAQ_CREATE,
+            COLLABORATEUR_READ, COLLABORATEUR_CREATE, COLLABORATEUR_UPDATE, COLLABORATEUR_DELETE,
+            EXPLICATIF_CREATE, EXPLICATIF_UPDATE, EXPLICATIF_DELETE, EXPLICATIF_VALIDATE, EXPLICATIF_READ,
+            ACCORD_CREATE, ACCORD_UPDATE, ACCORD_DELETE, ACCORD_VALIDATE, ACCORD_READ,
+            MESURE_CREATE, MESURE_READ,
+            DECISION_CREATE, DECISION_UPDATE, DECISION_READ,
+            POSITIF_READ, POSITIF_SEND, POSITIF_ARCHIVE,
+            ARCHIVE_READ,
+            NOTIFICATION_READ,
+            DEFAUT_GRAVE_NOTIFY
+    )),
+
+    /**
+     * SGL — Chef de segment
+     * Explicatif : Créer / Modifier / Supprimer / Valider (obligatoire défaut grave)
+     * Mesure     : Modifier / Supprimer / Valider (2e)
+     * Décision   : Valider (1re)
+     */
+    SGL(Set.of(
+            USER_READ,
+            PAQ_READ,
+            COLLABORATEUR_READ,
+            EXPLICATIF_CREATE, EXPLICATIF_UPDATE, EXPLICATIF_DELETE, EXPLICATIF_VALIDATE, EXPLICATIF_READ,
+            ACCORD_READ,
+            MESURE_UPDATE, MESURE_DELETE, MESURE_VALIDATE_2, MESURE_READ,
+            DECISION_VALIDATE_1, DECISION_READ,
+            ARCHIVE_READ,
+            NOTIFICATION_READ,
+            DEFAUT_GRAVE_NOTIFY
+    )),
+
+    /**
+     * QM_SEGMENT — Qualité Segment
+     * Accord  : Valider
+     * Mesure  : Valider (1re)
+     */
+    QM_SEGMENT(Set.of(
+            USER_READ, PAQ_READ, COLLABORATEUR_READ,
+            EXPLICATIF_READ,
+            ACCORD_VALIDATE, ACCORD_READ,
+            MESURE_VALIDATE_1, MESURE_READ,
+            DECISION_READ, FINAL_READ,
+            ARCHIVE_READ, NOTIFICATION_READ
+    )),
+
+    /**
+     * QM_PLANT — Qualité Plant
+     * Décision : Valider (2e)
+     */
+    QM_PLANT(Set.of(
+            USER_READ, PAQ_READ, COLLABORATEUR_READ,
+            EXPLICATIF_READ, ACCORD_READ, MESURE_READ,
+            DECISION_VALIDATE_2, DECISION_READ,
+            ARCHIVE_READ, NOTIFICATION_READ
+    )),
+
+    /**
+     * HP — Hiérarchie Plant
+     * Décision : Valider (1re)
+     */
+    HP(Set.of(
+            USER_READ, PAQ_READ, COLLABORATEUR_READ,
+            EXPLICATIF_READ, ACCORD_READ, MESURE_READ,
+            DECISION_VALIDATE_1, DECISION_READ,
+             ARCHIVE_READ, NOTIFICATION_READ
+    )),
+
+    /**
+     * RH — Ressources Humaines
+     * Final : Créer / Modifier / Supprimer / Valider / Consulter
+     */
+    RH(Set.of(
+            USER_READ, PAQ_READ, COLLABORATEUR_READ,
+            EXPLICATIF_READ, ACCORD_READ, MESURE_READ, DECISION_READ,
+            FINAL_CREATE, FINAL_UPDATE, FINAL_DELETE, FINAL_VALIDATE, FINAL_READ,
+            ARCHIVE_READ, NOTIFICATION_READ
+    )),
+
+    /**
+     * ADMIN — Tous les droits
+     */
+    ADMIN(Set.of(
+            ADMIN_READ, ADMIN_CREATE, ADMIN_UPDATE, ADMIN_DELETE,
+            USER_READ, USER_CREATE, USER_UPDATE, USER_DELETE
+
     ));
 
     @Getter
     private final Set<Permission> permissions;
 
     public List<String> getAuthorities() {
-        List<String> perms = permissions.stream()
+        return permissions.stream()
                 .map(Permission::getPermission)
-                .toList();
+                .collect(Collectors.toList());
+    }
 
-        return perms;
+    public List<SimpleGrantedAuthority> getGrantedAuthorities() {
+        List<SimpleGrantedAuthority> authorities = permissions.stream()
+                .map(p -> new SimpleGrantedAuthority(p.getPermission()))
+                .collect(Collectors.toList());
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + this.name()));
+        return authorities;
     }
 }
-

@@ -3,6 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { collaboratorService, paqService, fauteService } from "../../services/api";
 import "../../styles/paq-dossier.css";
 
+import DefautGraveModal from "../../components/defaut/DefautGraveModal";
+import { usePermissions } from "../../hooks/usePermissions";
+import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "../../utils/entretienAlerts";
+
 export default function PaqDossier() {
   const { matricule } = useParams();
   const navigate      = useNavigate();
@@ -17,6 +21,9 @@ export default function PaqDossier() {
   const [fauteDetail,   setFauteDetail]   = useState("");
   const [fautesList,    setFautesList]    = useState([]);
   const [fautesLoading, setFautesLoading] = useState(false);
+  const [showDefautGraveModal, setShowDefautGraveModal] = useState(false);
+const { canNotifyDefautGrave } = usePermissions();
+
 
   useEffect(() => { loadData(); }, [matricule]);
 
@@ -127,13 +134,19 @@ export default function PaqDossier() {
 
   // ── Archiver PAQ ───────────────────────────────────────────────────────────
   const archiverPaq = async () => {
-    if (!window.confirm("Êtes-vous sûr de vouloir archiver ce dossier ?")) return;
+    const result = await showConfirmAlert({
+      title: "Archiver ce dossier ?",
+      text: "Le dossier sortira de la periode active.",
+      confirmButtonText: "Archiver",
+    });
+    if (!result.isConfirmed) return;
+
     try {
       setLoading(true);
       await paqService.archive(matricule);
       setCurrentPaq(null);
       setHistorique([]);
-      showSuccess("Dossier archivé avec succès");
+      showSuccess("Dossier archive avec succes");
     } catch (err) {
       showError(err.response?.data?.message || "Erreur lors de l'archivage");
     } finally {
@@ -142,8 +155,16 @@ export default function PaqDossier() {
   };
 
   // ── Helpers messages ──────────────────────────────────────────────────────
-  const showSuccess = (msg) => { setActionMessage(msg); setTimeout(() => setActionMessage(""), 4000); };
-  const showError   = (msg) => { setError(msg);         setTimeout(() => setError(""),         4000); };
+  const showSuccess = (msg) => {
+    setActionMessage(msg);
+    setTimeout(() => setActionMessage(""), 4000);
+    showSuccessAlert("Operation reussie", msg);
+  };
+  const showError   = (msg) => {
+    setError(msg);
+    setTimeout(() => setError(""), 4000);
+    showErrorAlert("Operation impossible", msg);
+  };
 
   // ── Logique boutons ───────────────────────────────────────────────────────
 
@@ -314,6 +335,17 @@ export default function PaqDossier() {
                 </button>
               )}
 
+              {currentPaq && !isBlocked && canNotifyDefautGrave && (
+  <button onClick={() => setShowDefautGraveModal(true)}
+    className="leoni-btn leoni-btn-danger">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+      <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+        stroke="currentColor" strokeWidth="2"/>
+    </svg>
+    🚨 Défaut Grave
+  </button>
+)}
+
               {/* ── ÉTAPE 2 : Passer à l'entretien (après faute déclarée) ── */}
               {prochainEntretien && (
                 <button
@@ -375,6 +407,18 @@ export default function PaqDossier() {
           Vous pouvez l'archiver manuellement dès maintenant.
         </div>
       )}
+
+      {showDefautGraveModal && (
+  <DefautGraveModal
+    matricule={matricule}
+    nomCollab={collaborator ? `${collaborator.name} ${collaborator.prenom}` : matricule}
+    onClose={() => setShowDefautGraveModal(false)}
+    onSuccess={() => {
+      setShowDefautGraveModal(false);
+      showSuccess("Défaut grave déclaré. Les SGL ont été notifiés.");
+    }}
+  />
+)}
 
       {/* ── CONTENU PRINCIPAL ──────────────────────────────────────────────── */}
       <div className="leoni-grid-main">

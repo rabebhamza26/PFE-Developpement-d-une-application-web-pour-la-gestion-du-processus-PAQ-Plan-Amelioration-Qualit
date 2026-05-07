@@ -1,9 +1,6 @@
-// UserService.java - Version avec les nouveaux DTOs
 package com.polytech.paqbackend.service;
 
-import com.polytech.paqbackend.dto.CreateUserRequest;
-import com.polytech.paqbackend.dto.UpdateUserRequest;
-import com.polytech.paqbackend.dto.UserResponseDto;
+import com.polytech.paqbackend.dto.*;
 import com.polytech.paqbackend.entity.*;
 import com.polytech.paqbackend.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +28,27 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<SiteUserDistributionDTO> getUsersDistributionBySite() {
+        // Note: Assurez-vous que la requête dans UserRepository est correcte
+        // Version alternative si la requête JPQL pose problème:
+        List<User> users = userRepository.findAllWithAllRelations();
+        Map<Long, SiteUserDistributionDTO> distributionMap = new HashMap<>();
+
+        for (User user : users) {
+            for (Site site : user.getSites()) {
+                distributionMap.computeIfAbsent(site.getId(), k ->
+                                new SiteUserDistributionDTO(site.getId(), site.getName(), 0L))
+                        .setUserCount(distributionMap.get(site.getId()).getUserCount() + 1);
+            }
+        }
+
+        return new ArrayList<>(distributionMap.values())
+                .stream()
+                .sorted((a, b) -> b.getUserCount().compareTo(a.getUserCount()))
+                .collect(Collectors.toList());
+    }
+
     public UserResponseDto getUserById(Long id) {
         return userRepository.findByIdWithAllRelations(id)
                 .map(this::mapToResponseDto)
@@ -46,26 +64,22 @@ public class UserService {
         user.setNomUtilisateur(request.getNomUtilisateur());
         user.setRole(request.getRole());
 
-        // Encoder le mot de passe
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         } else {
             throw new RuntimeException("Password is required");
         }
 
-        // Associer les sites
         if (request.getSiteIds() != null && !request.getSiteIds().isEmpty()) {
             Set<Site> sites = new HashSet<>(siteRepository.findAllById(request.getSiteIds()));
             user.setSites(sites);
         }
 
-        // Associer les plants
         if (request.getPlantIds() != null && !request.getPlantIds().isEmpty()) {
             Set<Plant> plants = new HashSet<>(plantRepository.findAllById(request.getPlantIds()));
             user.setPlants(plants);
         }
 
-        // Associer les segments
         if (request.getSegmentIds() != null && !request.getSegmentIds().isEmpty()) {
             Set<Segment> segments = new HashSet<>(segmentRepository.findAllById(request.getSegmentIds()));
             user.setSegments(segments);
@@ -79,7 +93,6 @@ public class UserService {
         User user = userRepository.findByIdWithAllRelations(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Mise à jour des champs de base
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             User existing = userRepository.findByEmail(request.getEmail());
             if (existing != null && !existing.getId().equals(id)) {
@@ -100,30 +113,25 @@ public class UserService {
             user.setRole(request.getRole());
         }
 
-        // Mise à jour du mot de passe si fourni
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
-        // Mise à jour des sites
         if (request.getSiteIds() != null) {
             Set<Site> sites = new HashSet<>(siteRepository.findAllById(request.getSiteIds()));
             user.setSites(sites);
         }
 
-        // Mise à jour des plants
         if (request.getPlantIds() != null) {
             Set<Plant> plants = new HashSet<>(plantRepository.findAllById(request.getPlantIds()));
             user.setPlants(plants);
         }
 
-        // Mise à jour des segments
         if (request.getSegmentIds() != null) {
             Set<Segment> segments = new HashSet<>(segmentRepository.findAllById(request.getSegmentIds()));
             user.setSegments(segments);
         }
 
-        // Mise à jour du statut actif
         if (request.getActive() != null) {
             user.setActive(request.getActive());
         }
@@ -142,6 +150,7 @@ public class UserService {
         userRepository.deleteById(id);
     }
 
+    @Transactional
     public UserResponseDto toggleActive(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -161,13 +170,10 @@ public class UserService {
                 .active(user.isActive())
                 .createdAt(user.getCreatedAt())
                 .permissions(permissions)
-                // Sites
                 .siteIds(user.getSites().stream().map(Site::getId).collect(Collectors.toList()))
                 .siteNames(user.getSites().stream().map(Site::getName).collect(Collectors.toList()))
-                // Plants
                 .plantIds(user.getPlants().stream().map(Plant::getId).collect(Collectors.toList()))
                 .plantNames(user.getPlants().stream().map(Plant::getName).collect(Collectors.toList()))
-                // Segments
                 .segmentIds(user.getSegments().stream().map(Segment::getId).collect(Collectors.toList()))
                 .segmentNames(user.getSegments().stream().map(Segment::getNomSegment).collect(Collectors.toList()))
                 .build();

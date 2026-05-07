@@ -1,23 +1,24 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import API from "../../services/api";          // ✅ deux niveaux : login/ → pages/ → src/
+import API from "../../services/api";          
 import { useAuth } from "../../context/AuthContext";
 import { useI18n } from "../../context/I18nContext";
 import "../../styles/login.css";
+import ForgotPasswordModal from "../../components/ForgotPasswordModal";
 
 
 export default function Login() {
   const { t } = useI18n();
-  const [login, setLogin]           = useState("");
-  const [password, setPassword]     = useState("");
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError]           = useState("");
-  const [loading, setLoading]       = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
-  const navigate        = useNavigate();
-  const location        = useLocation();
-  const { login: authLogin } = useAuth(); 
-
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login: authLogin } = useAuth();
   const { siteName, plantName } = location.state || {};
 
   const handleSubmit = async (e) => {
@@ -26,78 +27,46 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const res = await API.post("/auth/login", {
+      const res = await API.post("/api/auth/login", {
         login,
         password,
         siteName,
         plantName,
       });
 
-      const {
-        userId,
-        fullName,
-        role,
-        siteName: resSiteName,
-        plantName: resPlantName,
-        access_token,
-        refresh_token,
-      } = res.data;
+      const { userId, fullName, role, siteName: resSiteName, plantName: resPlantName, access_token, refresh_token } = res.data;
 
-      // ✅ Stocker user + tokens via AuthContext
       authLogin(
         { userId, fullName, role, siteName: resSiteName, plantName: resPlantName },
         access_token,
         refresh_token
       );
 
-      // ✅ Redirection selon le rôle
       switch (role) {
-        case "ADMIN":
-          navigate("/admin");
-          break;
-        case "SL":
-          navigate("/dashboard");
-          break;
-        case "QM_SEGMENT":
-          navigate("/dashboard");
-          break;
-        case "QM_PLANT":
-          navigate("/dashboard");
-          break;
-        case "SGL":
-          navigate("/dashboard");
-          break;
-        case "HP":
-          navigate("/dashboard");
-          break;
-        case "RH":
-          navigate("/dashboard");
-          break;
-        case "COORDINATEUR_FORMATION":
-          navigate("/dashboard");
-          break;
-        default:
-          setError("Rôle non reconnu. Contactez l'administrateur.");
+        case "ADMIN": navigate("/admin"); break;
+        default: navigate("/dashboard");
       }
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.error;
-      setError(msg || "Identifiants incorrects");
+      const errorCode = err.response?.data?.error;
+      const msg = err.response?.data?.message;
+      
+      if (errorCode === "WRONG_SITE") {
+        setError(`⚠️ Ce compte n'appartient pas au site "${siteName}". Veuillez choisir le bon site.`);
+      } else if (errorCode === "WRONG_PLANT") {
+        setError(`⚠️ Ce compte n'appartient pas au plant "${plantName}". Veuillez choisir le bon plant.`);
+      } else {
+        setError(msg || "Identifiants incorrects");
+      }
     } finally {
       setLoading(false);
     }
   };
-
   return (
     <div className="lc-wrapper">
-
-      {/* ── Couche image de fond ── */}
       <div className="lc-bg" />
       <div className="lc-overlay" />
 
-      {/* ── Carte de connexion ── */}
       <div className="lc-card">
-
-        {/* Logo + titres */}
         <div className="lc-logo-block">
           <svg className="lc-logo-svg" viewBox="0 0 120 36" fill="none" xmlns="http://www.w3.org/2000/svg">
             <text x="0" y="28" fontFamily="'Segoe UI', Arial, sans-serif" fontWeight="800"
@@ -105,7 +74,6 @@ export default function Login() {
           </svg>
         </div>
 
-        {/* Contexte site / plant */}
         {siteName && plantName && (
           <div className="lc-context">
             <span className="lc-context-dot"></span>
@@ -115,7 +83,6 @@ export default function Login() {
           </div>
         )}
 
-        {/* Erreur */}
         {error && (
           <div className="lc-error">
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
@@ -126,9 +93,7 @@ export default function Login() {
           </div>
         )}
 
-        {/* Formulaire */}
         <form onSubmit={handleSubmit} className="lc-form">
-
           <div className="lc-field">
             <label htmlFor="lc-login">Username</label>
             <div className="lc-input-wrap">
@@ -204,8 +169,22 @@ export default function Login() {
               "Se Connecter"
             )}
           </button>
-
         </form>
+
+        <div className="lc-footer">
+          <button 
+            type="button" 
+            className="lc-forgot-link"
+            onClick={() => setShowForgotPassword(true)}
+          >
+            Mot de passe oublié ?
+          </button>
+        </div>
+
+        <ForgotPasswordModal 
+  isOpen={showForgotPassword}
+  onClose={() => setShowForgotPassword(false)}
+/>
       </div>
     </div>
   );

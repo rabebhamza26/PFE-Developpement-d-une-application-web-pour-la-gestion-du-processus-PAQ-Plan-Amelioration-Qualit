@@ -1,21 +1,14 @@
 package com.polytech.paqbackend.controller;
 
-import com.polytech.paqbackend.entity.Notification;
 import com.polytech.paqbackend.service.NotificationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Controller REST pour la gestion des notifications.
- *
- * Tous les endpoints utilisent Authentication pour extraire l'email de l'utilisateur
- * depuis le token JWT — jamais depuis les paramètres de la requête.
- * Cela garantit que chaque utilisateur ne voit que ses propres notifications.
- */
 @RestController
 @RequestMapping("/api/notifications")
 public class NotificationController {
@@ -26,81 +19,42 @@ public class NotificationController {
         this.notificationService = notificationService;
     }
 
-    /**
-     * GET /api/notifications
-     * Récupère toutes les notifications de l'utilisateur connecté.
-     * Utilisé par le panneau de notifications au chargement.
-     */
     @GetMapping
-    public ResponseEntity<List<Notification>> getMesNotifications(Authentication authentication) {
-        String email = authentication.getName();
-        return ResponseEntity.ok(notificationService.getNotificationsUtilisateur(email));
+    public ResponseEntity<List<Map<String, Object>>> getNotifications(Authentication authentication) {
+        String login = authentication.getName();
+        List<Map<String, Object>> notifications = notificationService.getNotificationsByLogin(login);
+        return ResponseEntity.ok(notifications);
     }
 
-    /**
-     * GET /api/notifications/non-lues
-     * Compte et retourne les notifications non lues.
-     * Utilisé pour le badge rouge sur la cloche.
-     */
-    @GetMapping("/non-lues")
-    public ResponseEntity<Map<String, Object>> getNonLues(Authentication authentication) {
-        String email = authentication.getName();
-        List<Notification> nonLues = notificationService.getNonLues(email);
-        return ResponseEntity.ok(Map.of(
-                "count", nonLues.size(),
-                "notifications", nonLues
-        ));
+    @GetMapping("/unread")
+    public ResponseEntity<List<Map<String, Object>>> getUnreadNotifications(Authentication authentication) {
+        String login = authentication.getName();
+        List<Map<String, Object>> notifications = notificationService.getUnreadNotificationsByLogin(login);
+        return ResponseEntity.ok(notifications);
     }
 
-    /**
-     * PUT /api/notifications/{id}/lu
-     * Marque une notification individuelle comme lue.
-     * Appelé au clic sur une notification.
-     */
-    @PutMapping("/{id}/lu")
-    public ResponseEntity<Void> marquerLue(@PathVariable Long id, Authentication authentication) {
-        // Note : en production, vérifier que la notification appartient bien à cet utilisateur
-        notificationService.marquerLue(id);
+    @GetMapping("/count/unread")
+    public ResponseEntity<Map<String, Long>> countUnread(Authentication authentication) {
+        String login = authentication.getName();
+        long count = notificationService.countUnreadByLogin(login);
+        Map<String, Long> response = new HashMap<>();
+        response.put("count", count);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/read")
+    public ResponseEntity<Void> markAsRead(@PathVariable Long id, Authentication authentication) {
+        String login = authentication.getName();
+        notificationService.markAsRead(id, login);
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * PUT /api/notifications/marquer-toutes-lues
-     * Marque toutes les notifications de l'utilisateur connecté comme lues.
-     * Appelé à l'ouverture du panneau de notifications.
-     */
-    @PutMapping("/marquer-toutes-lues")
-    public ResponseEntity<Map<String, Integer>> marquerToutesLues(Authentication authentication) {
-        String email = authentication.getName();
-        int count = notificationService.marquerToutesLues(email);
-        return ResponseEntity.ok(Map.of("marquees", count));
-    }
-
-    /**
-     * POST /api/notifications/envoyer
-     * Permet à un administrateur d'envoyer une notification directe à un utilisateur.
-     * Corps JSON :
-     * {
-     *   "destinataireEmail": "user@leoni.com",
-     *   "titre": "Message important",
-     *   "message": "...",
-     *   "type": "INFO"
-     * }
-     */
-    @PostMapping("/envoyer")
-    public ResponseEntity<Notification> envoyerNotificationDirecte(
-            @RequestBody Map<String, String> body,
-            Authentication authentication) {
-
-        // TODO : restreindre aux rôles ADMIN en production avec @PreAuthorize("hasRole('ADMIN')")
-        Notification notif = notificationService.envoyerNotification(
-                body.get("destinataireEmail"),
-                body.get("titre"),
-                body.get("message"),
-                body.getOrDefault("type", "INFO"),
-                body.get("matricule"),
-                body.get("typeEntretien")
-        );
-        return ResponseEntity.ok(notif);
+    @PostMapping("/mark-all-read")
+    public ResponseEntity<Map<String, Integer>> markAllAsRead(Authentication authentication) {
+        String login = authentication.getName();
+        int count = notificationService.markAllAsRead(login);
+        Map<String, Integer> response = new HashMap<>();
+        response.put("marquees", count);
+        return ResponseEntity.ok(response);
     }
 }

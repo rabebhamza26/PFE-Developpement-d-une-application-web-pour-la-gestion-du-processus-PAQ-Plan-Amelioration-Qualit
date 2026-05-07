@@ -225,3 +225,12 @@
     align-items: flex-start;
   }
 }
+
+.action-reset {
+  background: #f59e0b;
+  color: white;
+}
+
+.action-reset:hover {
+  background: #d97706;
+}

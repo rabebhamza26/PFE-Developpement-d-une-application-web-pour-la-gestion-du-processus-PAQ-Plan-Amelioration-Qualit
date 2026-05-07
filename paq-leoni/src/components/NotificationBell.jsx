@@ -1,73 +1,217 @@
 // src/components/NotificationBell.jsx
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useNotifications } from "../context/NotificationContext"; 
-import "../styles/NotificationBell.css";
+import { notificationService } from "../services/api";
+import "../styles/notification-bell.css";
 
-export default function NotificationBell() {
-  const { notifications, nonLuesCount, marquerLue, marquerToutesLues } = useNotifications();
-  const [ouvert, setOuvert] = useState(false);
+function NotificationBell() {
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const dropdownRef = useRef(null);
+  const buttonRef = useRef(null);
   const navigate = useNavigate();
-  const ref = useRef(null);
 
-  // Fermer si clic en dehors
   useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOuvert(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    loadUnreadCount();
+    const interval = setInterval(loadUnreadCount, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  const handleClick = async (notif) => {
-    if (!notif.lu) await marquerLue(notif.id);
-    setOuvert(false);
-    if (notif.matricule) navigate(`/paq-dossier/${notif.matricule}`);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target) && 
+          buttonRef.current && !buttonRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const loadUnreadCount = async () => {
+    try {
+      const res = await notificationService.countUnread();
+      setUnreadCount(res.data?.count || 0);
+    } catch (err) {
+      console.error("Erreur chargement compteur:", err);
+    }
+  };
+
+  const loadNotifications = async () => {
+    setLoading(true);
+    try {
+      const res = await notificationService.getUnread();
+      setNotifications(res.data || []);
+    } catch (err) {
+      console.error("Erreur chargement notifications:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggle = async () => {
+    if (!isOpen) {
+      await loadNotifications();
+    }
+    setIsOpen(!isOpen);
+  };
+
+  const handleNotificationClick = async (notification) => {
+    try {
+      await notificationService.markAsRead(notification.id);
+    } catch (err) {
+      console.error("Erreur marquage lu:", err);
+    }
+    
+    if (notification.matriculeCollaborateur) {
+      if (notification.typeEntretien === "EXPLICATIF") {
+        navigate(`/entretien-explicatif/${notification.matriculeCollaborateur}`);
+      } else if (notification.typeEntretien === "ACCORD") {
+        navigate(`/entretien-daccord/${notification.matriculeCollaborateur}`);
+      } else if (notification.typeEntretien === "MESURE") {
+        navigate(`/entretien-de-mesure/${notification.matriculeCollaborateur}`);
+      } else if (notification.typeEntretien === "DECISION") {
+        navigate(`/entretien-de-decision/${notification.matriculeCollaborateur}`);
+      } else {
+        navigate(`/paq-dossier/${notification.matriculeCollaborateur}`);
+      }
+    }
+    
+    setIsOpen(false);
+    loadUnreadCount();
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setUnreadCount(0);
+      setNotifications([]);
+    } catch (err) {
+      console.error("Erreur marquage tout lu:", err);
+    }
+  };
+
+  const handleViewAll = () => {
+    navigate("/notifications");
+    setIsOpen(false);
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "À l'instant";
+    if (diffMins < 60) return `Il y a ${diffMins} min`;
+    if (diffHours < 24) return `Il y a ${diffHours} h`;
+    if (diffDays < 7) return `Il y a ${diffDays} j`;
+    return date.toLocaleDateString("fr-FR");
+  };
+
+  const getTypeIcon = (type) => {
+    switch (type?.toUpperCase()) {
+      case "EXPLICATIF": return "📋";
+      case "ACCORD": return "🤝";
+      case "MESURE": return "📊";
+      case "DECISION": return "⚖️";
+      default: return "🔔";
+    }
+  };
+
+  const getTypeColor = (type) => {
+    switch (type?.toUpperCase()) {
+      case "EXPLICATIF": return "blue";
+      case "ACCORD": return "green";
+      case "MESURE": return "orange";
+      case "DECISION": return "red";
+      default: return "gray";
+    }
   };
 
   return (
-    <div className="notif-bell-wrapper" ref={ref}>
-      <button className="notif-bell-btn" onClick={() => setOuvert(o => !o)}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    <div className="notification-bell">
+      <button 
+        ref={buttonRef}
+        className={`bell-button ${unreadCount > 0 ? "has-notifications" : ""}`}
+        onClick={handleToggle}
+        title="Notifications"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M18 8C18 6.4087 17.3679 4.88258 16.2426 3.75736C15.1174 2.63214 13.5913 2 12 2C10.4087 2 8.88258 2.63214 7.75736 3.75736C6.63214 4.88258 6 6.4087 6 8C6 15 3 17 3 17H21C21 17 18 15 18 8Z" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M13.73 21C13.5542 21.3031 13.3019 21.5547 12.9982 21.7295C12.6946 21.9044 12.3504 21.9965 12 21.9965C11.6496 21.9965 11.3054 21.9044 11.0018 21.7295C10.6982 21.5547 10.4458 21.3031 10.27 21" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-        {nonLuesCount > 0 && (
-          <span className="notif-badge">{nonLuesCount > 99 ? "99+" : nonLuesCount}</span>
+        {unreadCount > 0 && (
+          <span className="notification-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>
         )}
       </button>
 
-      {ouvert && (
-        <div className="notif-dropdown">
-          <div className="notif-dropdown-header">
-            <span>Notifications</span>
-            {nonLuesCount > 0 && (
-              <button className="notif-tout-lire" onClick={marquerToutesLues}>
-                Tout marquer lu
+      {isOpen && (
+        <div className="notification-dropdown" ref={dropdownRef}>
+          <div className="notification-header">
+            <h4>Notifications</h4>
+            {notifications.length > 0 && (
+              <button className="mark-all-read" onClick={handleMarkAllRead}>
+                Tout marquer comme lu
               </button>
             )}
           </div>
-          <div className="notif-list">
-            {notifications.length === 0 ? (
-              <div className="notif-empty">Aucune notification</div>
+          
+          <div className="notification-list">
+            {loading ? (
+              <div className="notification-loading">
+                <div className="spinner-small"></div>
+                <span>Chargement...</span>
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="notification-empty">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="1.5">
+                  <path d="M18 8C18 6.4087 17.3679 4.88258 16.2426 3.75736C15.1174 2.63214 13.5913 2 12 2C10.4087 2 8.88258 2.63214 7.75736 3.75736C6.63214 4.88258 6 6.4087 6 8C6 15 3 17 3 17H21C21 17 18 15 18 8Z"/>
+                </svg>
+                <p>Aucune notification non lue</p>
+              </div>
             ) : (
-              notifications.slice(0, 20).map(n => (
-                <div
-                  key={n.id}
-                  className={`notif-item ${!n.lu ? "notif-item--unread" : ""}`}
-                  onClick={() => handleClick(n)}
+              notifications.map((notif) => (
+                <div 
+                  key={notif.id} 
+                  className={`notification-item ${notif.lu ? "read" : "unread"}`}
+                  onClick={() => handleNotificationClick(notif)}
                 >
-                  <div className="notif-item-titre">{n.titre}</div>
-                  <div className="notif-item-message">{n.message}</div>
-                  <div className="notif-item-date">
-                    {new Date(n.createdAt).toLocaleString("fr-FR")}
+                  <div className={`notification-icon ${getTypeColor(notif.typeEntretien)}`}>
+                    {getTypeIcon(notif.typeEntretien)}
                   </div>
+                  <div className="notification-content">
+                    <div className="notification-title">{notif.titre}</div>
+                    <div className="notification-message">{notif.message}</div>
+                    <div className="notification-meta">
+                      <span className="notification-time">{formatDate(notif.createdAt)}</span>
+                      {notif.nomCollaborateur && (
+                        <span className="notification-collab">
+                          {notif.nomCollaborateur}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {!notif.lu && <div className="notification-dot"></div>}
                 </div>
               ))
             )}
+          </div>
+          
+          <div className="notification-footer">
+            <button className="view-all" onClick={handleViewAll}>
+              Voir toutes les notifications
+            </button>
           </div>
         </div>
       )}
     </div>
   );
 }
+
+export default NotificationBell;

@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+// EntretienDeMesure.jsx - Version corrigée avec gestion des rôles
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   entretienMesureService,
@@ -9,9 +10,10 @@ import {
 } from "../../services/api";
 import "../../styles/entretien-mesure.css";
 import "../../styles/paq-dossier.css";
+import { showErrorAlert, showInfoToast, showSuccessAlert, showSuccessToast } from "../../utils/entretienAlerts";
 
 // Composant Modal Email
-function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails }) {
+function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails, action = "création" }) {
   const [selectedEmail, setSelectedEmail] = useState("");
   const [message, setMessage] = useState("");
 
@@ -28,8 +30,8 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails }) {
             </svg>
           </div>
           <div>
-            <h3>Envoyer un email</h3>
-            <p>Choisissez le destinataire et ajoutez un message</p>
+            <h3>Envoyer un email - {action === "création" ? "Création" : action === "modification" ? "Modification" : action === "validation1" ? "Validation QM-Segment" : action === "validation2" ? "Validation SGL" : "Suppression"}</h3>
+            <p>Choisissez le destinataire pour notifier de la {action === "suppression" ? "suppression" : action === "modification" ? "modification" : action === "validation1" ? "validation QM-Segment" : action === "validation2" ? "validation SGL" : "création"} de l'entretien</p>
           </div>
           <button className="leoni-modal-close" onClick={onClose}>✕</button>
         </div>
@@ -66,7 +68,7 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails }) {
         <div className="leoni-modal-footer">
           <button type="button" className="leoni-btn leoni-btn-outline" onClick={onClose}>Annuler</button>
           <button type="button" className="leoni-btn leoni-btn-primary" onClick={() => onConfirm(selectedEmail, message)} disabled={!selectedEmail}>
-            Envoyer
+            {action === "suppression" ? "Confirmer la suppression" : "Envoyer"}
           </button>
         </div>
       </div>
@@ -74,13 +76,22 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails }) {
   );
 }
 
+const buildDefaultForm = () => ({
+  typeFaute: "",
+  dateEntretien: new Date().toISOString().split("T")[0],
+  causesPrincipales: "",
+  convention: "",
+  planAction: "",
+  dateRequalification: "",
+});
+
 export default function EntretienDeMesure({ niveau = 3 }) {
   const { matricule } = useParams();
   const navigate = useNavigate();
 
-  const canvasSL  = useRef(null);
-  const canvasQM  = useRef(null);
-  const canvasSGL = useRef(null);
+  // Récupérer le rôle de l'utilisateur
+  const [userRole, setUserRole] = useState(null);
+  const [userPermissions, setUserPermissions] = useState([]);
 
   const [typeOptions, setTypeOptions] = useState([]);
   const [showDefautModal, setShowDefautModal] = useState(false);
@@ -89,26 +100,14 @@ export default function EntretienDeMesure({ niveau = 3 }) {
 
   const [collaborator, setCollaborator] = useState(null);
   const [niveau2Data, setNiveau2Data] = useState(null);
+  const [entretiensList, setEntretiensList] = useState([]);
 
-  // États pour le modal email
   const [emailsList, setEmailsList] = useState([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
-  const [pendingData, setPendingData] = useState(null);
+  const [modalAction, setModalAction] = useState("création");
 
-  const [formData, setFormData] = useState({
-    typeFaute: "",
-    dateEntretien: new Date().toISOString().split("T")[0],
-    causesPrincipales: "",
-    convention: "",
-    planAction: "",
-    dateRequalification: "",
-  });
-
-  const [signatureSL, setSignatureSL] = useState("");
-  const [signatureQMSegment, setSignatureQMSegment] = useState("");
-  const [signatureSGL, setSignatureSGL] = useState("");
-
+  const [formData, setFormData] = useState(buildDefaultForm());
   const [currentId, setCurrentId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -116,16 +115,29 @@ export default function EntretienDeMesure({ niveau = 3 }) {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
 
-  // Charger les emails
+  // Récupérer le rôle de l'utilisateur
+  useEffect(() => {
+    const userStr = sessionStorage.getItem("user");
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      setUserRole(user.role);
+      setUserPermissions(user.permissions || []);
+    }
+  }, []);
+
   const loadEmails = async () => {
     try {
       setLoadingEmails(true);
-      const res = await userService.getAllEmails();
-      const emails = res.data || [];
-      setEmailsList(emails);
+      const response = await userService.getAllEmails();
+      if (response && response.data && Array.isArray(response.data)) {
+        console.log("Emails chargés:", response.data);
+        setEmailsList(response.data);
+      } else {
+        setEmailsList([]);
+      }
     } catch (err) {
       console.error("Erreur chargement emails:", err);
-      setEmailsList(["rh@leoni.com", "qm.segment@leoni.com", "sl@leoni.com", "sgl@leoni.com", "hp@leoni.com"]);
+      setEmailsList([]);
     } finally {
       setLoadingEmails(false);
     }
@@ -136,21 +148,23 @@ export default function EntretienDeMesure({ niveau = 3 }) {
     loadDraft();
     loadCollaborator();
     loadNiveau2();
+    loadAllEntretiens();
     loadEmails();
   }, [matricule]);
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      initCanvas(canvasSL, setSignatureSL);
-      initCanvas(canvasQM, setSignatureQMSegment);
-      initCanvas(canvasSGL, setSignatureSGL);
-    }, 150);
-    return () => clearTimeout(t);
-  }, []);
+  const resetForm = () => {
+    setFormData(buildDefaultForm());
+    setCurrentId(null);
+    if (matricule) {
+      localStorage.removeItem(`mesure-draft-${matricule}`);
+    }
+  };
 
   const loadCollaborator = async () => {
-    try { const r = await collaboratorService.getById(matricule); setCollaborator(r.data); }
-    catch (e) { console.error(e); }
+    try { 
+      const r = await collaboratorService.getById(matricule); 
+      setCollaborator(r.data); 
+    } catch (e) { console.error(e); }
   };
 
   const loadNiveau2 = async () => {
@@ -161,8 +175,46 @@ export default function EntretienDeMesure({ niveau = 3 }) {
   };
 
   const loadFautes = async () => {
-    try { const r = await fauteService.getAll(); setTypeOptions(r.data.map(f => f.nom)); }
-    catch { setTypeOptions([]); }
+    try { 
+      const r = await fauteService.getAll(); 
+      setTypeOptions(r.data.map(f => f.nom)); 
+    } catch { setTypeOptions([]); }
+  };
+
+  const loadAllEntretiens = async () => {
+    try {
+      const res = await entretienMesureService.getByMatricule(matricule);
+      const list = Array.isArray(res.data) ? res.data : [];
+      setEntretiensList(list);
+      
+      if (list.length > 0) {
+        const dernier = list.sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))[0];
+        chargerEntretienDansFormulaire(dernier);
+      }
+    } catch (err) {
+      console.warn("Impossible de charger les entretiens de mesure:", err);
+    }
+  };
+
+  const chargerEntretienDansFormulaire = (entretien) => {
+    if (!entretien) return;
+    
+    setCurrentId(entretien.id);
+    setFormData({
+      typeFaute: entretien.typeFaute || "",
+      dateEntretien: entretien.dateEntretien || new Date().toISOString().split("T")[0],
+      causesPrincipales: entretien.causesPrincipales || "",
+      convention: entretien.convention || "",
+      planAction: entretien.planAction || "",
+      dateRequalification: entretien.dateRequalification || "",
+    });
+    
+    if (entretien.typeFaute && !typeOptions.includes(entretien.typeFaute)) {
+      setTypeOptions(prev => [...prev, entretien.typeFaute]);
+    }
+    
+    setStatus("Entretien chargé avec succès.");
+    setTimeout(() => setStatus(""), 3000);
   };
 
   const loadDraft = () => {
@@ -170,92 +222,144 @@ export default function EntretienDeMesure({ niveau = 3 }) {
     if (!raw) return;
     const p = JSON.parse(raw);
     setFormData(p);
-    setSignatureSL(p.signatureSL || "");
-    setSignatureQMSegment(p.signatureQMSegment || "");
-    setSignatureSGL(p.signatureSGL || "");
     setCurrentId(p.id || null);
-  };
-
-  const initCanvas = (ref, setter) => {
-    const cv = ref.current;
-    if (!cv) return;
-    const ctx = cv.getContext("2d");
-    ctx.strokeStyle = "#0f1f3d"; ctx.lineWidth = 2;
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-    let drawing = false;
-
-    cv.onmousedown = e => { drawing = true; ctx.beginPath(); ctx.moveTo(e.offsetX, e.offsetY); };
-    cv.onmouseup = () => { drawing = false; setter(cv.toDataURL()); };
-    cv.onmouseleave = () => { drawing = false; };
-    cv.onmousemove = e => { if (!drawing) return; ctx.lineTo(e.offsetX, e.offsetY); ctx.stroke(); };
-    cv.ontouchstart = e => {
-      e.preventDefault(); drawing = true;
-      const r = cv.getBoundingClientRect();
-      ctx.beginPath(); ctx.moveTo(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
-    };
-    cv.ontouchend = () => { drawing = false; setter(cv.toDataURL()); };
-    cv.ontouchmove = e => {
-      e.preventDefault(); if (!drawing) return;
-      const r = cv.getBoundingClientRect();
-      ctx.lineTo(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top); ctx.stroke();
-    };
-  };
-
-  const clearCanvas = (ref, setter) => {
-    const cv = ref.current;
-    if (!cv) return;
-    cv.getContext("2d").clearRect(0, 0, cv.width, cv.height);
-    setter("");
   };
 
   const handleChange = e => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSaveDraft = () => {
     setSavingDraft(true);
-    localStorage.setItem(`mesure-draft-${matricule}`, JSON.stringify({
-      ...formData, signatureSL, signatureQMSegment, signatureSGL, id: currentId,
-    }));
+    localStorage.setItem(`mesure-draft-${matricule}`, JSON.stringify({ ...formData, id: currentId }));
     setStatus("Brouillon enregistré");
     setSavingDraft(false);
     setTimeout(() => setStatus(""), 3000);
   };
 
   const handleAjouter = () => {
-    setCurrentId(null);
-    setFormData({
-      typeFaute: "", dateEntretien: new Date().toISOString().split("T")[0],
-      causesPrincipales: "", convention: "", planAction: "", dateRequalification: "",
-    });
-    setSignatureSL(""); setSignatureQMSegment(""); setSignatureSGL("");
-    [canvasSL, canvasQM, canvasSGL].forEach(ref => {
-      if (ref.current) ref.current.getContext("2d").clearRect(0, 0, ref.current.width, ref.current.height);
-    });
+    resetForm();
     setStatus("Formulaire réinitialisé");
     setTimeout(() => setStatus(""), 2000);
   };
 
-  const handleLoadLast = async () => {
-    setLoadingDraft(true);
-    try {
-      const res = await entretienMesureService.getByMatricule(matricule);
-      const last = res.data?.at(-1);
-      if (!last) { setError("Aucun entretien trouvé"); return; }
-      setFormData(last);
-      setSignatureSL(last.signatureSL || "");
-      setSignatureQMSegment(last.signatureQMSegment || "");
-      setSignatureSGL(last.signatureSGL || "");
-      setCurrentId(last.id);
-      setStatus("Dernier entretien chargé");
-    } catch { setError("Erreur lors du chargement"); }
-    finally { setLoadingDraft(false); }
+  const handleModifier = async () => {
+    if (entretiensList.length === 0) {
+      setError("Aucun entretien de mesure existant à modifier.");
+      return;
+    }
+    const dernier = entretiensList.sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))[0];
+    chargerEntretienDansFormulaire(dernier);
+    showInfoToast("Dernier entretien chargé");
   };
 
-  const handleDelete = async () => {
-    if (!currentId || !window.confirm("Confirmer la suppression ?")) return;
+  const handleDeleteConfirm = async (destinataireEmail, message) => {
+    setShowEmailModal(false);
+    setSaving(true);
+
     try {
-      await entretienMesureService.delete(currentId);
-      setStatus("Supprimé"); setCurrentId(null);
-    } catch { setError("Erreur lors de la suppression"); }
+      const nomCollab = collaborator ? `${collaborator.name} ${collaborator.prenom}` : matricule;
+      
+      await entretienMesureService.deleteWithNotification(matricule, currentId, destinataireEmail, nomCollab);
+      
+      resetForm();
+      await loadAllEntretiens();
+      setStatus("Entretien de mesure supprimé avec succès. Email envoyé.");
+      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
+    } catch (err) {
+      setError("Erreur lors de la suppression : " + (err.response?.data?.message || err.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSupprimer = () => {
+    if (!currentId) {
+      setError("Aucun entretien chargé pour suppression.");
+      return;
+    }
+    setModalAction("suppression");
+    setShowEmailModal(true);
+  };
+
+  // ✅ Gestion des différentes actions selon le rôle
+  const handleSubmitConfirm = async (destinataireEmail, message) => {
+    setShowEmailModal(false);
+    setSaving(true);
+
+    try {
+      const payload = { 
+        ...formData, 
+        destinataireEmail
+      };
+
+      // ✅ Cas 1: Validation QM_SEGMENT (1ère validation)
+      if (userRole === "QM_SEGMENT" && currentId) {
+        await entretienMesureService.valider1(matricule, currentId, payload);
+        setStatus("Entretien de mesure validé avec succès (QM-Segment). Email envoyé.");
+      } 
+      // ✅ Cas 2: Validation SGL (2ème validation)
+      else if (userRole === "SGL" && currentId) {
+        await entretienMesureService.valider2(matricule, currentId, payload);
+        setStatus("Entretien de mesure validé avec succès (SGL). Email envoyé.");
+      }
+      // ✅ Cas 3: Modification (SGL seulement)
+      else if (userRole === "SGL" && currentId) {
+        await entretienMesureService.updateWithNotification(matricule, currentId, payload);
+        setStatus("Entretien de mesure modifié avec succès. Email envoyé.");
+      }
+      // ✅ Cas 4: Création (SL seulement)
+      else if (userRole === "SL" && !currentId) {
+        await entretienMesureService.create(matricule, payload);
+        setStatus("Entretien de mesure créé avec succès. Email envoyé.");
+      }
+      // ✅ Cas 5: ADMIN peut tout faire
+      else if (userRole === "ADMIN") {
+        if (currentId) {
+          await entretienMesureService.updateWithNotification(matricule, currentId, payload);
+          setStatus("Entretien de mesure modifié avec succès. Email envoyé.");
+        } else {
+          await entretienMesureService.create(matricule, payload);
+          setStatus("Entretien de mesure créé avec succès. Email envoyé.");
+        }
+      }
+      else {
+        setError("Action non autorisée pour votre rôle.");
+        return;
+      }
+      
+      localStorage.removeItem(`mesure-draft-${matricule}`);
+      await loadAllEntretiens();
+      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data || "Erreur lors de la sauvegarde";
+      setError(typeof msg === "string" ? msg : "Erreur lors de la sauvegarde");
+      console.error("Erreur détaillée:", err);
+    } finally { 
+      setSaving(false);
+    }
+  };
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    setError("");
+    setStatus("");
+
+    if (!formData.typeFaute) return setError("Le type de faute est obligatoire");
+    if (!formData.dateRequalification) return setError("La date de requalification est obligatoire");
+
+    const de = new Date(formData.dateEntretien);
+    const dr = new Date(formData.dateRequalification);
+    const mx = new Date(de); mx.setDate(mx.getDate() + 7);
+    if (dr > mx) return setError("La requalification doit être au maximum 7 jours après l'entretien");
+
+    // Déterminer l'action en fonction du rôle
+    if (userRole === "QM_SEGMENT" && currentId) {
+      setModalAction("validation1");
+    } else if (userRole === "SGL" && currentId) {
+      setModalAction("validation2");
+    } else {
+      setModalAction(currentId ? "modification" : "création");
+    }
+    setShowEmailModal(true);
   };
 
   const addTypeOption = async () => {
@@ -267,6 +371,7 @@ export default function EntretienDeMesure({ niveau = 3 }) {
       setFormData(p => ({ ...p, typeFaute: nom }));
       setShowDefautModal(false);
       setDefautTypeInput("");
+      setStatus("Type de faute ajouté avec succès");
     } catch { setError("Erreur lors de l'ajout du type de faute"); }
   };
 
@@ -277,55 +382,19 @@ export default function EntretienDeMesure({ niveau = 3 }) {
     return d.toISOString().split("T")[0];
   };
 
-  // MODIFIÉ : Confirmation email avant l'envoi
-  const handleConfirmEmail = async (destinataireEmail, message) => {
-    setShowEmailModal(false);
-    setSaving(true);
-
-    try {
-      const payload = { 
-        ...formData, 
-        signatureSL, 
-        signatureQMSegment, 
-        signatureSGL,
-        destinataireEmail  // Ajout de l'email
-      };
-
-      if (currentId) {
-        await entretienMesureService.update(currentId, payload);
-      } else {
-        const res = await entretienMesureService.create(matricule, payload);
-        if (res.data?.id) setCurrentId(res.data.id);
-      }
-      
-      localStorage.removeItem(`mesure-draft-${matricule}`);
-      setStatus("Entretien de mesure enregistré et email envoyé ✓");
-      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
-    } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data || "Erreur lors de la sauvegarde";
-      setError(typeof msg === "string" ? msg : "Erreur lors de la sauvegarde");
-    } finally { 
-      setSaving(false);
-    }
-  };
-
-  // MODIFIÉ : Ouvre le modal au lieu d'envoyer directement
-  const handleSubmit = async e => {
-    e.preventDefault();
-    if (saving) return;
-    if (!formData.typeFaute) return setError("Le type de faute est obligatoire");
-    if (!signatureSL || !signatureQMSegment || !signatureSGL)
-      return setError("Toutes les signatures sont obligatoires");
-    if (!formData.dateRequalification)
-      return setError("La date de requalification est obligatoire");
-
-    const de = new Date(formData.dateEntretien);
-    const dr = new Date(formData.dateRequalification);
-    const mx = new Date(de); mx.setDate(mx.getDate() + 7);
-    if (dr > mx) return setError("La requalification doit être au maximum 7 jours après l'entretien");
-
-    // Ouvrir le modal pour choisir l'email
-    setShowEmailModal(true);
+  // ✅ Permissions selon le rôle
+  const canCreate = userRole === "SL" || userRole === "ADMIN";
+  const canModify = userRole === "SGL" || userRole === "ADMIN";
+  const canValidate1 = userRole === "QM_SEGMENT" || userRole === "ADMIN";
+  const canValidate2 = userRole === "SGL" || userRole === "ADMIN";
+  const canDelete = userRole === "SGL" || userRole === "ADMIN";
+  
+  // Déterminer si les champs sont modifiables
+  const isEditable = () => {
+    if (userRole === "ADMIN") return true;
+    if (userRole === "SL" && !currentId) return true; // SL peut créer
+    if (userRole === "SGL" && currentId) return true; // SGL peut modifier
+    return false;
   };
 
   const fmt = d => { if (!d) return "–"; try { return new Date(d).toLocaleDateString("fr-FR"); } catch { return d; } };
@@ -348,6 +417,15 @@ export default function EntretienDeMesure({ niveau = 3 }) {
             <span className="leoni-header-sub">
               {(collaborator.name || "").trim()} {(collaborator.prenom || "").trim()} — {collaborator.matricule || matricule}
             </span>
+          )}
+          {userRole === "QM_SEGMENT" && currentId && (
+            <span className="leoni-badge-qm">🔵 Mode validation QM-Segment</span>
+          )}
+          {userRole === "SGL" && currentId && (
+            <span className="leoni-badge-sgl">🟢 Mode validation SGL / Modification</span>
+          )}
+          {userRole === "SL" && !currentId && (
+            <span className="leoni-badge-sl">📝 Mode création</span>
           )}
         </div>
         <div className="leoni-header-actions" />
@@ -392,9 +470,6 @@ export default function EntretienDeMesure({ niveau = 3 }) {
 
           <div className="em-card">
             <div className="em-card-hd amber">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                <path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2"/>
-              </svg>
               Résumé — Entretien d'Accord (N2)
             </div>
             <div className="em-card-bd">
@@ -418,18 +493,6 @@ export default function EntretienDeMesure({ niveau = 3 }) {
                     <div className="em-row-line">
                       <span className="em-label">Mesures</span>
                       <span className="em-value" style={{ fontSize: 12 }}>{niveau2Data.mesuresProposees}</span>
-                    </div>
-                  )}
-                  {niveau2Data.echanges && (
-                    <div className="em-row-line">
-                      <span className="em-label">Échanges</span>
-                      <span className="em-value" style={{ fontSize: 12 }}>{niveau2Data.echanges}</span>
-                    </div>
-                  )}
-                  {niveau2Data.commentaireQMSegment && (
-                    <div className="em-row-line">
-                      <span className="em-label">Commentaire</span>
-                      <span className="em-value" style={{ fontSize: 12 }}>{niveau2Data.commentaireQMSegment}</span>
                     </div>
                   )}
                 </div>
@@ -473,11 +536,11 @@ export default function EntretienDeMesure({ niveau = 3 }) {
                   <div className="em-frow">
                     <div className="em-dw">
                       <input type="text" className="em-inp"
-                        placeholder="Rechercher ou saisir une faute..."
+                        placeholder="Rechercher ou sélectionner une faute..."
                         value={formData.typeFaute}
                         onChange={e => { setFormData(p => ({...p, typeFaute: e.target.value})); setShowDropdown(true); }}
                         onFocus={() => setShowDropdown(true)}
-                        onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                        disabled={!isEditable()}
                       />
                       {showDropdown && typeOptions.length > 0 && (
                         <div className="em-dlist">
@@ -492,7 +555,12 @@ export default function EntretienDeMesure({ niveau = 3 }) {
                         </div>
                       )}
                     </div>
-                    <button type="button" className="em-btn-add-faute" onClick={() => setShowDefautModal(true)}>
+                    <button 
+                      type="button" 
+                      className="em-btn-add-faute" 
+                      onClick={() => setShowDefautModal(true)}
+                      disabled={!isEditable()}
+                    >
                       + Ajouter Faute
                     </button>
                   </div>
@@ -501,68 +569,125 @@ export default function EntretienDeMesure({ niveau = 3 }) {
                 <div className="em-row2">
                   <div className="em-field">
                     <label className="em-lbl">Date entretien <span className="req">*</span></label>
-                    <input type="date" name="dateEntretien" className="em-inp"
-                      value={formData.dateEntretien} onChange={handleChange}/>
+                    <input 
+                      type="date" 
+                      name="dateEntretien" 
+                      className="em-inp"
+                      value={formData.dateEntretien} 
+                      onChange={handleChange}
+                      disabled={!isEditable()}
+                    />
                   </div>
                   <div className="em-field">
                     <label className="em-lbl">Date requalification <span className="req">*</span></label>
-                    <input type="date" name="dateRequalification" className="em-inp"
-                      value={formData.dateRequalification} onChange={handleChange}
-                      min={formData.dateEntretien} max={getMaxDate()}/>
+                    <input 
+                      type="date" 
+                      name="dateRequalification" 
+                      className="em-inp"
+                      value={formData.dateRequalification} 
+                      onChange={handleChange}
+                      min={formData.dateEntretien} 
+                      max={getMaxDate()}
+                      disabled={!isEditable()}
+                    />
                     <span className="em-hint">Maximum 7 jours après l'entretien</span>
                   </div>
                 </div>
 
                 <div className="em-field">
                   <label className="em-lbl">Causes profondes</label>
-                  <textarea name="causesPrincipales" className="em-ta" rows={3}
-                    value={formData.causesPrincipales} onChange={handleChange}
-                    placeholder="Décrivez les causes profondes identifiées..."/>
+                  <textarea 
+                    name="causesPrincipales" 
+                    className="em-ta" 
+                    rows={3}
+                    value={formData.causesPrincipales} 
+                    onChange={handleChange}
+                    placeholder="Décrivez les causes profondes identifiées..."
+                    disabled={!isEditable() && userRole !== "QM_SEGMENT" && userRole !== "SGL"}
+                  />
                 </div>
 
                 <div className="em-field">
                   <label className="em-lbl">Convention établie</label>
-                  <textarea name="convention" className="em-ta" rows={3}
-                    value={formData.convention} onChange={handleChange}
-                    placeholder="Convention établie lors de l'entretien..."/>
+                  <textarea 
+                    name="convention" 
+                    className="em-ta" 
+                    rows={3}
+                    value={formData.convention} 
+                    onChange={handleChange}
+                    placeholder="Convention établie lors de l'entretien..."
+                    disabled={!isEditable() && userRole !== "QM_SEGMENT" && userRole !== "SGL"}
+                  />
                 </div>
 
                 <div className="em-field">
                   <label className="em-lbl">Plan d'action correctif</label>
-                  <textarea name="planAction" className="em-ta" rows={3}
-                    value={formData.planAction} onChange={handleChange}
-                    placeholder="Actions correctives à mettre en place..."/>
-                </div>
-
-                <div className="em-sig3">
-                  {[
-                    {lbl:"Signature SL", ref:canvasSL, set:setSignatureSL, val:signatureSL},
-                    {lbl:"Signature QM-Segment", ref:canvasQM, set:setSignatureQMSegment, val:signatureQMSegment},
-                    {lbl:"Signature SGL", ref:canvasSGL, set:setSignatureSGL, val:signatureSGL},
-                  ].map(({lbl, ref, set, val}) => (
-                    <div key={lbl} className="em-sig-wrap">
-                      <div className="em-sig-lbl">
-                        {lbl}
-                        {val && <span className="em-sig-ok">✓</span>}
-                      </div>
-                      <canvas ref={ref} width={260} height={90} className="em-canvas"/>
-                      <button type="button" className="em-clear-sig" onClick={() => clearCanvas(ref, set)}>Effacer</button>
-                    </div>
-                  ))}
+                  <textarea 
+                    name="planAction" 
+                    className="em-ta" 
+                    rows={3}
+                    value={formData.planAction} 
+                    onChange={handleChange}
+                    placeholder="Actions correctives à mettre en place..."
+                    disabled={!isEditable() && userRole !== "QM_SEGMENT" && userRole !== "SGL"}
+                  />
                 </div>
 
                 <div className="em-actions-bar">
-                  <button type="button" className="em-btn em-btn-draft" onClick={handleSaveDraft} disabled={savingDraft}>
-                    {savingDraft ? "Enregistrement..." : "Enregistrer Brouillon"}
-                  </button>
-                  <button type="submit" className="em-btn em-btn-valider" disabled={saving}>
-                    {saving ? "..." : "Valider"}
-                  </button>
-                  <button type="button" className="em-btn em-btn-ajouter" onClick={handleAjouter}>Ajouter</button>
-                  <button type="button" className="em-btn em-btn-modifier" onClick={handleLoadLast} disabled={loadingDraft}>
-                    {loadingDraft ? "..." : "Modifier"}
-                  </button>
-                  <button type="button" className="em-btn em-btn-supprimer" onClick={handleDelete}>Supprimer</button>
+                  {/* Création - visible pour SL et ADMIN */}
+                  {canCreate && !currentId && (
+                    <button type="button" className="em-btn em-btn-ajouter" onClick={handleAjouter}>
+                      Ajouter
+                    </button>
+                  )}
+                  
+                  {/* Modification - visible pour SGL et ADMIN */}
+                  {canModify && currentId && (
+                    <button type="button" className="em-btn em-btn-modifier" onClick={handleModifier} disabled={loadingDraft}>
+                      {loadingDraft ? "..." : "Modifier"}
+                    </button>
+                  )}
+                  
+                  {/* Brouillon - visible pour SL et ADMIN en création, SGL en modification */}
+                  {(canCreate || canModify) && (
+                    <button type="button" className="em-btn em-btn-draft" onClick={handleSaveDraft} disabled={savingDraft}>
+                      {savingDraft ? "Enregistrement..." : "Enregistrer Brouillon"}
+                    </button>
+                  )}
+                  
+                  {/* Validation - QM_SEGMENT pour valider1, SGL pour valider2 */}
+                  {canValidate1 && currentId && userRole === "QM_SEGMENT" && (
+                    <button type="submit" className="em-btn em-btn-valider" disabled={saving}>
+                      {saving ? "..." : "Valider (QM-Segment)"}
+                    </button>
+                  )}
+                  
+                  {canValidate2 && currentId && userRole === "SGL" && (
+                    <button type="submit" className="em-btn em-btn-valider" disabled={saving}>
+                      {saving ? "..." : "Valider (SGL)"}
+                    </button>
+                  )}
+                  
+                  {/* Création initiale pour SL */}
+                  {canCreate && !currentId && (
+                    <button type="submit" className="em-btn em-btn-valider" disabled={saving}>
+                      {saving ? "..." : "Créer"}
+                    </button>
+                  )}
+                  
+                  {/* ADMIN peut tout faire */}
+                  {userRole === "ADMIN" && (
+                    <button type="submit" className="em-btn em-btn-valider" disabled={saving}>
+                      {saving ? "..." : (currentId ? "Modifier" : "Créer")}
+                    </button>
+                  )}
+                  
+                  {/* Suppression - visible pour SGL et ADMIN */}
+                  {canDelete && currentId && (
+                    <button type="button" className="em-btn em-btn-supprimer" onClick={handleSupprimer}>
+                      Supprimer
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -570,16 +695,15 @@ export default function EntretienDeMesure({ niveau = 3 }) {
         </main>
       </div>
 
-      {/* Modal email */}
       <EmailModal
         isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
-        onConfirm={handleConfirmEmail}
+        onConfirm={handleSubmitConfirm}
         emailsList={emailsList}
         loadingEmails={loadingEmails}
+        action={modalAction}
       />
 
-      {/* Modal ajout faute */}
       {showDefautModal && (
         <div className="em-moverlay" onClick={() => setShowDefautModal(false)}>
           <div className="em-modal" onClick={e => e.stopPropagation()}>

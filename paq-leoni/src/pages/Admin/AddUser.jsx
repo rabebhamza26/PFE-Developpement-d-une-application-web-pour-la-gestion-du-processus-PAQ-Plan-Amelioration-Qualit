@@ -94,31 +94,39 @@ export default function AddUser() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
-    try {
-      const payload = { 
-        nomUtilisateur: form.nomUtilisateur,
-        login: form.login,
-        email: form.email,
-        password: form.password,
-        role: form.role,
-        active: true,
-        siteIds: form.siteIds,
-        plantIds: form.plantIds,
-        segmentIds: form.segmentIds
-      };
-      await userService.createUser(payload);
-      navigate("/admin/users", { replace: true });
-    } catch (err) {
-      setError("Erreur lors de l'ajout de l'utilisateur: " + (err.response?.data?.message || err.message));
-      console.error("Erreur:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    const payload = { 
+      nomUtilisateur: form.nomUtilisateur,
+      login: form.login,
+      email: form.email,
+      password: form.password,
+      role: form.role,
+      active: true,
+      siteIds: form.siteIds,
+      plantIds: form.plantIds,
+      segmentIds: form.segmentIds
+    };
+
+    const res = await userService.createUser(payload);
+
+    // ✅ REDIRECTION AVEC PASSWORD
+    navigate("/admin/users", {
+      state: {
+        newUserPassword: form.password,
+        userId: res.data.id
+      }
+    });
+
+  } catch (err) {
+    setError("Erreur lors de l'ajout: " + (err.response?.data?.message || err.message));
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (loadingData) {
     return (
@@ -154,7 +162,7 @@ export default function AddUser() {
                 <div className="row">
                   <div className="col-md-6 mb-3">
                     <label htmlFor="nomUtilisateur" className="form-label">
-                      <i className="fas fa-user me-2"></i>Nom complet *
+                      <i className="fas fa-user me-2"></i>Nom complet 
                     </label>
                     <input
                       type="text"
@@ -170,7 +178,7 @@ export default function AddUser() {
 
                   <div className="col-md-6 mb-3">
                     <label htmlFor="login" className="form-label">
-                      <i className="fas fa-sign-in-alt me-2"></i>Login *
+                      <i className="fas fa-sign-in-alt me-2"></i>Login 
                     </label>
                     <input
                       type="text"
@@ -188,7 +196,7 @@ export default function AddUser() {
                 <div className="row">
                   <div className="col-md-6 mb-3">
                     <label htmlFor="email" className="form-label">
-                      <i className="fas fa-envelope me-2"></i>Email *
+                      <i className="fas fa-envelope me-2"></i>Email 
                     </label>
                     <input
                       type="email"
@@ -204,7 +212,7 @@ export default function AddUser() {
 
                   <div className="col-md-6 mb-3">
                     <label htmlFor="password" className="form-label">
-                      <i className="fas fa-lock me-2"></i>Mot de passe *
+                      <i className="fas fa-lock me-2"></i>Mot de passe 
                     </label>
                     <input
                       type="password"
@@ -221,7 +229,7 @@ export default function AddUser() {
 
                 <div className="mb-3">
                   <label htmlFor="role" className="form-label">
-                    <i className="fas fa-user-tag me-2"></i>Rôle *
+                    <i className="fas fa-user-tag me-2"></i>Rôle 
                   </label>
                   <select 
                     name="role" 
@@ -236,13 +244,12 @@ export default function AddUser() {
                     <option value="SGL">SGL</option>
                     <option value="HP">HP</option>
                     <option value="RH">RH</option>
-                    <option value="COORDINATEUR_FORMATION">Coordinateur Formation</option>
                   </select>
                 </div>
 
                 <div className="mb-3">
                   <label className="form-label">
-                    <i className="fas fa-building me-2"></i>Sites (sélection multiple)
+                    <i className="fas fa-building me-2"></i>Sites 
                   </label>
                   <select 
                     multiple 
@@ -256,12 +263,11 @@ export default function AddUser() {
                       </option>
                     ))}
                   </select>
-                  <small className="text-muted">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs sites</small>
                 </div>
 
                 <div className="mb-3">
                   <label className="form-label">
-                    <i className="fas fa-industry me-2"></i>Plants (sélection multiple)
+                    <i className="fas fa-industry me-2"></i>Plants 
                   </label>
                   <select 
                     multiple 
@@ -276,17 +282,13 @@ export default function AddUser() {
                       </option>
                     ))}
                   </select>
-                  {form.siteIds.length === 0 && (
-                    <small className="text-muted">Sélectionnez d'abord au moins un site</small>
-                  )}
-                  {form.siteIds.length > 0 && (
-                    <small className="text-muted">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs plants</small>
-                  )}
+                  
+                
                 </div>
 
                 <div className="mb-4">
                   <label className="form-label">
-                    <i className="fas fa-tag me-2"></i>Segments (sélection multiple)
+                    <i className="fas fa-tag me-2"></i>Segments 
                   </label>
                   <select 
                     multiple 
@@ -300,7 +302,6 @@ export default function AddUser() {
                       </option>
                     ))}
                   </select>
-                  <small className="text-muted">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs segments</small>
                 </div>
 
                 <div className="d-flex gap-2 justify-content-end">

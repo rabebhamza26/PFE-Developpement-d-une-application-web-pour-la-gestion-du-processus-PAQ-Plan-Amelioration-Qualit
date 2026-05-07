@@ -13,13 +13,13 @@ export default function AdminLayout() {
 
   const handleLogout = async () => {
     try {
-      await API.post("/auth/logout");
+      const API = (await import("../../services/api")).default;
+      await API.post("/api/auth/logout");
     } catch (err) {
       console.warn("Logout backend echoue:", err?.message || err);
     } finally {
       logout();
-      setIsOpen(false);
-      navigate("/login", { replace: true });
+      window.location.href = "/";
     }
   };
 
@@ -72,9 +72,9 @@ export default function AdminLayout() {
         </nav>
 
         <div className="admin-sidebar-footer">
-          <button type="button" className="admin-logout-btn" onClick={handleLogout}>
+          <button type="button" className="admin-topbar-logout" onClick={handleLogout}>
             <i className="fas fa-sign-out-alt"></i>
-            <span>Deconnexion</span>
+            <span>Déconnexion</span>
           </button>
         </div>
       </aside>

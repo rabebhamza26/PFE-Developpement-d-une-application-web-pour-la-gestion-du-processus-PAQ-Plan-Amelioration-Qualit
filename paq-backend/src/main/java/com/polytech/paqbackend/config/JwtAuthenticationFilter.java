@@ -33,23 +33,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(
+
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // 🔥 1. Autoriser WebSocket (IMPORTANT)
-
-
-        if (request.getServletPath().contains("/api/auth/")
+        // Autoriser uniquement les endpoints publics sans JWT
+        if (request.getServletPath().equals("/api/auth/login")
+                || request.getServletPath().equals("/api/auth/refresh-token")
+                || request.getServletPath().equals("/api/auth/forgot-password")
+                || request.getServletPath().equals("/api/auth/logout")
                 || request.getServletPath().startsWith("/ws")
                 || request.getMethod().equals("OPTIONS")) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        // 🔥 2. Autoriser login
-        if (request.getServletPath().contains("/api/auth/")) {
             filterChain.doFilter(request, response);
             return;
         }

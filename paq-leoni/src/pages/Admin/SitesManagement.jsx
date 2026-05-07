@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { siteService, plantService } from "../../services/api";
 import "../../styles/sites-management.css";
 import { Pencil, Eye, Trash2 } from "lucide-react";
+import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "../../utils/entretienAlerts";
 
 
 
@@ -75,7 +76,11 @@ export default function SitesManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.name.trim()) { setError("Le nom est obligatoire."); return; }
+    if (!form.name.trim()) {
+      setError("Le nom est obligatoire.");
+      await showErrorAlert("Champ requis", "Le nom du site est obligatoire.");
+      return;
+    }
     setSaving(true);
     try {
       if (editingId) {
@@ -84,9 +89,15 @@ export default function SitesManagement() {
         await siteService.create(form);
       }
       closeModal();
-      loadSites();
-    } catch {
-      setError("Échec de l'enregistrement");
+      await loadSites();
+      await showSuccessAlert(
+        editingId ? "Site modifie" : "Site ajoute",
+        editingId ? "Les informations du site ont ete mises a jour." : "Le site a ete ajoute avec succes."
+      );
+    } catch (err) {
+      const message = err.response?.data?.message || "Echec de l'enregistrement";
+      setError(message);
+      await showErrorAlert("Enregistrement impossible", message);
     } finally {
       setSaving(false);
     }
@@ -94,15 +105,23 @@ export default function SitesManagement() {
 
   const handleDelete = async (id) => {
     const count = plantCounts[id] ?? 0;
-    const msg = count > 0
-      ? `Ce site contient ${count} plant(s). Supprimer quand même ?`
-      : "Supprimer ce site ?";
-    if (!window.confirm(msg)) return;
+    const result = await showConfirmAlert({
+      title: "Supprimer ce site ?",
+      text: count > 0
+        ? `Ce site contient ${count} plant(s). La suppression restera definitive.`
+        : "Cette action est irreversible.",
+      confirmButtonText: "Supprimer",
+    });
+    if (!result.isConfirmed) return;
+
     try {
       await siteService.delete(id);
-      loadSites();
-    } catch {
-      setError("Erreur lors de la suppression");
+      await loadSites();
+      await showSuccessAlert("Site supprime", "Le site a ete supprime avec succes.");
+    } catch (err) {
+      const message = err.response?.data?.message || "Erreur lors de la suppression";
+      setError(message);
+      await showErrorAlert("Suppression impossible", message);
     }
   };
 

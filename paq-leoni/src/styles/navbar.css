@@ -1,109 +1,274 @@
+/* src/styles/navbar.css */
 .navbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #1a1a2e;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
   color: #fff;
-  padding: 0 24px;
-  height: 64px;
+  padding: 0 28px;
+  height: 70px;
   border-bottom: 3px solid #e8a020;
   flex-shrink: 0;
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+/* Partie gauche */
 .navbar-left {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.navbar-logo {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
 .navbar-title h2 {
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: #fff;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
   margin: 0;
+  background: linear-gradient(135deg, #fff 0%, #e8a020 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .navbar-title span {
-  font-size: 11px;
-  color: #e8a020;
+  font-size: 10px;
+  color: #aab2c0;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   display: block;
+  margin-top: 2px;
 }
 
+/* Partie centrale - Date */
+.navbar-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.navbar-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 6px 16px;
+  border-radius: 30px;
+  backdrop-filter: blur(4px);
+  font-size: 13px;
+  font-weight: 500;
+  color: #e8a020;
+  border: 1px solid rgba(232, 160, 32, 0.3);
+}
+
+.navbar-date svg {
+  opacity: 0.8;
+}
+
+.navbar-date span {
+  letter-spacing: 0.3px;
+}
+
+/* Partie droite - CORRIGÉE (supprimer le doublon) */
 .navbar-right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 20px;
+  flex: 0 0 auto;
 }
 
+/* Section utilisateur */
 .navbar-user {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 40px;
+  transition: background 0.2s;
+}
+
+.navbar-user:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .navbar-avatar {
-  width: 36px;
-  height: 36px;
-  background: #e8a020;
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, #e8a020 0%, #f39c12 100%);
   color: #1a1a2e;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 15px;
   flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(232, 160, 32, 0.3);
+}
+
+.navbar-user-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .navbar-user-name {
   font-size: 13px;
   font-weight: 600;
-  display: block;
   color: #fff;
+  line-height: 1.2;
 }
 
 .navbar-user-role {
-  font-size: 11px;
-  color: #aab2c0;
-  display: block;
+  font-size: 10px;
+  color: #e8a020;
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
+  font-weight: 500;
 }
 
+/* Bouton déconnexion */
 .navbar-logout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: transparent;
-  border: 1.5px solid #e8a020;
+  border: 1.5px solid rgba(232, 160, 32, 0.5);
   color: #e8a020;
-  padding: 6px 16px;
-  border-radius: 4px;
+  padding: 8px 18px;
+  border-radius: 30px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  transition: all 0.25s ease;
   white-space: nowrap;
+}
+
+.navbar-logout svg {
+  transition: transform 0.2s;
 }
 
 .navbar-logout:hover {
   background: #e8a020;
+  border-color: #e8a020;
   color: #1a1a2e;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(232, 160, 32, 0.3);
 }
 
-/* Responsive */
+.navbar-logout:hover svg {
+  transform: translateX(2px);
+}
+
+.navbar-logout:active {
+  transform: translateY(0);
+}
+
+/* Responsive Design */
+@media (max-width: 900px) {
+  .navbar {
+    padding: 0 20px;
+  }
+  
+  .navbar-date span {
+    font-size: 11px;
+  }
+  
+  .navbar-date {
+    padding: 4px 12px;
+  }
+}
+
 @media (max-width: 768px) {
   .navbar {
-    padding: 0 14px;
+    padding: 0 16px;
+    height: 60px;
   }
-  .navbar-title span,
-  .navbar-user-meta {
-    display: none;
-  }
+  
   .navbar-title h2 {
     font-size: 14px;
   }
+  
+  .navbar-title span {
+    display: none;
+  }
+  
+  /* Cacher la date sur mobile */
+  .navbar-center {
+    display: none;
+  }
+  
+  .navbar-user-meta {
+    display: none;
+  }
+  
+  .navbar-user {
+    padding: 4px;
+  }
+  
+  .navbar-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 13px;
+  }
+  
+  .navbar-logout span {
+    display: none;
+  }
+  
+  .navbar-logout {
+    padding: 8px 12px;
+  }
+  
+  .navbar-right {
+    gap: 12px;
+  }
+}
+
+/* Pour les très petits écrans */
+@media (max-width: 480px) {
+  .navbar {
+    padding: 0 12px;
+  }
+  
+  .navbar-title h2 {
+    font-size: 12px;
+  }
+  
+  .navbar-right {
+    gap: 8px;
+  }
+  
+  .navbar-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+}
+
+/* Animation d'entrée pour la date */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.navbar-date {
+  animation: fadeIn 0.3s ease;
 }

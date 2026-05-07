@@ -73,4 +73,6 @@ public class Collaborator {
 
     public LocalDate getDepartDate() { return departDate; }
     public void setDepartDate(LocalDate departDate) { this.departDate = departDate; }
+
+
 }

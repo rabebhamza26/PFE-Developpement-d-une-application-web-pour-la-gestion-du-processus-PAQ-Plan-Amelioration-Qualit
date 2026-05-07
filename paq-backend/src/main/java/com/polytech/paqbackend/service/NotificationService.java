@@ -1,15 +1,20 @@
 package com.polytech.paqbackend.service;
 
+import com.polytech.paqbackend.entity.User;
 import com.polytech.paqbackend.entity.Notification;
 import com.polytech.paqbackend.repository.NotificationRepository;
+import com.polytech.paqbackend.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class NotificationService {
@@ -17,95 +22,185 @@ public class NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
     private final NotificationRepository repo;
+    private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
     public NotificationService(NotificationRepository repo,
+                               UserRepository userRepository,
                                SimpMessagingTemplate messagingTemplate) {
         this.repo = repo;
+        this.userRepository = userRepository;
         this.messagingTemplate = messagingTemplate;
     }
 
-    public Notification envoyerNotification(String destinataireEmail,
+    /**
+     * Envoie une notification à un utilisateur (système + WebSocket)
+     */
+    @Transactional
+    public Notification envoyerNotification(String matriculeDestinataire,
                                             String titre,
                                             String message,
                                             String type,
-                                            String matricule,
+                                            String matriculeCollaborateur,
                                             String typeEntretien) {
 
-        // Vérification critique
-        if (destinataireEmail == null || destinataireEmail.isBlank()) {
-            log.error("destinataireEmail est null ou vide");
-            throw new IllegalArgumentException("Le destinataire email ne peut pas être null");
+        // Récupérer l'utilisateur par son login/matricule
+        User destinataire = getUserByLogin(matriculeDestinataire);
+        String emailDestinataire = destinataire != null ? destinataire.getEmail() : null;
+        String nomUtilisateur = destinataire != null ? destinataire.getNomUtilisateur() : matriculeDestinataire;
+
+        if (emailDestinataire == null) {
+            log.error("Utilisateur non trouvé pour le login: {}", matriculeDestinataire);
+            return null;
         }
 
         try {
+            // 1. Sauvegarder dans la base de données
             Notification notif = new Notification();
-            notif.setDestinataireEmail(destinataireEmail);
+            notif.setDestinataireEmail(emailDestinataire);
+            notif.setMatricule(matriculeDestinataire);
             notif.setTitre(titre);
             notif.setMessage(message);
             notif.setType(type != null ? type : "INFO");
             notif.setLu(false);
-            notif.setCreatedAt(java.time.LocalDateTime.now());
-            notif.setMatricule(matricule);
+            notif.setCreatedAt(LocalDateTime.now());
+            notif.setMatriculeCollaborateur(matriculeCollaborateur);
             notif.setTypeEntretien(typeEntretien);
 
             Notification saved = repo.save(notif);
-            log.info("Notification sauvegardée pour {}", destinataireEmail);
+            log.info("Notification sauvegardée pour {} ({})", matriculeDestinataire, emailDestinataire);
 
+            // 2. Envoyer via WebSocket en temps réel
             messagingTemplate.convertAndSendToUser(
-                    destinataireEmail,
+                    matriculeDestinataire,  // Utiliser le login comme identifiant
                     "/queue/notifications",
-                    toPayload(saved)
+                    convertToDTO(saved, nomUtilisateur)
             );
+
+            log.info("Notification WebSocket envoyée à {}", matriculeDestinataire);
 
             return saved;
 
         } catch (Exception e) {
             log.error("Erreur lors de l'envoi de la notification: {}", e.getMessage(), e);
-            throw new RuntimeException("Erreur: " + e.getMessage(), e);
+            return null;
         }
     }
 
+    /**
+     * Envoie une notification simple par email
+     */
     public Notification envoyerNotification(String destinataireEmail,
                                             String titre,
                                             String message,
                                             String type) {
-        return envoyerNotification(destinataireEmail, titre, message, type, null, null);
+        // Récupérer l'utilisateur par email
+        User destinataire = getUserByEmail(destinataireEmail);
+        String matricule = destinataire != null ? destinataire.getLogin() : null;
+
+        return envoyerNotification(matricule, titre, message, type, null, null);
     }
 
-    public List<Notification> getNotificationsUtilisateur(String email) {
-        return repo.findByDestinataireEmailOrderByCreatedAtDesc(email);
+    /**
+     * Récupère toutes les notifications d'un utilisateur
+     */
+    public List<Map<String, Object>> getNotificationsByLogin(String login) {
+        List<Notification> notifications = repo.findByMatriculeOrderByCreatedAtDesc(login);
+
+        return notifications.stream().map(notif -> {
+            String nomUtilisateur = getUserNameByLogin(notif.getMatriculeCollaborateur());
+            return convertToDTO(notif, nomUtilisateur);
+        }).collect(Collectors.toList());
     }
 
-    public List<Notification> getNonLues(String email) {
-        return repo.findByDestinataireEmailAndLuFalse(email);
+    /**
+     * Récupère les notifications non lues d'un utilisateur
+     */
+    public List<Map<String, Object>> getUnreadNotificationsByLogin(String login) {
+        List<Notification> notifications = repo.findByMatriculeAndLuOrderByCreatedAtDesc(login, false);
+
+        return notifications.stream().map(notif -> {
+            String nomUtilisateur = getUserNameByLogin(notif.getMatriculeCollaborateur());
+            return convertToDTO(notif, nomUtilisateur);
+        }).collect(Collectors.toList());
     }
 
-    public long compterNonLues(String email) {
-        return repo.countByDestinataireEmailAndLuFalse(email);
+    /**
+     * Compte les notifications non lues
+     */
+    public long countUnreadByLogin(String login) {
+        return repo.countByMatriculeAndLu(login, false);
     }
 
-    public void marquerLue(Long id) {
-        repo.findById(id).ifPresent(n -> {
-            n.setLu(true);
-            repo.save(n);
-        });
+    /**
+     * Marque une notification comme lue
+     */
+    @Transactional
+    public void markAsRead(Long id, String login) {
+        repo.markAsRead(id);
     }
 
-    public int marquerToutesLues(String email) {
-        return repo.marquerToutesLues(email);
+    /**
+     * Marque toutes les notifications comme lues
+     */
+    @Transactional
+    public int markAllAsRead(String login) {
+        repo.markAllAsRead(login);
+        return (int) repo.countByMatriculeAndLu(login, false);
     }
 
-    private Map<String, Object> toPayload(Notification n) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("id", n.getId());
-        payload.put("titre", n.getTitre());
-        payload.put("message", n.getMessage());
-        payload.put("type", n.getType());
-        payload.put("lu", n.isLu());
-        payload.put("createdAt", n.getCreatedAt().toString());
-        payload.put("matricule", n.getMatricule() != null ? n.getMatricule() : "");
-        payload.put("typeEntretien", n.getTypeEntretien() != null ? n.getTypeEntretien() : "");
-        return payload;
+    // Méthodes utilitaires - CORRIGÉES pour utiliser les méthodes du repository
+    private User getUserByLogin(String login) {
+        if (login == null) return null;
+        // UserRepository.findByLogin retourne User directement, pas Optional
+        User user = userRepository.findByLogin(login);
+        return user;
+    }
+
+    private User getUserByEmail(String email) {
+        if (email == null) return null;
+        // UserRepository.findByEmail retourne User directement, pas Optional
+        User user = userRepository.findByEmail(email);
+        return user;
+    }
+
+    private String getUserNameByLogin(String login) {
+        if (login == null) return "";
+        User user = userRepository.findByLogin(login);
+        if (user != null) {
+            return user.getNomUtilisateur();
+        }
+        return login;
+    }
+
+    private String convertToJson(Map<String, String> data) {
+        try {
+            StringBuilder sb = new StringBuilder("{");
+            int i = 0;
+            for (Map.Entry<String, String> entry : data.entrySet()) {
+                if (i++ > 0) sb.append(",");
+                sb.append("\"").append(entry.getKey()).append("\":\"")
+                        .append(entry.getValue().replace("\"", "\\\"")).append("\"");
+            }
+            sb.append("}");
+            return sb.toString();
+        } catch (Exception e) {
+            return "{}";
+        }
+    }
+
+    private Map<String, Object> convertToDTO(Notification n, String nomUtilisateur) {
+        Map<String, Object> dto = new HashMap<>();
+        dto.put("id", n.getId());
+        dto.put("matricule", n.getMatricule());
+        dto.put("titre", n.getTitre());
+        dto.put("message", n.getMessage());
+        dto.put("lu", n.isLu());
+        dto.put("createdAt", n.getCreatedAt().toString());
+        dto.put("type", n.getType());
+        dto.put("typeEntretien", n.getTypeEntretien());
+        dto.put("matriculeCollaborateur", n.getMatriculeCollaborateur());
+        dto.put("nomCollaborateur", nomUtilisateur);
+        return dto;
     }
 }

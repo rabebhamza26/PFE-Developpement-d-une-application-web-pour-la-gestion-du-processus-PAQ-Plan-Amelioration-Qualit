@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   collaboratorService,
-  paqService,
   fauteService,
   entretienFinalService,
   entretienDecisionService,
-  userService,
 } from "../../services/api";
 import { useNavigate, useParams } from "react-router-dom";
+import { showConfirmAlert, showErrorAlert, showInfoToast, showSuccessAlert, showSuccessToast } from "../../utils/entretienAlerts";
 
 import "../../styles/entretien-final.css";
 import "../../styles/paq-dossier.css";
@@ -15,74 +14,16 @@ import "../../styles/paq-dossier.css";
 /* ─── Constantes ─────────────────────────────────────────── */
 const DECISIONS = ["Licenciement", "Avertissement", "Formation", "Mutation", "Suspension"];
 
-// Composant Modal Email
-function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails }) {
-  const [selectedEmail, setSelectedEmail] = useState("");
-  const [message, setMessage] = useState("");
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="leoni-modal-overlay" onClick={onClose}>
-      <div className="leoni-modal" style={{ maxWidth: "500px" }} onClick={e => e.stopPropagation()}>
-        <div className="leoni-modal-header">
-          <div className="leoni-modal-icon leoni-modal-icon-info">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" strokeWidth="2"/>
-              <polyline points="22,6 12,13 2,6" stroke="currentColor" strokeWidth="2"/>
-            </svg>
-          </div>
-          <div>
-            <h3>Envoyer un email</h3>
-            <p>Choisissez le destinataire et ajoutez un message</p>
-          </div>
-          <button className="leoni-modal-close" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="leoni-modal-body">
-          <div className="leoni-form-group">
-            <label>Destinataire *</label>
-            <select 
-              className="leoni-input" 
-              value={selectedEmail} 
-              onChange={(e) => setSelectedEmail(e.target.value)}
-              disabled={loadingEmails}
-            >
-              <option value="">-- Sélectionnez un email --</option>
-              {emailsList.map((email, idx) => (
-                <option key={idx} value={email}>{email}</option>
-              ))}
-            </select>
-            {loadingEmails && <small>Chargement des emails...</small>}
-          </div>
-
-          <div className="leoni-form-group">
-            <label>Message (optionnel)</label>
-            <textarea
-              className="leoni-textarea"
-              rows="4"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ajoutez un message personnalisé..."
-            />
-          </div>
-        </div>
-
-        <div className="leoni-modal-footer">
-          <button type="button" className="leoni-btn leoni-btn-outline" onClick={onClose}>Annuler</button>
-          <button type="button" className="leoni-btn leoni-btn-primary" onClick={() => onConfirm(selectedEmail, message)} disabled={!selectedEmail}>
-            Envoyer
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+const buildDefaultForm = () => ({
+  typeFaute: "",
+  dateEntretien: new Date().toISOString().split("T")[0],
+  decision: "",
+  commentaireRH: "",
+});
 
 export default function EntretienFinal({ niveau = 5 }) {
   const { matricule } = useParams();
-  const navigate      = useNavigate();
-  const canvasRef     = useRef(null);
+  const navigate = useNavigate();
 
   const [typeOptions,       setTypeOptions]       = useState([]);
   const [showDefautModal,   setShowDefautModal]   = useState(false);
@@ -91,42 +32,16 @@ export default function EntretienFinal({ niveau = 5 }) {
 
   const [collaborator,      setCollaborator]      = useState(null);
   const [resumeN4,          setResumeN4]          = useState(null);
+  const [entretiensList,    setEntretiensList]    = useState([]);
   const [loading,           setLoading]           = useState(true);
   const [saving,            setSaving]            = useState(false);
   const [savingDraft,       setSavingDraft]       = useState(false);
   const [loadingDraft,      setLoadingDraft]      = useState(false);
   const [error,             setError]             = useState("");
   const [statusMessage,     setStatusMessage]     = useState("");
-  const [isDrawing,         setIsDrawing]         = useState(false);
-  const [signatureBase64,   setSignatureBase64]   = useState("");
   const [currentId,         setCurrentId]         = useState(null);
 
-  // États pour le modal email
-  const [emailsList, setEmailsList] = useState([]);
-  const [loadingEmails, setLoadingEmails] = useState(false);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-
-  const [formData, setFormData] = useState({
-    typeFaute:     "",
-    dateEntretien: new Date().toISOString().split("T")[0],
-    decision:      "",
-    commentaireRH: "",
-  });
-
-  // Charger les emails
-  const loadEmails = async () => {
-    try {
-      setLoadingEmails(true);
-      const res = await userService.getAllEmails();
-      const emails = res.data || [];
-      setEmailsList(emails);
-    } catch (err) {
-      console.error("Erreur chargement emails:", err);
-      setEmailsList(["rh@leoni.com", "qm.segment@leoni.com", "sl@leoni.com", "sgl@leoni.com", "hp@leoni.com"]);
-    } finally {
-      setLoadingEmails(false);
-    }
-  };
+  const [formData, setFormData] = useState(buildDefaultForm());
 
   /* ── Chargement ─────────────────────────────────────────── */
   useEffect(() => {
@@ -134,8 +49,16 @@ export default function EntretienFinal({ niveau = 5 }) {
     loadDraft();
     loadResumeN4();
     loadFautes();
-    loadEmails();
+    loadAllEntretiens();
   }, [matricule]);
+
+  const resetForm = () => {
+    setFormData(buildDefaultForm());
+    setCurrentId(null);
+    if (matricule) {
+      localStorage.removeItem(`entretien-final-draft-${matricule}`);
+    }
+  };
 
   const loadCollaborator = async () => {
     try {
@@ -158,10 +81,44 @@ export default function EntretienFinal({ niveau = 5 }) {
 
   const loadResumeN4 = async () => {
     try {
-      const res = await entretienDecisionService.getEntretienDecisionByMatricule(matricule);
+      const res = await entretienDecisionService.getByMatricule(matricule);
       const list = Array.isArray(res.data) ? res.data : [];
       setResumeN4(list.at(-1) || null);
     } catch { setResumeN4(null); }
+  };
+
+  const loadAllEntretiens = async () => {
+    try {
+      const res = await entretienFinalService.getByMatricule(matricule);
+      const list = Array.isArray(res.data) ? res.data : [];
+      setEntretiensList(list);
+      
+      if (list.length > 0) {
+        const dernier = list.sort((a, b) => new Date(b.dateEntretien) - new Date(a.dateEntretien))[0];
+        chargerEntretienDansFormulaire(dernier);
+      }
+    } catch (err) {
+      console.warn("Impossible de charger les entretiens finaux:", err);
+    }
+  };
+
+  const chargerEntretienDansFormulaire = (entretien) => {
+    if (!entretien) return;
+    
+    setCurrentId(entretien.id);
+    setFormData({
+      typeFaute: entretien.typeFaute || "",
+      dateEntretien: entretien.dateEntretien || new Date().toISOString().split("T")[0],
+      decision: entretien.decision || "",
+      commentaireRH: entretien.commentaireRH || "",
+    });
+    
+    if (entretien.typeFaute && !typeOptions.includes(entretien.typeFaute)) {
+      setTypeOptions(prev => [...prev, entretien.typeFaute]);
+    }
+    
+    setStatusMessage("Entretien chargé avec succès.");
+    setTimeout(() => setStatusMessage(""), 3000);
   };
 
   const loadDraft = () => {
@@ -170,61 +127,8 @@ export default function EntretienFinal({ niveau = 5 }) {
       if (!draft) return;
       const parsed = JSON.parse(draft);
       setFormData(prev => ({ ...prev, ...parsed }));
-      if (parsed.signatureBase64) {
-        setSignatureBase64(parsed.signatureBase64);
-        setTimeout(() => applySignatureToCanvas(parsed.signatureBase64), 200);
-      }
       if (parsed.id) setCurrentId(parsed.id);
     } catch (err) { console.warn("Brouillon non chargeable:", err); }
-  };
-
-  const applySignatureToCanvas = (dataUrl) => {
-    if (!dataUrl || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx    = canvas.getContext("2d");
-    const img    = new Image();
-    img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(img, 0, 0, canvas.width, canvas.height); };
-    img.src    = dataUrl;
-  };
-
-  /* ── Canvas signature ────────────────────────────────────── */
-  const getCanvasPoint = e => {
-    const canvas = canvasRef.current;
-    const rect   = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: clientX - rect.left, y: clientY - rect.top };
-  };
-
-  const startDraw = e => {
-    const canvas = canvasRef.current; if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const { x, y } = getCanvasPoint(e);
-    ctx.beginPath(); ctx.moveTo(x, y);
-    setIsDrawing(true);
-  };
-
-  const draw = e => {
-    if (!isDrawing) return;
-    const canvas = canvasRef.current; if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const { x, y } = getCanvasPoint(e);
-    ctx.lineTo(x, y);
-    ctx.strokeStyle = "#000"; ctx.lineWidth = 2; ctx.lineCap = "round";
-    ctx.stroke();
-  };
-
-  const endDraw = () => {
-    if (!isDrawing) return;
-    setIsDrawing(false);
-    const canvas = canvasRef.current; if (!canvas) return;
-    setSignatureBase64(canvas.toDataURL("image/png"));
-  };
-
-  const clearSignature = () => {
-    const canvas = canvasRef.current; if (!canvas) return;
-    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
-    setSignatureBase64("");
   };
 
   /* ── Handlers ────────────────────────────────────────────── */
@@ -240,100 +144,120 @@ export default function EntretienFinal({ niveau = 5 }) {
       setFormData(prev => ({ ...prev, typeFaute: nom }));
       setDefautTypeInput("");
       setShowDefautModal(false);
-    } catch { setError("Erreur ajout faute"); }
+      setStatusMessage("Type de faute ajouté avec succès.");
+      showSuccessToast("Faute ajout�e");
+    } catch {
+      setError("Erreur ajout faute");
+      showErrorAlert("Ajout impossible", "Erreur lors de l'ajout du type de faute.");
+    }
   };
 
   const handleEnregistrer = () => {
     setSavingDraft(true);
     try {
-      const payload = { ...formData, signatureBase64, id: currentId };
+      const payload = { ...formData, id: currentId };
       localStorage.setItem(`entretien-final-draft-${matricule}`, JSON.stringify(payload));
       setStatusMessage("Brouillon enregistré.");
+      showSuccessToast("Brouillon enregistr�");
       setTimeout(() => setStatusMessage(""), 3000);
-    } catch { setError("Impossible d'enregistrer le brouillon."); }
+    } catch {
+      setError("Impossible d'enregistrer le brouillon.");
+      showErrorAlert("Brouillon non enregistr�", "Impossible d'enregistrer le brouillon.");
+    }
     finally { setSavingDraft(false); }
   };
 
   const handleAjouter = () => {
-    setCurrentId(null);
-    setFormData({ typeFaute:"", dateEntretien: new Date().toISOString().split("T")[0], decision:"", commentaireRH:"" });
-    setSignatureBase64("");
-    clearSignature();
+    resetForm();
     setStatusMessage("Formulaire réinitialisé.");
-    localStorage.removeItem(`entretien-final-draft-${matricule}`);
+    showInfoToast("Formulaire r�initialis�");
+    setTimeout(() => setStatusMessage(""), 2000);
   };
 
   const handleModifier = async () => {
-    setLoadingDraft(true);
-    try {
-      const res  = await entretienFinalService.getByMatricule(matricule);
-      const list = Array.isArray(res.data) ? res.data : [];
-      const last = list.at(-1);
-      if (!last) { setError("Aucun entretien final trouvé."); return; }
-      setFormData({
-        typeFaute:     last.typeFaute     || "",
-        dateEntretien: last.dateEntretien || new Date().toISOString().split("T")[0],
-        decision:      last.decision      || "",
-        commentaireRH: last.commentaireRH || "",
-      });
-      setCurrentId(last.id);
-      if (last.signatureBase64) {
-        setSignatureBase64(last.signatureBase64);
-        setTimeout(() => applySignatureToCanvas(last.signatureBase64), 100);
-      }
-      setStatusMessage("Dernier entretien chargé.");
-    } catch { setError("Impossible de charger le dernier entretien."); }
-    finally { setLoadingDraft(false); }
+    if (entretiensList.length === 0) {
+      setError("Aucun entretien final existant à modifier.");
+      return;
+    }
+    const dernier = entretiensList.sort((a, b) => new Date(b.dateEntretien) - new Date(a.dateEntretien))[0];
+    chargerEntretienDansFormulaire(dernier);
+    showInfoToast("Dernier entretien charg�");
   };
 
   const handleSupprimer = async () => {
-    if (!currentId) { setError("Aucun entretien chargé pour suppression."); return; }
-    if (!window.confirm("Supprimer cet entretien ?")) return;
+    if (!currentId) {
+      setError("Aucun entretien chargé pour suppression.");
+      return;
+    }
+    
+    const result = await showConfirmAlert({
+      title: "Supprimer l'entretien final ?",
+      text: "Cette action est d�finitive.",
+      confirmButtonText: "Oui, supprimer",
+    });
+    if (!result.isConfirmed) return;
+    
+    setSaving(true);
     try {
       await entretienFinalService.delete(currentId);
-      setStatusMessage("Entretien supprimé.");
-      setCurrentId(null);
-      handleAjouter();
-    } catch { setError("Erreur lors de la suppression."); }
+      resetForm();
+      await loadAllEntretiens();
+      setStatusMessage("Entretien final supprimé avec succès.");
+      await showSuccessAlert("Entretien supprim�", "L'entretien final a bien �t� supprim�.");
+      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
+    } catch (err) {
+      setError("Erreur lors de la suppression : " + (err.response?.data?.message || err.message));
+      showErrorAlert("Suppression impossible", err.response?.data?.message || err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Confirmation email avant l'envoi
-  const handleConfirmEmail = async (destinataireEmail, message) => {
-    setShowEmailModal(false);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(""); 
+    setStatusMessage("");
     setSaving(true);
+
+    if (!formData.typeFaute) {
+      setError("Le type de faute est obligatoire !");
+      setSaving(false);
+      return;
+    }
+    if (!formData.decision) {
+      setError("La décision RH est obligatoire !");
+      setSaving(false);
+      return;
+    }
 
     try {
       const payload = {
-        typeFaute:     formData.typeFaute,
+        typeFaute: formData.typeFaute,
         dateEntretien: formData.dateEntretien,
-        decision:      formData.decision,
+        decision: formData.decision,
         commentaireRH: formData.commentaireRH,
-        signatureBase64: signatureBase64.replace(/^data:image\/png;base64,/, ""),
-        destinataireEmail: destinataireEmail,
       };
 
-      await entretienFinalService.create(matricule, payload);
+      if (currentId) {
+        await entretienFinalService.update(matricule, currentId, payload);
+        setStatusMessage("Entretien final modifié avec succès.");
+        await showSuccessAlert("Entretien modifi�", "La modification a �t� enregistr�e avec succ�s.");
+      } else {
+        await entretienFinalService.create(matricule, payload);
+        setStatusMessage("Entretien final créé avec succès, dossier clôturé ✓");
+        await showSuccessAlert("Entretien final cr��", "Le dossier a �t� cl�tur� avec succ�s.");
+      }
 
       localStorage.removeItem(`entretien-final-draft-${matricule}`);
-      setStatusMessage("Entretien final validé, dossier clôturé et email envoyé ✓");
+      await loadAllEntretiens();
       setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || err.message || "Erreur lors de l'enregistrement");
-    } finally { setSaving(false); }
-  };
-
-  // Ouvre le modal au lieu d'envoyer directement
-  const handleSubmit = async e => {
-    e.preventDefault();
-    setError(""); setStatusMessage("");
-
-    if (!formData.typeFaute)   return setError("Le type de faute est obligatoire !");
-    if (!formData.decision)    return setError("La décision RH est obligatoire !");
-    if (!signatureBase64)      return setError("La signature électronique est obligatoire !");
-
-    // Ouvrir le modal pour choisir l'email
-    setShowEmailModal(true);
+      showErrorAlert("Enregistrement impossible", err.response?.data?.message || err.message || "Erreur lors de l'enregistrement");
+    } finally { 
+      setSaving(false);
+    }
   };
 
   const fmt = d => { if (!d) return "—"; try { return new Date(d).toLocaleDateString("fr-FR"); } catch { return d; } };
@@ -449,11 +373,10 @@ export default function EntretienFinal({ niveau = 5 }) {
                     <div className="ef-faute-row">
                       <div className="ef-dw">
                         <input type="text" className="ef-inp"
-                          placeholder="Rechercher faute..."
+                          placeholder="Rechercher ou sélectionner une faute..."
                           value={formData.typeFaute}
                           onChange={e => { setFormData(p=>({...p,typeFaute:e.target.value})); setShowDropdown(true); }}
                           onFocus={() => setShowDropdown(true)}
-                          onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
                         />
                         {showDropdown && typeOptions.length > 0 && (
                           <div className="ef-dlist">
@@ -497,31 +420,10 @@ export default function EntretienFinal({ niveau = 5 }) {
                       placeholder="Motivez la décision finale prise par les RH..."/>
                   </div>
 
-                  <div className="ef-fg">
-                    <div className="ef-sig-lbl">
-                      Signature électronique
-                      {signatureBase64 && <span className="ef-sig-ok">✓</span>}
-                      <span style={{color:"#ef4444",marginLeft:2,fontSize:10}}>*</span>
-                    </div>
-                    <canvas
-                      ref={canvasRef}
-                      width={600} height={130}
-                      className="ef-canvas"
-                      onMouseDown={startDraw}
-                      onMouseMove={draw}
-                      onMouseUp={endDraw}
-                      onMouseLeave={endDraw}
-                      onTouchStart={startDraw}
-                      onTouchMove={draw}
-                      onTouchEnd={endDraw}
-                    />
-                    <button type="button" className="ef-clr" onClick={clearSignature}>Effacer</button>
-                  </div>
-
                   <div className="ef-actions">
                     <button type="button" className="ef-btn ef-btn-draft"
                       onClick={handleEnregistrer} disabled={savingDraft}>
-                      {savingDraft ? "..." : "Enregistrer Brouillon"}
+                      {savingDraft ? "Enregistrement..." : "Enregistrer Brouillon"}
                     </button>
                     <button type="submit" className="ef-btn ef-btn-valider" disabled={saving}>
                       {saving ? "..." : "Valider"}
@@ -531,7 +433,9 @@ export default function EntretienFinal({ niveau = 5 }) {
                       onClick={handleModifier} disabled={loadingDraft}>
                       {loadingDraft ? "..." : "Modifier"}
                     </button>
-                    <button type="button" className="ef-btn ef-btn-suppr" onClick={handleSupprimer}>Supprimer</button>
+                    <button type="button" className="ef-btn ef-btn-suppr" onClick={handleSupprimer} disabled={!currentId}>
+                      Supprimer
+                    </button>
                   </div>
 
                 </form>
@@ -541,16 +445,6 @@ export default function EntretienFinal({ niveau = 5 }) {
         </div>
       </div>
 
-      {/* Modal email */}
-      <EmailModal
-        isOpen={showEmailModal}
-        onClose={() => setShowEmailModal(false)}
-        onConfirm={handleConfirmEmail}
-        emailsList={emailsList}
-        loadingEmails={loadingEmails}
-      />
-
-      {/* Modal ajout faute */}
       {showDefautModal && (
         <div className="ef-moverlay" onClick={() => setShowDefautModal(false)}>
           <div className="ef-modal" onClick={e => e.stopPropagation()}>
@@ -558,7 +452,7 @@ export default function EntretienFinal({ niveau = 5 }) {
             <label className="ef-lbl">Nom du type de faute</label>
             <input className="ef-inp" style={{marginTop:6}} value={defautTypeInput}
               onChange={e => setDefautTypeInput(e.target.value)}
-              placeholder="Ex : Ajouter Faute "
+              placeholder="Saisir un nouveau type de faute"
               onKeyDown={e => e.key === "Enter" && addTypeOption()}
               autoFocus/>
             <div className="ef-modal-acts">
@@ -571,3 +465,4 @@ export default function EntretienFinal({ niveau = 5 }) {
     </>
   );
 }
+

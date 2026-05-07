@@ -1,23 +1,41 @@
-//Ce fichier sert à gérer l'utilisateur connecté dans toute l'application.
-
-import { createContext, useContext, useState } from "react";
+// src/context/AuthContext.jsx
+import { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext(null);
-
-
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true); // ✅ Ajouté pour le chargement
+
+  // ✅ Restaurer la session au chargement de l'application
+  useEffect(() => {
+    const storedToken = sessionStorage.getItem("access_token");
+    const storedUser = sessionStorage.getItem("user");
+    
+    if (storedToken && storedUser) {
+      try {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+        console.log("✅ Session restaurée:", JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Erreur lors de la restauration:", error);
+        sessionStorage.removeItem("access_token");
+        sessionStorage.removeItem("refresh_token");
+        sessionStorage.removeItem("user");
+      }
+    }
+    setLoading(false);
+  }, []);
 
   // ✅ Login : stocker user + token
   const login = (userData, accessToken, refreshToken) => {
     setUser(userData);
     setToken(accessToken);
-    // Stocker en sessionStorage pour persister au refresh de page
     sessionStorage.setItem("access_token", accessToken);
     sessionStorage.setItem("refresh_token", refreshToken);
     sessionStorage.setItem("user", JSON.stringify(userData));
+    console.log("✅ Utilisateur connecté:", userData);
   };
 
   // ✅ Logout : tout vider
@@ -27,12 +45,13 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem("access_token");
     sessionStorage.removeItem("refresh_token");
     sessionStorage.removeItem("user");
+    console.log("✅ Utilisateur déconnecté");
   };
 
-  // ✅ Restaurer la session au rechargement de page
+  // ✅ Méthode pour restaurer manuellement (si besoin)
   const restoreSession = () => {
     const storedToken = sessionStorage.getItem("access_token");
-    const storedUser  = sessionStorage.getItem("user");
+    const storedUser = sessionStorage.getItem("user");
     if (storedToken && storedUser) {
       setToken(storedToken);
       setUser(JSON.parse(storedUser));
@@ -42,7 +61,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, restoreSession }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout, restoreSession }}>
       {children}
     </AuthContext.Provider>
   );

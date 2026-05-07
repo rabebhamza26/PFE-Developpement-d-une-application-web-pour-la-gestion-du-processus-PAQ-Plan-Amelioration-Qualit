@@ -1,284 +1,280 @@
-﻿// services/api.js
+﻿// src/services/api.js
 import axios from "axios";
 
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8083";
 
-
-
-
+// ✅ Créez l'instance avec le nom 'API' (majuscules) pour correspondre à vos services
 const API = axios.create({
-  baseURL: "http://localhost:8083/api",
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL: BASE_URL,
+  headers: { "Content-Type": "application/json" },
 });
- 
-// ✅ Ajouter automatiquement le token
+
+// Intercepteur avec logs pour débogage
 API.interceptors.request.use((config) => {
   const token = sessionStorage.getItem("access_token");
-
+  console.log(`📤 ${config.method?.toUpperCase()} ${config.url}`);
+  console.log(`🔑 Token présent: ${!!token}`);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log(`✅ Authorization: Bearer ${token.substring(0, 20)}...`);
+  } else {
+    console.warn(`⚠️ Pas de token pour ${config.url}`);
   }
-
   return config;
+}, (error) => {
+  console.error("❌ Erreur intercepteur:", error);
+  return Promise.reject(error);
 });
- 
+
+API.interceptors.response.use(
+  (res) => {
+    console.log(`✅ Réponse ${res.config.url}:`, res.status);
+    return res;
+  },
+  (error) => {
+    console.error(`❌ Erreur ${error.config?.url}:`, error.response?.status, error.response?.data);
+    if (error.response?.status === 401) {
+      console.warn("Token expiré, redirection vers login");
+      sessionStorage.clear();
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  }
+);
+
+
 // ------------------ dashboard Service ------------------
 export const dashboardService = {
-  getStats: () => API.get("/dashboard/stats"),
-  getSegmentStats: () => API.get("/dashboard/segment-stats"),
-  getPerformanceHistory: () => API.get("/dashboard/performance-history"),
-  exportReport: (format) => API.get(`/dashboard/export/${format}`, { responseType: "blob" }),
+  getStats: () => API.get("/api/dashboard/stats"),
+  getSegmentStats: () => API.get("/api/dashboard/segment-stats"),
+  getPerformanceHistory: () => API.get("/api/dashboard/performance-history"),
+  exportReport: (format) => API.get(`/api/dashboard/export/${format}`, { responseType: "blob" }),
 };
 
-// ------------------ SITE SERVICE ------------------
+// ------------------ Auth Service ------------------
+export const authService = {
+  login: (credentials) => API.post("/api/auth/login", credentials),
+  logout: () => API.post("/api/auth/logout"),
+   forgotPassword: (data) => API.post("/api/auth/forgot-password", data), // Accepte { email, login }
+  adminResetPassword: (data) => API.post("/api/auth/admin/reset-password", data), // Accepte { userId, newPassword }
+  getUsers: () => API.get("/api/auth/admin/users"),
+};
+
+// ------------------ Site Service ------------------
 export const siteService = {
-    getAll: () => API.get("/sites"),
-    getById: (id) => API.get(`/sites/${id}`),
-    create: (data) => API.post("/sites", data),
-    update: (id, data) => API.put(`/sites/${id}`, data),
-    delete: (id) => API.delete(`/sites/${id}`),
-  
+  getAll: () => API.get("/api/sites"),
+  getById: (id) => API.get(`/api/sites/${id}`),
+  create: (data) => API.post("/api/sites", data),
+  update: (id, data) => API.put(`/api/sites/${id}`, data),
+  delete: (id) => API.delete(`/api/sites/${id}`),
 };
 
-// ------------------ Plant SERVICE ------------------
-
+// ------------------ Plant Service ------------------
 export const plantService = {
- getAll: () => API.get("/plants"),
-    getBySite: (siteId) => API.get(`/plants/site/${siteId}`),
-    getById: (id) => API.get(`/plants/${id}`),
-    create: (data) => API.post("/plants", data),
-    update: (id, data) => API.put(`/plants/${id}`, data),
-    delete: (id) => API.delete(`/plants/${id}`),
+  getAll: () => API.get("/api/plants"),
+  getBySite: (siteId) => API.get(`/api/plants/site/${siteId}`),
+  getById: (id) => API.get(`/api/plants/${id}`),
+  create: (data) => API.post("/api/plants", data),
+  update: (id, data) => API.put(`/api/plants/${id}`, data),
+  delete: (id) => API.delete(`/api/plants/${id}`),
 };
 
-// ------------------ admin SERVICE ------------------
-
+// ------------------ User Service ------------------
 export const userService = {
-  getAllUsers: () => API.get("/users"),
-  getUserById: (id) => API.get(`/users/${id}`),
-  createUser: (data) => API.post("/users", data),
-  updateUser: (id, data) => API.put(`/users/${id}`, data),
-  deleteUser: (id) => API.delete(`/users/${id}`),
-
-  // ✅ Activer / désactiver
-  toggleActive: (id) => API.patch(`/users/${id}/toggle-active`),
-   getAllEmails: () => API.get("/users/all"),
-   
+   getAllUsers: () => API.get("/api/users"),
+  getUserById: (id) => API.get(`/api/users/${id}`),
+  createUser: (data) => API.post("/api/users", data),
+  updateUser: (id, data) => API.put(`/api/users/${id}`, data),
+  deleteUser: (id) => API.delete(`/api/users/${id}`),
+  toggleActive: (id) => API.patch(`/api/users/${id}/toggle-active`),
+ getAllEmails: () => API.get("/api/users/emails"), 
+  getSlEmails: () => API.get("/api/users/sl/emails"),
+  getUsersBySite: () => API.get("/api/users/by-site"),
+    
+      resetPassword: (userId, data) => API.patch(`/api/users/${userId}/reset-password`, data),
+  resetPasswordByAdmin: (userId, newPassword) => 
+    API.patch(`/api/users/${userId}/reset-password-admin`, { newPassword }),
 };
 
-export const getSegments = () => API.get("/segments");
-export const createSegment = (segment) => API.post("/segments", segment);
-export const updateSegment = (id, segment) => API.put(`/segments/${id}`, segment);
-export const deleteSegment = (id) => API.delete(`/segments/${id}`);
+// ------------------ Segment Service ------------------
+export const getSegments = () => API.get("/api/segments");
+export const createSegment = (segment) => API.post("/api/segments", segment);
+export const updateSegment = (id, segment) => API.put(`/api/segments/${id}`, segment);
+export const deleteSegment = (id) => API.delete(`/api/segments/${id}`);
 
-// ─── ENTRETIEN POSITIF ───────────────────────────────────────────────────────
-export const entretienPositifService = {
-  /** GET /entretiens-positifs/sans-faute */
-  getSansFaute: () => API.get("/entretiens-positifs/sans-faute"),
-
-  /**
-   * POST /entretiens-positifs/envoyer-sl
-   * payload: { matricules, slDestinataire, dateEnvoi, message }
-   */
-  envoyerAuSL: (payload) => API.post("/entretiens-positifs/envoyer-sl", payload),
-
-  /**
-   * POST /entretiens-positifs/archiver
-   * payload: { matricules }
-   */
-  archiverEtCreer: (payload) => API.post("/entretiens-positifs/archiver", payload),
-
-  /**
-   * GET /entretiens-positifs/export-pdf
-   */
-  exportPdf: () =>
-    axios.get(`${API_BASE_URL}/entretiens-positifs/export-pdf`, {
-      responseType: "blob",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    }),
-};
-
-// Service pour les collaborateurs
+// ------------------ Collaborateur Service ------------------
 export const collaboratorService = {
   getAll: async () => {
     try {
-      return await API.get("/collaborators/view");
+      return await API.get("/api/collaborators/view");
     } catch (err) {
-      return await API.get("/collaborators");
+      return await API.get("/api/collaborators");
     }
   },
   getById: async (matricule) => {
     try {
-      return await API.get(`/collaborators/${matricule}`);
+      return await API.get(`/api/collaborators/${matricule}`);
     } catch (err) {
       try {
-        return await API.get(`/collaborators/view/${matricule}`);
+        return await API.get(`/api/collaborators/view/${matricule}`);
       } catch (err2) {
-        // Fallback: charger la liste et trouver par matricule ou id
-        const listRes = await API.get("/collaborators/view");
+        const listRes = await API.get("/api/collaborators/view");
         const list = Array.isArray(listRes.data) ? listRes.data : listRes.data?.data || [];
-        const found =
-          list.find((c) => String(c.matricule) === String(matricule)) ||
-          list.find((c) => String(c.id ?? c._id) === String(matricule));
-        if (found) {
-          return { data: found };
-        }
+        const found = list.find((c) => String(c.matricule) === String(matricule)) ||
+                      list.find((c) => String(c.id ?? c._id) === String(matricule));
+        if (found) return { data: found };
         throw err2;
       }
     }
   },
-  create: (data) => API.post("/collaborators", data),
-  update: (matricule, data) => API.put(`/collaborators/${matricule}`, data),
-  delete: (matricule) => API.delete(`/collaborators/${matricule}`),
+  create: (data) => API.post("/api/collaborators", data),
+  update: (matricule, data) => API.put(`/api/collaborators/${matricule}`, data),
+  delete: (matricule) => API.delete(`/api/collaborators/${matricule}`),
 };
 
-// ------------------ Paq SERVICE ------------------
-
+// ------------------ PAQ Service ------------------
 export const paqService = {
-  getByMatricule: (matricule) => API.get(`/paq/${matricule}`),
-  getAllByMatricule: (matricule) => API.get(`/paq/history/${matricule}`),
-  getAll: () => API.get("/paq/all"),
-  getHistory: (matricule, fromDate) =>
-    API.get(`/paq/${matricule}/history`, { params: { fromDate } }),
-  create: (matricule) => API.post(`/paq/create/${matricule}`),
-  createPremierEntretien: (matricule, data) =>
-    API.post(`/entretiens/${matricule}`, data),
-  createDeuxiemeEntretien: (matricule, data) =>
-    API.post(`/paq/${matricule}/deuxieme-entretien`, data),
-  createTroisiemeEntretien: (matricule, data) =>
-    API.post(`/paq/${matricule}/troisieme-entretien`, data),
-  createQuatriemeEntretien: (matricule, data) =>
-    API.post(`/paq/${matricule}/quatrieme-entretien`, data),
-  createCinquiemeEntretien: (matricule, data) =>
-    API.post(`/paq/${matricule}/cinquieme-entretien`, data),
-  enregistrerFaute: (matricule, data) => API.post(`/paq/${matricule}/faute`, data),
-  upgradeNiveau: (matricule) => API.post(`/paq/${matricule}/upgrade`),
-  archive: (matricule) => API.post(`/paq/${matricule}/archive`),
- 
- 
-
+  getByMatricule: (matricule) => API.get(`/api/paq/${matricule}`),
+  getAllByMatricule: (matricule) => API.get(`/api/paq/history/${matricule}`),
+  getAll: () => API.get("/api/paq/all"),
+  getHistory: (matricule, fromDate) => API.get(`/api/paq/${matricule}/history`, { params: { fromDate } }),
+  create: (matricule) => API.post(`/api/paq/create/${matricule}`),
+  createPremierEntretien: (matricule, data) => API.post(`/api/entretiens/${matricule}`, data),
+  createDeuxiemeEntretien: (matricule, data) => API.post(`/api/paq/${matricule}/deuxieme-entretien`, data),
+  createTroisiemeEntretien: (matricule, data) => API.post(`/api/paq/${matricule}/troisieme-entretien`, data),
+  createQuatriemeEntretien: (matricule, data) => API.post(`/api/paq/${matricule}/quatrieme-entretien`, data),
+  createCinquiemeEntretien: (matricule, data) => API.post(`/api/paq/${matricule}/cinquieme-entretien`, data),
+  enregistrerFaute: (matricule, data) => API.post(`/api/paq/${matricule}/faute`, data),
+  upgradeNiveau: (matricule) => API.post(`/api/paq/${matricule}/upgrade`),
+  archive: (matricule) => API.post(`/api/paq/${matricule}/archive`),
 };
 
-
-// ------------------ EntretienDecision Service ------------------
-
+// ------------------ Entretien Decision Service ------------------
 export const entretienDecisionService = {
-  createEntretienDecision: (matricule, data) => {
-    return API.post(`/entretiens-decision/${matricule}`, data);
-  },
-  getEntretienDecisionByMatricule: (matricule) => {
-    return API.get(`/entretiens-decision/matricule/${matricule}`);
-  },
-  updateEntretienDecision: (matricule, id, data) => {
-    return API.put(`/entretiens-decision/${matricule}/${id}`, data);
-  },
-  deleteEntretienDecision: (id) => {
-    return API.delete(`/entretiens-decision/${id}`);
-  }
+ create: (matricule, data) => API.post(`/api/entretiens-decision/${matricule}`, data),
+  update: (matricule, id, data) => API.put(`/api/entretiens-decision/${matricule}/${id}`, data),
+  updateWithNotification: (matricule, id, data) =>
+    API.put(`/api/entretiens-decision/${matricule}/${id}`, data),
+  valider1: (matricule, id, data) =>
+    API.post(`/api/entretiens-decision/${matricule}/${id}/valider1`, data),
+  valider2: (matricule, id, data) =>
+    API.post(`/api/entretiens-decision/${matricule}/${id}/valider2`, data),
+  getByMatricule: (matricule) => API.get(`/api/entretiens-decision/matricule/${matricule}`),
+  getById: (id) => API.get(`/api/entretiens-decision/${id}`),
+  delete: (id) => API.delete(`/api/entretiens-decision/${id}`),
+  deleteWithNotification: (matricule, id, destinataireEmail, nomCollab) =>
+    API.delete(`/api/entretiens-decision/${matricule}/${id}`, {
+      data: { destinataireEmail, nomCollab },
+    }),
 };
 
-
-
-
-// ------------------ entretienDaccordService ------------------
+// ------------------ Entretien D'accord Service ------------------
 export const entretienDaccordService = {
-  create: (matricule, data) => API.post(`/entretiens-daccord/${matricule}`, data),
-  update: (matricule, id, data) => API.put(`/entretiens-daccord/${matricule}/${id}`, data),
-  getByMatricule: (matricule) => API.get(`/entretiens-daccord/matricule/${matricule}`),
-  getById: (id) => API.get(`/entretiens-daccord/${id}`),
-  delete: (id) => API.delete(`/entretiens-daccord/${id}`),
-
-  
-
+   create: (matricule, data) => API.post(`/api/entretiens-daccord/${matricule}`, data),
+  update: (matricule, id, data) => API.put(`/api/entretiens-daccord/${matricule}/${id}`, data),
+  updateWithNotification: (matricule, id, data) =>
+    API.put(`/api/entretiens-daccord/${matricule}/${id}`, data),
+  valider: (matricule, id, data) =>
+    API.post(`/api/entretiens-daccord/${matricule}/${id}/valider`, data),
+  getByMatricule: (matricule) => API.get(`/api/entretiens-daccord/matricule/${matricule}`),
+  getById: (id) => API.get(`/api/entretiens-daccord/${id}`),
+  delete: (id) => API.delete(`/api/entretiens-daccord/${id}`),
+  deleteWithNotification: (matricule, id, destinataireEmail, nomCollab) =>
+    API.delete(`/api/entretiens-daccord/${matricule}/${id}`, {
+      data: { destinataireEmail, nomCollab },
+    }),
 };
 
-
-
-// ------------------ entretienExplicatifService ------------------
-
-const API_URL = "/entretiens";
+// ------------------ Entretien Explicatif Service ------------------
+const API_URL = "/api/entretiens";
 
 export const entretienService = {
-  create: (matricule, data) => API.post(`${API_URL}/${matricule}`, data),
-  update: (matricule, id, data) => API.put(`${API_URL}/${matricule}/${id}`, data),
-  getByMatricule: (matricule) => API.get(`${API_URL}/matricule/${matricule}`),
-  getById: (id) => API.get(`${API_URL}/${id}`),
-  delete: (id) => API.delete(`${API_URL}/${id}`),
+   create: (matricule, data) => API.post(`/api/entretiens/${matricule}?niveau=1`, data),
+  update: (matricule, id, data) => API.put(`/api/entretiens/${matricule}/${id}?niveau=1`, data),
+  updateWithNotification: (matricule, id, data) =>
+    API.put(`/api/entretiens/${matricule}/${id}?niveau=1`, data),
+  getByMatricule: (matricule) => API.get(`/api/entretiens/matricule/${matricule}`),
+  getById: (id) => API.get(`/api/entretiens/${id}`),
+  delete: (id) => API.delete(`/api/entretiens/${id}`),
+  deleteWithNotification: (matricule, id, destinataireEmail, nomCollab) =>
+    API.delete(`/api/entretiens/${matricule}/${id}`, {
+      data: { destinataireEmail, nomCollab },
+    }),
 };
 
-// ── entretienFinalService ─────────────────────────────────────────────────
-
+// ------------------ Entretien Final Service ------------------
 export const entretienFinalService = {
-  // Crée l'entretien final + met PAQ niveau 5 + historique (côté backend)
-  create: (matricule, data) =>
-    API.post(`/entretien-final/${matricule}`, data),
+  create: (matricule, data) => API.post(`/api/entretien-final/${matricule}`, data),
+  update: (matricule, id, data) => API.put(`/api/entretien-final/${matricule}/${id}`, data),
  
-  // Récupère les entretiens finaux d'un collaborateur
-  getByMatricule: (matricule) =>
-    API.get(`/entretien-final/${matricule}`),
- 
-  // Supprime un entretien final
-  delete: (id) =>
-    API.delete(`/entretien-final/${id}`),
-};
- 
-
-
-// notificationService.js
-// services/api.js - Ajoutez ces méthodes
-export const notificationService = {
-    getAll: () => API.get("/notifications"),
-    getNonLues: () => API.get("/notifications/non-lues"),
-    create: (data) => API.post("/notifications", data),
-    marquerLue: (id) => API.put(`/notifications/${id}/lu`),
-    marquerToutesLues: () => API.put("/notifications/marquer-toutes-lues"),
-    delete: (id) => API.delete(`/notifications/${id}`),
-     // Utilisez cet endpoint qui existe dans votre controller
-  envoyerNotificationDirecte: (data) => API.post("/notifications/envoyer", data),
+  valider: (matricule, id, data) =>
+    API.post(`/api/entretien-final/${matricule}/${id}/valider`, data),
+  getByMatricule: (matricule) => API.get(`/api/entretien-final/${matricule}`),
+  delete: (id) => API.delete(`/api/entretien-final/${id}`),
+  
 };
 
-
-
-// ─── ARCHIVES ────────────────────────────────────────────────────────────────
-export const archiveService = {
- getAll: () => API.get("/archives"),
-
-getById: (id) => API.get(`/archives/${id}`),
-
-searchByMatricule: (matricule) =>
-  API.get("/archives/search", { params: { matricule } }),
-
-getByType: (type) => API.get(`/archives/type/${type}`),
-
-getByMatriculeExact: (matricule) =>
-  API.get(`/archives/matricule/${matricule}`),
-
-
-
-
-};
-
+// ------------------ Entretien Mesure Service ------------------
 export const entretienMesureService = {
-  create: (matricule, data) =>
-    API.post(`/entretiens-mesures/${matricule}`, data),
-
-  update: (id, data) =>
-    API.put(`/entretiens-mesures/${id}`, data),
-
-  getByMatricule: (matricule) =>
-    API.get(`/entretiens-mesures/${matricule}`),
-
-  delete: (id) =>
-    API.delete(`/entretiens-mesures/${id}`),
+   create: (matricule, data) => API.post(`/api/entretiens-mesures/${matricule}`, data),
+  update: (matricule, id, data) => API.put(`/api/entretiens-mesures/${matricule}/${id}`, data),
+  updateWithNotification: (matricule, id, data) =>
+    API.put(`/api/entretiens-mesures/${matricule}/${id}`, data),
+  valider1: (matricule, id, data) =>
+    API.post(`/api/entretiens-mesures/${matricule}/${id}/valider1`, data),
+  valider2: (matricule, id, data) =>
+    API.post(`/api/entretiens-mesures/${matricule}/${id}/valider2`, data),
+  getByMatricule: (matricule) => API.get(`/api/entretiens-mesures/${matricule}`),
+  delete: (id) => API.delete(`/api/entretiens-mesures/${id}`),
+  deleteWithNotification: (matricule, id, destinataireEmail, nomCollab) =>
+    API.delete(`/api/entretiens-mesures/${matricule}/${id}`, {
+      data: { destinataireEmail, nomCollab },
+    }),
 };
 
+// ------------------ Entretien Positif Service ------------------
+export const entretienPositifService = {
+
+    getSansFaute: () => API.get("/api/entretiens-positifs/sans-faute"),
+  envoyerAuSL: (payload) => API.post("/api/entretiens-positifs/envoyer-sl", payload),
+  archiverEtCreer: (payload) => API.post("/api/entretiens-positifs/archiver", payload),
+  exportPdf: () => API.get("/api/entretiens-positifs/export-pdf", { responseType: "blob" }),
+  // Emails SL depuis la BD (nécessite auth SL)
+  getSlEmails: () => API.get("/api/entretiens-positifs/public/emails"),
+};
+
+// ------------------ Notification Service ------------------
+export const notificationService = {
+  getAll: () => API.get("/api/notifications"),
+  create: (data) => API.post("/api/notifications", data),
+  delete: (id) => API.delete(`/api/notifications/${id}`),
+  envoyerNotificationDirecte: (data) => API.post("/api/notifications/envoyer", data),
+  getUnread: () => API.get("/api/notifications/unread"),
+  countUnread: () => API.get("/api/notifications/count/unread"),
+  markAsRead: (id) => API.post(`/api/notifications/${id}/read`),
+  markAllAsRead: () => API.post("/api/notifications/mark-all-read"),
+};
+
+// ------------------ Archive Service ------------------
+export const archiveService = {
+  getAll: () => API.get("/api/archives"),
+  getById: (id) => API.get(`/api/archives/${id}`),
+  searchByMatricule: (matricule) => API.get("/api/archives/search", { params: { matricule } }),
+  getByType: (type) => API.get(`/api/archives/type/${type}`),
+  getByMatriculeExact: (matricule) => API.get(`/api/archives/matricule/${matricule}`),
+};
+
+// ------------------ Faute Service ------------------
 export const fauteService = {
-  getAll: () => API.get("/fautes"),
-  search: (q) => API.get(`/fautes/search?q=${q}`),
-  create: (data) => API.post("/fautes", data),
+  getAll: () => API.get("/api/fautes"),
+  search: (q) => API.get(`/api/fautes/search?q=${q}`),
+  create: (data) => API.post("/api/fautes", data),
 };
 
+// ------------------ Défaut Grave Service ------------------
+export const defautGraveService = {
+  notifier: (data) => API.post("/api/defaut-grave/notifier", data),
+};
+
+// ✅ Export par défaut - utilisez 'API' (majuscules)
 export default API;

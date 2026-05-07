@@ -1,7 +1,5 @@
 package com.polytech.paqbackend.dto;
 
-
-
 import java.time.LocalDate;
 
 public class EntretienDaccordRequestDTO {
@@ -11,10 +9,7 @@ public class EntretienDaccordRequestDTO {
     private String mesuresProposees;
     private String commentaireQMSegment;
     private String echanges;
-    private String signatureSL;
-    private String signatureQMSegment;
     private String destinataireEmail;
-
     private String typeFaute;
 
     public String getDestinataireEmail() {
@@ -51,16 +46,5 @@ public class EntretienDaccordRequestDTO {
 
     public void setTypeFaute(String typeFaute) {
         this.typeFaute = typeFaute;
-    }
-
-    public String getSignatureSL() { return signatureSL; }
-    public void setSignatureSL(String signatureSL) { this.signatureSL = signatureSL; }
-
-    public String getSignatureQMSegment() {
-        return signatureQMSegment;
-    }
-
-    public void setSignatureQMSegment(String signatureQMSegment) {
-        this.signatureQMSegment = signatureQMSegment;
     }
 }

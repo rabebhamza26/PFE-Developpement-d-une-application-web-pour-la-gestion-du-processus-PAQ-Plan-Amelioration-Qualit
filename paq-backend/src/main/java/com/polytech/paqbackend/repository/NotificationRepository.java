@@ -13,14 +13,19 @@ import java.util.List;
 @Repository
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
-    List<Notification> findByDestinataireEmailOrderByCreatedAtDesc(String email);
+    List<Notification> findByMatriculeOrderByCreatedAtDesc(String matricule);
 
-    List<Notification> findByDestinataireEmailAndLuFalse(String email);
+    List<Notification> findByMatriculeAndLuOrderByCreatedAtDesc(String matricule, boolean lu);
 
-    long countByDestinataireEmailAndLuFalse(String email);
+    long countByMatriculeAndLu(String matricule, boolean lu);
 
     @Modifying
     @Transactional
-    @Query("UPDATE Notification n SET n.lu = true WHERE n.destinataireEmail = :email")
-    int marquerToutesLues(@Param("email") String email);
+    @Query("UPDATE Notification n SET n.lu = true WHERE n.matricule = :matricule")
+    void markAllAsRead(@Param("matricule") String matricule);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE Notification n SET n.lu = true WHERE n.id = :id")
+    void markAsRead(@Param("id") Long id);
 }

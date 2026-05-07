@@ -1,8 +1,8 @@
-// SegmentController.java - Version mise à jour
 package com.polytech.paqbackend.controller;
 
 import com.polytech.paqbackend.dto.SegmentDTO;
 import com.polytech.paqbackend.service.SegmentService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -20,32 +20,34 @@ public class SegmentController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<SegmentDTO>> getAllSegments() {
-        return ResponseEntity.ok(segmentService.getAllSegments());
+        List<SegmentDTO> segments = segmentService.getAllSegments();
+        return ResponseEntity.ok(segments);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SegmentDTO> getSegmentById(@PathVariable Long id) {
         return ResponseEntity.ok(segmentService.getSegmentById(id));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<SegmentDTO> createSegment(@RequestBody SegmentDTO segmentDTO) {
-        return ResponseEntity.ok(segmentService.createSegment(segmentDTO));
+    public ResponseEntity<SegmentDTO> create(@RequestBody SegmentDTO segmentDTO) {
+        SegmentDTO created = segmentService.createSegment(segmentDTO);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<SegmentDTO> updateSegment(@PathVariable Long id, @RequestBody SegmentDTO segmentDTO) {
+    public ResponseEntity<SegmentDTO> update(@PathVariable Long id, @RequestBody SegmentDTO segmentDTO) {
         return ResponseEntity.ok(segmentService.updateSegment(id, segmentDTO));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteSegment(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
         segmentService.deleteSegment(id);
         return ResponseEntity.noContent().build();
     }

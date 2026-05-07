@@ -1,18 +1,17 @@
-import React, { useState } from "react";
+import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { useI18n } from "../context/I18nContext";
+import { useAuth } from "../context/AuthContext";
 import "../styles/sidebar.css";
-
-
 
 function Sidebar() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const goToEntretien = (pathPrefix) => {
-    const matricule = window.prompt("Matricule du collaborateur ?");
-    if (!matricule) return;
-    navigate(`/${pathPrefix}/${matricule}`);
-  };
+  
+
+  // Vérifier si l'utilisateur a le rôle SL
+  const isSL = user?.role === "SL";
+
   return (
     <aside className="app-sidebar">
       <div className="sidebar-header">
@@ -21,77 +20,24 @@ function Sidebar() {
         <li><NavLink to="/dashboard">Dashboard</NavLink></li>
         <li><NavLink to="/collaborateurs">Collaborateurs</NavLink></li>
         <li><NavLink to="/paq-dossier">Dossier PAQ</NavLink></li>
-        <li>
-          <details className="sidebar-group" open>
-            <summary>Entretien</summary>
-            <ul className="sidebar-submenu">
-              <li>
+        
+        {/* Entretien positif - visible uniquement pour les SL */}
+        {isSL && (
+            <li>
                 <NavLink to="/entretien-positif">
-                  <span className="step-index">0</span> Positif
+                  Entretien Positif
                 </NavLink>
               </li>
-              <li>
-                <button
-                  type="button"
-                  className="sidebar-link-btn"
-                  onClick={() => goToEntretien("entretien-explicatif")}
-                >
-                  <span className="step-index">1</span> Explicatif
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="sidebar-link-btn"
-                  onClick={() => goToEntretien("entretien-daccord")}
-                >
-                  <span className="step-index">2</span> D'accord
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="sidebar-link-btn"
-                  onClick={() => goToEntretien("entretien-de-mesure")}
-                >
-                  <span className="step-index">3</span> De mesure
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="sidebar-link-btn"
-                  onClick={() => goToEntretien("entretien-de-decision")}
-                >
-                  <span className="step-index">4</span> De decision
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="sidebar-link-btn"
-                  onClick={() => goToEntretien("entretien-final")}
-                >
-                  <span className="step-index">5</span> Final
-                </button>
-              </li>
+        )}
 
-            </ul>
-          </details>
+        {/* ✅ Notifications - visible pour tous les utilisateurs connectés */}
+        <li>
+          <NavLink to="/notifications">
+            Notifications
+          </NavLink>
         </li>
-
-         <li>
-            <NavLink to="/notifications">
-              Notifications
-            </NavLink>
-          </li>
-
-          <li>
-            <NavLink to="/archive">
-              Archive
-            </NavLink>
-          </li>
-
+        
+        <li><NavLink to="/archive">Archive</NavLink></li>
       </ul>
     </aside>
   );

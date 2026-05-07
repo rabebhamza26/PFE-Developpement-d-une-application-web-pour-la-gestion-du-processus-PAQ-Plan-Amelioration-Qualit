@@ -1,4 +1,10 @@
 package com.polytech.paqbackend.dto;
 
-public class ForgotPasswordRequest {
-}
+import lombok.Data;
+
+@Data
+    public class ForgotPasswordRequest {
+        private String email;
+        private String login;
+    }
+

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { getSegments, createSegment, updateSegment, deleteSegment } from "../../services/api";
 import "../../styles/segment-management.css";
 import { Pencil, Trash2,Plus  } from "lucide-react";
+import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "../../utils/entretienAlerts";
 
 
 export default function SegmentManagement() {
@@ -60,22 +61,36 @@ export default function SegmentManagement() {
       }
 
       closeModal();
-      loadSegments();
+      await loadSegments();
+      await showSuccessAlert(
+        editingId ? "Segment modifie" : "Segment ajoute",
+        editingId ? "Le segment a ete mis a jour." : "Le segment a ete ajoute avec succes."
+      );
     } catch (err) {
-      setError("Échec de l'enregistrement");
+      const message = err.response?.data?.message || "Echec de l'enregistrement";
+      setError(message);
+      await showErrorAlert("Enregistrement impossible", message);
     } finally {
       setSaving(false);
     }
   };
 
   const removeSegment = async (id) => {
-    if (!window.confirm("Supprimer ce segment ?")) return;
+    const result = await showConfirmAlert({
+      title: "Supprimer ce segment ?",
+      text: "Cette action est irreversible.",
+      confirmButtonText: "Supprimer",
+    });
+    if (!result.isConfirmed) return;
 
     try {
       await deleteSegment(id);
-      loadSegments();
-    } catch {
-      setError("Erreur lors de la suppression");
+      await loadSegments();
+      await showSuccessAlert("Segment supprime", "Le segment a ete supprime avec succes.");
+    } catch (err) {
+      const message = err.response?.data?.message || "Erreur lors de la suppression";
+      setError(message);
+      await showErrorAlert("Suppression impossible", message);
     }
   };
 

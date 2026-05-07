@@ -6,14 +6,14 @@ import "../styles/dashboard.css";
 export default function Dashboard() {
   const navigate = useNavigate();
 
-  const [stats, setStats] = useState({
-    totalCollaborateurs: 0,
-    sansFaute: [],
-    paqParNiveau: {},
-    paqEnCours: [],
-    segmentStats: [],
-    performanceHistory: []
-  });
+ const [stats, setStats] = useState({
+  totalCollaborateurs: 0,
+  sansFaute: [],
+  paqParNiveau: {},
+  paqEnCours: [],  
+  segmentStats: [],
+  performanceHistory: []
+});
 
   const [loading, setLoading] = useState(true);
   const [exportLoading, setExportLoading] = useState(false);
@@ -76,7 +76,12 @@ export default function Dashboard() {
     }
   };
 
-  if (loading) return <div className="text-center mt-5">Chargement du tableau de bord...</div>;
+  if (loading) return (
+    <div className="loading-container">
+      <div className="loading-spinner"></div>
+      <p>Chargement du tableau de bord...</p>
+    </div>
+  );
 
   const levelColors = {
     1: "#3b82f6",
@@ -107,7 +112,6 @@ export default function Dashboard() {
     (a, b) => (b.totalCollaborateurs || 0) - (a.totalCollaborateurs || 0)
   );
   const topSegments = sortedSegments.slice(0, 6);
-  const segmentMax = Math.max(1, ...topSegments.map((segment) => segment.totalCollaborateurs || 0));
   const segmentTotal = topSegments.reduce((sum, segment) => sum + (segment.totalCollaborateurs || 0), 0);
   const segmentColors = ["#3b82f6", "#22c55e", "#f59e0b", "#f97316", "#64748b", "#94a3b8"];
   let segmentGradient = "conic-gradient(#e5e7eb 0deg, #e5e7eb 360deg)";
@@ -146,7 +150,6 @@ export default function Dashboard() {
     ...performanceSeries.map((item) => Math.max(item.amelioration, item.stagnation, item.regression))
   );
 
-
   return (
     <div className="dashboard-page">
       <div className="dashboard-header">
@@ -155,21 +158,21 @@ export default function Dashboard() {
         </div>
         <div className="dashboard-actions">
           <button className="btn btn-primary" onClick={() => navigate("/paq-dossier")}>
-            Ouvrir un dossier PAQ
+             Ouvrir un dossier PAQ
           </button>
           <button
             className="btn btn-outline-success"
             onClick={() => handleExport("pdf")}
             disabled={exportLoading}
           >
-            {exportLoading ? "Export..." : "Exporter PDF"}
+             {exportLoading ? "Export..." : "Exporter PDF"}
           </button>
           <button
             className="btn btn-outline-success"
             onClick={() => handleExport("excel")}
             disabled={exportLoading}
           >
-            {exportLoading ? "Export..." : "Exporter Excel"}
+             {exportLoading ? "Export..." : "Exporter Excel"}
           </button>
         </div>
       </div>
@@ -178,22 +181,18 @@ export default function Dashboard() {
         <div className="stat-card">
           <div className="stat-label">Total collaborateurs</div>
           <div className="stat-value text-primary">{stats.totalCollaborateurs}</div>
-          <div className="stat-hint">Population suivie</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Sans faute</div>
           <div className="stat-value text-success">{stats.sansFaute.length}</div>
-          <div className="stat-hint">Aucun dossier en cours</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">PAQ en cours</div>
           <div className="stat-value text-warning">{stats.paqEnCours.length}</div>
-          <div className="stat-hint">Dossiers actifs</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Niveaux actifs</div>
           <div className="stat-value text-info">{Object.keys(stats.paqParNiveau).length}</div>
-          <div className="stat-hint">Niveaux avec au moins 1 dossier</div>
         </div>
       </div>
 
@@ -202,10 +201,9 @@ export default function Dashboard() {
           <section className="panel">
             <div className="panel-header">
               <div>
-                <h5>Repartition des collaborateurs par niveau PAQ</h5>
-                <p className="panel-subtitle">Vue combinee par niveau et proportion totale.</p>
+                <h5>Répartition des collaborateurs par niveau PAQ</h5>
               </div>
-              <div className="panel-meta">Total dossiers: {totalPaq}</div>
+              <div className="panel-meta"> Total dossiers: {totalPaq}</div>
             </div>
             <div className="level-layout">
               <div className="level-bars">
@@ -250,7 +248,7 @@ export default function Dashboard() {
 
           <section className="panel">
             <div className="panel-header">
-              <h5>Statistiques par segment</h5>
+              <h5> Statistiques par segment</h5>
             </div>
             <div className="segment-donut-wrap">
               <div className="segment-donut" style={{ background: segmentGradient }}>
@@ -286,13 +284,13 @@ export default function Dashboard() {
 
           <section className="panel">
             <div className="panel-header">
-              <h5>Historique de performance des collaborateurs</h5>
+              <h5> Historique de performance des collaborateurs</h5>
             </div>
             <div className="performance-chart">
               <div className="performance-legend">
-                <span className="legend-dot perf-good" /> Amelioration
-                <span className="legend-dot perf-mid" /> Stagnation
-                <span className="legend-dot perf-low" /> Regression
+                <span className="legend-dot perf-good" />  Amélioration
+                <span className="legend-dot perf-mid" />  Stagnation
+                <span className="legend-dot perf-low" />  Régression
               </div>
               <div className="performance-bars">
                 {performanceSeries.map((item, idx) => (
@@ -317,31 +315,42 @@ export default function Dashboard() {
               </div>
             </div>
           </section>
-        </div>
 
-        <aside className="dashboard-side">
+          {/* === TABLES DÉPLACÉES ICI === */}
           <section className="panel compact">
             <div className="panel-header">
-              <h5>Dossiers PAQ en cours</h5>
+              <h5> Dossiers PAQ en cours</h5>
               <span className="panel-meta">{stats.paqEnCours.length}</span>
             </div>
             <div className="table-responsive">
               <table className="table dashboard-table compact-table">
                 <thead>
                   <tr>
-                    <th>Matrice</th>
+                    <th>Matricule</th>
                     <th>Niveau</th>
-                    <th>Creation</th>
+                    <th>Date création</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {stats.paqEnCours.map((p, idx) => (
-                    <tr key={p.id ?? p.collaboratorMatricule ?? idx}>
-                      <td>{p.collaboratorMatricule}</td>
-                      <td>{p.niveau}</td>
-                      <td>{p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "-"}</td>
+                  {stats.paqEnCours.length > 0 ? (
+                    stats.paqEnCours.map((p, idx) => (
+                      <tr key={p.id ?? p.collaboratorMatricule ?? idx}>
+                        <td data-label="Matricule">{p.collaboratorMatricule}</td>
+                        <td data-label="Niveau">
+                          <span className="badge-level">Niveau {p.niveau}</span>
+                        </td>
+                        <td data-label="Date création">
+                          {p.createdAt ? new Date(p.createdAt).toLocaleDateString("fr-FR") : "-"}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="3" className="empty-table">
+                        Aucun dossier PAQ en cours
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
@@ -349,7 +358,7 @@ export default function Dashboard() {
 
           <section className="panel compact">
             <div className="panel-header">
-              <h5>Collaborateurs sans faute</h5>
+              <h5> Collaborateurs sans faute</h5>
               <span className="panel-meta">{stats.sansFaute.length}</span>
             </div>
             <div className="table-responsive">
@@ -357,22 +366,35 @@ export default function Dashboard() {
                 <thead>
                   <tr>
                     <th>Matricule</th>
-                    <th>Nom</th>
+                    <th>Nom complet</th>
                     <th>Segment</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {stats.sansFaute.map((c, idx) => (
-                    <tr key={c.id ?? c.matricule ?? idx}>
-                      <td>{c.matricule}</td>
-                      <td>{c.nom}</td>
-                      <td>{c.segment}</td>
+                  {stats.sansFaute.length > 0 ? (
+                    stats.sansFaute.map((c, idx) => (
+                      <tr key={c.id ?? c.matricule ?? idx}>
+                        <td data-label="Matricule">{c.matricule}</td>
+                        <td data-label="Nom complet">{c.nom} {c.prenom || ""}</td>
+                        <td data-label="Segment">
+                          <span className="badge-segment">{c.segment}</span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="3" className="empty-table">
+                        Aucun collaborateur sans faute
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
           </section>
+        </div>
+
+        <aside className="dashboard-side">
         </aside>
       </div>
     </div>

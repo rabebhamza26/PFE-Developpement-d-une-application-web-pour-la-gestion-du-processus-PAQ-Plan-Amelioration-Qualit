@@ -8,7 +8,6 @@ public class EntretienExplicatifDTO {
     private String description;
     private String mesuresCorrectives;
     private String notes;
-    private String signatureBase64;
     private String destinataireEmail; // Nouveau champ pour l'email saisi par l'utilisateur
 
     // Getters et Setters
@@ -29,8 +28,7 @@ public class EntretienExplicatifDTO {
 
 
 
-    public String getSignatureBase64() { return signatureBase64; }
-    public void setSignatureBase64(String signatureBase64) { this.signatureBase64 = signatureBase64; }
+
 
     public String getDestinataireEmail() { return destinataireEmail; }
     public void setDestinataireEmail(String destinataireEmail) { this.destinataireEmail = destinataireEmail; }

@@ -26,8 +26,7 @@ public class EntretienExplicatif {
         @Column(columnDefinition="TEXT")
         private String commentaire;
 
-        @Column(columnDefinition="LONGTEXT")
-        private String signatureBase64;
+
 
 
         private LocalDateTime createdAt = LocalDateTime.now();
@@ -91,13 +90,6 @@ public class EntretienExplicatif {
         this.commentaire = commentaire;
     }
 
-    public String getSignatureBase64() {
-        return signatureBase64;
-    }
-
-    public void setSignatureBase64(String signatureBase64) {
-        this.signatureBase64 = signatureBase64;
-    }
 
 
 

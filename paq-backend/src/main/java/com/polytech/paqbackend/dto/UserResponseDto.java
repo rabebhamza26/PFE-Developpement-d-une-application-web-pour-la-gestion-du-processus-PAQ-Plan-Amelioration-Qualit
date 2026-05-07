@@ -13,6 +13,8 @@ public class UserResponseDto {
     private String email;
     private String nomUtilisateur;
     private String login;
+    private String lastResetPassword;
+
     private Role role;
     private boolean active;
     private LocalDateTime createdAt;

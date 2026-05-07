@@ -1,6 +1,8 @@
-ï»¿import React, { useEffect, useMemo, useState } from "react";
-import { entretienPositifService, userService } from "../../services/api";
+import React, { useEffect, useState } from "react";
+import { entretienPositifService } from "../../services/api";
+import { showConfirmAlert, showErrorAlert, showSuccessAlert, showSuccessToast } from "../../utils/entretienAlerts";
 import "../../styles/entretien-positif.css";
+
 
 export default function EntretienPositif() {
   const [collaborateurs, setCollaborateurs] = useState([]);
@@ -10,63 +12,54 @@ export default function EntretienPositif() {
   const [archiving, setArchiving] = useState(false);
   const [emailStatus, setEmailStatus] = useState("");
   
-  // Liste des emails
   const [emailsList, setEmailsList] = useState([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
 
   const [slDestinataire, setSlDestinataire] = useState("");
   const [dateEnvoi, setDateEnvoi] = useState(new Date().toISOString().split("T")[0]);
   const [note, setNote] = useState("");
-
+      
   // Charger les collaborateurs
   const loadSansFaute = async () => {
     try {
       setLoading(true);
       console.log("Chargement des collaborateurs sans faute...");
       const res = await entretienPositifService.getSansFaute();
-      console.log("RÃ©ponse API:", res.data);
+      console.log("Réponse API:", res.data);
       
       const data = res.data || [];
       setCollaborateurs(data);
       setSelected({});
-      
-      if (data.length === 0) {
-        console.log("Aucun collaborateur trouvÃ©");
-      }
     } catch (err) {
       console.error("Erreur chargement:", err);
-      setEmailStatus("error:Erreur lors du chargement des donnÃ©es: " + (err.response?.data?.message || err.message));
+      setEmailStatus("error:Erreur lors du chargement des données");
     } finally {
       setLoading(false);
     }
   };
 
-  // Charger la liste des emails
-  const loadEmails = async () => {
-    try {
-      setLoadingEmails(true);
-      const res = await userService.getAllEmails();
-      console.log("Emails rÃ©cupÃ©rÃ©s:", res.data);
-      setEmailsList(res.data || []);
-    } catch (err) {
-      console.error("Erreur chargement emails:", err);
-      // Fallback: essayer de rÃ©cupÃ©rer tous les utilisateurs
-      try {
-        const usersRes = await userService.getAllUsers();
-        const emails = usersRes.data.map(user => user.email).filter(email => email);
-        setEmailsList(emails);
-      } catch (error) {
-        console.error("Erreur fallback emails:", error);
-      }
-    } finally {
-      setLoadingEmails(false);
-    }
-  };
+  // Charger les emails depuis l'endpoint public
+
+const loadEmails = async () => {
+  try {
+    setLoadingEmails(true);
+    // Les emails viennent du backend (endpoint SL protégé)
+    const res = await entretienPositifService.getSlEmails();
+    setEmailsList(Array.isArray(res.data) ? res.data : []);
+  } catch (err) {
+    console.error("Erreur chargement emails:", err);
+    setEmailsList([]);
+  } finally {
+    setLoadingEmails(false);
+  }
+};
 
   useEffect(() => {
     loadSansFaute();
-    loadEmails(); // Charger les emails au chargement du composant
+    loadEmails();
   }, []);
+
+  // ... le reste du code (getMoisEntreDates, getPeriodeEnMois, toggleAll, handleExportPdf, etc.) reste identique
 
   // Fonction pour formater le nombre de mois
   const getMoisEntreDates = (dateDebut, dateFin) => {
@@ -84,7 +77,7 @@ export default function EntretienPositif() {
     return mois <= 0 ? 0 : mois;
   };
 
-  // Fonction pour obtenir la pÃ©riode en mois
+  // Fonction pour obtenir la période en mois
   const getPeriodeEnMois = (collaborateur) => {
     const now = new Date();
     let dateDebut;
@@ -95,7 +88,7 @@ export default function EntretienPositif() {
     } else if (collaborateur.hireDate) {
       dateDebut = new Date(collaborateur.hireDate);
     } else {
-      return "PÃ©riode non dÃ©finie";
+      return "Période non définie";
     }
     
     const mois = getMoisEntreDates(dateDebut, now);
@@ -119,13 +112,17 @@ export default function EntretienPositif() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "collaborateurs_sans_faute.pdf";
+      link.download = `collaborateurs_sans_faute_${new Date().toISOString().split("T")[0]}.pdf`;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      setEmailStatus("success:PDF exportÃ© avec succÃ¨s");
+      setEmailStatus("success:PDF exporté avec succès");
+      showSuccessToast("PDF exporté");
     } catch (err) {
       console.error("Erreur export PDF:", err);
-      setEmailStatus("error:Erreur lors de l'export PDF: " + (err.response?.data?.message || err.message));
+      setEmailStatus("error:Erreur lors de l'export PDF");
+      showErrorAlert("Export impossible", "Erreur lors de l'export PDF.");
     }
   };
 
@@ -135,16 +132,19 @@ export default function EntretienPositif() {
 
   const handleSendToSL = async () => {
     if (!slDestinataire.trim()) {
-      setEmailStatus("error:Veuillez sÃ©lectionner ou saisir une adresse email");
+      setEmailStatus("error:Veuillez sélectionner ou saisir une adresse email");
+      showErrorAlert("Email requis", "Veuillez sélectionner ou saisir une adresse email.");
       return;
     }
     const emailRegex = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
     if (!emailRegex.test(slDestinataire)) {
       setEmailStatus("error:Adresse email invalide");
+      showErrorAlert("Email invalide", "Adresse email invalide.");
       return;
     }
     if (!dateEnvoi) {
       setEmailStatus("error:Veuillez choisir une date d'envoi");
+      showErrorAlert("Date requise", "Veuillez choisir une date d'envoi.");
       return;
     }
 
@@ -162,20 +162,20 @@ export default function EntretienPositif() {
 
       console.log("Envoi payload:", payload);
       const res = await entretienPositifService.envoyerAuSL(payload);
-      console.log("RÃ©ponse envoi:", res.data);
+      console.log("Réponse envoi:", res.data);
       
       if (res.data.success) {
-        setEmailStatus("success:Email envoyÃ© avec succÃ¨s Ã  " + slDestinataire);
-        // Optionnel: vider le champ aprÃ¨s envoi
-        // setSlDestinataire("");
-        // setNote("");
+        setEmailStatus("success:Email envoyé avec succès à " + slDestinataire);
+        await showSuccessAlert("Email envoyé", `Le message a été envoyé avec succès à ${slDestinataire}.`);
       } else {
-        setEmailStatus("warning:" + (res.data.message || "Email envoyÃ© avec avertissement"));
+        setEmailStatus("warning:" + (res.data.message || "Email envoyé avec avertissement"));
+        await showErrorAlert("Envoi partiel", res.data.message || "Email envoyé avec avertissement.");
       }
     } catch (err) {
       const msg = err?.response?.data?.message || err.message || "Erreur lors de l'envoi de l'email";
       console.error("Erreur envoi email:", err);
       setEmailStatus("error:" + msg);
+      showErrorAlert("Envoi impossible", msg);
     } finally {
       setSending(false);
     }
@@ -184,27 +184,37 @@ export default function EntretienPositif() {
   const handleArchiver = async () => {
     const matricules = selectedCount > 0 ? selectedMatricules : collaborateurs.map((c) => c.matricule);
     if (matricules.length === 0) {
-      setEmailStatus("error:Aucun collaborateur Ã  archiver");
+      setEmailStatus("error:Aucun collaborateur à archiver");
+      showErrorAlert("Aucun collaborateur", "Aucun collaborateur à archiver.");
       return;
     }
-    if (!window.confirm(`Archiver ${matricules.length} entretien(s) positif(s) ?`)) return;
+    const result = await showConfirmAlert({
+      title: "Archiver les entretiens positifs ?",
+      text: `${matricules.length} entretien(s) positif(s) vont être archivés.`,
+      confirmButtonText: "Oui, archiver",
+    });
+    if (!result.isConfirmed) return;
 
     try {
       setArchiving(true);
       setEmailStatus("");
       const res = await entretienPositifService.archiverEtCreer({ matricules });
-      console.log("RÃ©ponse archivage:", res.data);
+      console.log("Réponse archivage:", res.data);
       
       if (res.data.success) {
-        setEmailStatus("success:" + res.data.archivedCount + " dossier(s) archivÃ©(s) avec succÃ¨s");
+        setEmailStatus("success:" + res.data.archivedCount + " dossier(s) archivé(s) avec succès");
+        await showSuccessAlert("Archivage réussi", `${res.data.archivedCount} dossier(s) archivé(s) avec succès.`);
         await loadSansFaute();
+        setSelected({});
       } else {
         const errMsg = res.data.errors?.join(", ") || "Archivage partiel";
-        setEmailStatus("warning:Archivage partiel â€“ " + errMsg);
+        setEmailStatus("warning:Archivage partiel – " + errMsg);
+        await showErrorAlert("Archivage partiel", errMsg);
       }
     } catch (err) {
       console.error("Erreur archivage:", err);
-      setEmailStatus("error:Erreur lors de l'archivage: " + (err.response?.data?.message || err.message));
+      setEmailStatus("error:Erreur lors de l'archivage");
+      showErrorAlert("Archivage impossible", "Erreur lors de l'archivage.");
     } finally {
       setArchiving(false);
     }
@@ -226,8 +236,7 @@ export default function EntretienPositif() {
           <div className="ep-breadcrumb">
             <span className="ep-breadcrumb-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"
-                  fill="currentColor"/>
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
               </svg>
             </span>
             Entretien Positif
@@ -238,27 +247,9 @@ export default function EntretienPositif() {
         </div>
         <div className="ep-topbar-actions">
           <button className="ep-btn ep-btn-outline" onClick={loadSansFaute} disabled={loading}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round"/>
-              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                strokeLinejoin="round"/>
-            </svg>
             Actualiser
           </button>
           <button className="ep-btn ep-btn-outline ep-btn-pdf" onClick={handleExportPdf}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                strokeLinejoin="round"/>
-              <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="12" y1="18" x2="12" y2="12" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round"/>
-              <polyline points="9 15 12 18 15 15" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
             Exporter PDF
           </button>
         </div>
@@ -267,9 +258,9 @@ export default function EntretienPositif() {
       {emailStatus && (
         <div className={`ep-alert ep-alert-${statusType}`}>
           <span className="ep-alert-icon">
-            {statusType === "success" && "âœ“"}
-            {statusType === "error" && "âœ•"}
-            {statusType === "warning" && "âš "}
+            {statusType === "success" && "?"}
+            {statusType === "error" && "?"}
+            {statusType === "warning" && "?"}
           </span>
           {statusMsg}
         </div>
@@ -279,19 +270,17 @@ export default function EntretienPositif() {
         <section className="ep-panel">
           <div className="ep-panel-header">
             <div>
-              <h3 className="ep-panel-title">Collaborateurs Ã  fÃ©liciter</h3>
+              <h3 className="ep-panel-title">Collaborateurs à féliciter</h3>
             </div>
             <span className="ep-badge">
-              {selectedCount > 0
-                ? `${selectedCount} / ${collaborateurs.length}`
-                : collaborateurs.length}
+              {selectedCount > 0 ? `${selectedCount} / ${collaborateurs.length}` : collaborateurs.length}
             </span>
           </div>
 
           {loading ? (
             <div className="ep-loading">
               <div className="ep-spinner" />
-              <span>Chargement en coursâ€¦</span>
+              <span>Chargement en cours…</span>
             </div>
           ) : (
             <div className="ep-table-wrapper">
@@ -310,23 +299,18 @@ export default function EntretienPositif() {
                     </th>
                     <th>Collaborateur</th>
                     <th>Matricule</th>
-                    <th>PÃ©riode</th>
+                    <th>Période</th>
                     <th>Jours sans faute</th>
                   </tr>
                 </thead>
                 <tbody>
                   {collaborateurs.map((c) => (
-                    <tr
-                      key={c.matricule}
-                      className={selected[c.matricule] ? "ep-row ep-row-selected" : "ep-row"}
-                    >
+                    <tr key={c.matricule} className={selected[c.matricule] ? "ep-row ep-row-selected" : "ep-row"}>
                       <td className="ep-td-check">
                         <input
                           type="checkbox"
                           checked={selected[c.matricule] || false}
-                          onChange={(e) =>
-                            setSelected({ ...selected, [c.matricule]: e.target.checked })
-                          }
+                          onChange={(e) => setSelected({ ...selected, [c.matricule]: e.target.checked })}
                           className="ep-checkbox"
                         />
                       </td>
@@ -336,25 +320,21 @@ export default function EntretienPositif() {
                             {(c.nom || "?")[0]?.toUpperCase()}
                             {(c.prenom || "")[0]?.toUpperCase()}
                           </div>
-                          <span className="ep-collab-name">
-                            {c.nom} {c.prenom}
-                          </span>
+                          <span className="ep-collab-name">{c.nom} {c.prenom}</span>
                         </div>
                       </td>
                       <td className="ep-td-muted">{c.matricule}</td>
+                      <td className="ep-td-muted">{getPeriodeEnMois(c)}</td>
                       <td className="ep-td-muted">
-                        {getPeriodeEnMois(c)}
-                      </td>
-                      <td>
                         <span className="ep-days-badge">{c.joursSansFaute || 0} j</span>
-                      </td>
-                    </tr>
+                       </td>
+                     </tr>
                   ))}
                   {collaborateurs.length === 0 && !loading && (
                     <tr>
                       <td colSpan={5} className="ep-empty">
-                        <div className="ep-empty-icon">ðŸ“‹</div>
-                        <div>Aucun collaborateur trouvÃ©</div>
+                        <div className="ep-empty-icon">??</div>
+                        <div>Aucun collaborateur trouvé</div>
                       </td>
                     </tr>
                   )}
@@ -365,12 +345,8 @@ export default function EntretienPositif() {
 
           {collaborateurs.length > 0 && (
             <div className="ep-archive-zone">
-              <button
-                className="ep-btn ep-btn-archive"
-                onClick={handleArchiver}
-                disabled={archiving}
-              >
-                {archiving ? "Archivageâ€¦" : "Archiver les entretiens"}
+              <button className="ep-btn ep-btn-archive" onClick={handleArchiver} disabled={archiving}>
+                {archiving ? "Archivage…" : "Archiver les entretiens"}
               </button>
             </div>
           )}
@@ -385,11 +361,8 @@ export default function EntretienPositif() {
 
           <div className="ep-form">
             <div className="ep-form-field">
-              <label className="ep-label">
-                Email du SL
-              </label>
+              <label className="ep-label">Email du SL</label>
               
-              {/* REMPLACER L'INPUT PAR UN COMBOBOX/DROPDOWN */}
               <div className="ep-email-select-container">
                 <select
                   value={slDestinataire}
@@ -397,15 +370,12 @@ export default function EntretienPositif() {
                   className="ep-input ep-select"
                   disabled={loadingEmails}
                 >
-                  <option value="">-- SÃ©lectionnez un email --</option>
+                  <option value="">-- Sélectionnez un email --</option>
                   {emailsList.map((email, index) => (
-                    <option key={index} value={email}>
-                      {email}
-                    </option>
+                    <option key={index} value={email}>{email}</option>
                   ))}
                 </select>
                 
-                {/* Optionnel: permettre aussi de saisir manuellement */}
                 <div className="ep-or-divider">
                   <span>ou</span>
                 </div>
@@ -418,18 +388,14 @@ export default function EntretienPositif() {
                 />
               </div>
               
-              {loadingEmails && (
-                <div className="ep-loading-small">Chargement des emails...</div>
-              )}
-              {emailsList.length === 0 && !loadingEmails && (
-                <div className="ep-warning-small">Aucun email trouvÃ© dans la base</div>
+              {loadingEmails && <div className="ep-loading-small">Chargement des emails...</div>}
+              {!loadingEmails && emailsList.length === 0 && (
+                <div className="ep-warning-small">Aucun email trouvé dans la base de données</div>
               )}
             </div>
 
             <div className="ep-form-field">
-              <label className="ep-label">
-                Date d'envoi
-              </label>
+              <label className="ep-label">Date d'envoi</label>
               <input
                 type="date"
                 value={dateEnvoi}
@@ -454,22 +420,7 @@ export default function EntretienPositif() {
               onClick={handleSendToSL}
               disabled={sending || collaborateurs.length === 0}
             >
-              {sending ? (
-                <>
-                  <div className="ep-btn-spinner" />
-                  Envoi en coursâ€¦
-                </>
-              ) : (
-                <>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                    <line x1="22" y1="2" x2="11" y2="13" stroke="currentColor"
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2" stroke="currentColor"
-                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Envoyer l'email
-                </>
-              )}
+              {sending ? "Envoi en cours…" : "Envoyer l'email"}
             </button>
           </div>
         </section>

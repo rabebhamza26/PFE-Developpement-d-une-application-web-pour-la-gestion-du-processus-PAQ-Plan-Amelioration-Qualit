@@ -11,13 +11,13 @@ public class CollaborateurDTO {
     private int niveau;
     private LocalDate derniereFaute;
     private String statut;
-    private boolean peutCreerPaq;
+    private boolean hasPaq;  // Renommé de peutCreerPaq à hasPaq
 
     // Constructeur complet
     public CollaborateurDTO(String matricule, String nom, String prenom,
                             String segment, LocalDate hireDate,
                             int niveau, LocalDate derniereFaute,
-                            String statut, boolean peutCreerPaq) {
+                            String statut, boolean hasPaq) {
         this.matricule = matricule;
         this.nom = nom;
         this.prenom = prenom;
@@ -26,7 +26,7 @@ public class CollaborateurDTO {
         this.niveau = niveau;
         this.derniereFaute = derniereFaute;
         this.statut = statut;
-        this.peutCreerPaq = peutCreerPaq;
+        this.hasPaq = hasPaq;
     }
 
     // Getters et Setters
@@ -54,6 +54,6 @@ public class CollaborateurDTO {
     public String getStatut() { return statut; }
     public void setStatut(String statut) { this.statut = statut; }
 
-    public boolean isPeutCreerPaq() { return peutCreerPaq; }
-    public void setPeutCreerPaq(boolean peutCreerPaq) { this.peutCreerPaq = peutCreerPaq; }
+    public boolean isHasPaq() { return hasPaq; }
+    public void setHasPaq(boolean hasPaq) { this.hasPaq = hasPaq; }
 }

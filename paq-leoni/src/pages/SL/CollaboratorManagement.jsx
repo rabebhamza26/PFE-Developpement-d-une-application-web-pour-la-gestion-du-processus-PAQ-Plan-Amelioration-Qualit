@@ -1,4 +1,4 @@
- import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { collaboratorService, paqService } from "../../services/api";
 import "../../styles/collaborator.css";
@@ -42,7 +42,6 @@ export default function CollaboratorManagement() {
     return sorted;
   };
 
-  // ── Chargement ────────────────────────────────────────────────────────────
   const loadCollaborators = async () => {
     try {
       setLoading(true);
@@ -50,7 +49,6 @@ export default function CollaboratorManagement() {
       const response = await collaboratorService.getAll();
       let data = Array.isArray(response.data) ? response.data : response.data?.data || [];
 
-      // Collaborateur fraîchement ajouté transmis par navigation
       const newCollab = location.state?.newCollaborator;
       const latestMatricule = newCollab?.matricule || sessionStorage.getItem("latest_collaborator_matricule");
       if (newCollab?.matricule) {
@@ -68,7 +66,6 @@ export default function CollaboratorManagement() {
     }
   };
 
-  // ── Suppression ───────────────────────────────────────────────────────────
   const deleteCollaborator = async (matricule, fullName) => {
     if (!window.confirm(`Êtes-vous sûr de vouloir supprimer ${fullName} ?`)) return;
     try {
@@ -79,7 +76,6 @@ export default function CollaboratorManagement() {
     }
   };
 
-  // ── Logique 6 mois ────────────────────────────────────────────────────────
   /** true si 6 mois d'ancienneté sont atteints */
   const hasSixMonthsPassed = (collab) => {
     if (!collab?.hireDate) return false;
@@ -88,85 +84,29 @@ export default function CollaboratorManagement() {
     return new Date() >= limit;
   };
 
-  /** Jours restants avant 6 mois */
-  const daysUntilPaq = (collab) => {
-    if (!collab?.hireDate) return null;
-    const limit = new Date(collab.hireDate);
-    limit.setMonth(limit.getMonth() + 6);
-    const diff = Math.ceil((limit - new Date()) / 86_400_000);
-    return diff > 0 ? diff : 0;
-  };
-
-  /**
-   * Un PAQ est considéré "actif" dès que le statut du collaborateur
-   * n'est pas "ACTIF" (aucun PAQ) ni "ARCHIVE" (terminé).
-   * Adaptez selon votre modèle de données (ex: collab.paqActif === true).
-   */
-  const hasPaqActif = (collab) => {
-    const s = (collab?.statut || "").toUpperCase();
-    return s !== "ACTIF" && s !== "ARCHIVE" && s !== "";
-  };
-
-  // ── Action bouton "Créer PAQ" ──────────────────────────────────────────────
-  const handleCreerPaq = async (collab) => {
-    if (!hasSixMonthsPassed(collab)) {
-      const days = daysUntilPaq(collab);
-      alert(
-        days != null
-          ? `PAQ disponible dans ${days} jour(s). Les 6 mois d'ancienneté ne sont pas encore atteints.`
-          : "PAQ disponible après 6 mois d'ancienneté."
-      );
-      return;
-    }
-    try {
-      const response = await paqService.create(collab.matricule);
-      if (response.data) {
-        alert(`Dossier PAQ créé avec succès pour ${collab.nom || ""} ${collab.prenom || ""} !`);
-        await loadCollaborators();                       // rafraîchir le statut
-        navigate(`/paq-dossier/${collab.matricule}`);
-      } else {
-        alert("Impossible de créer le PAQ.");
-      }
-    } catch (err) {
-      const msg = err.response?.data?.message || "Erreur serveur";
-      const norm = msg.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      if (norm.includes("existe deja")) {
-        navigate(`/paq-dossier/${collab.matricule}`);
-        return;
-      }
-      alert(msg);
-    }
-  };
-
-  // ── Config visuelle bouton "Créer PAQ" ────────────────────────────────────
-  const getCreerPaqConfig = (collab) => {
+  /** Vérifie si un PAQ actif existe pour ce collaborateur */
+  const hasActivePaq = (collab) => {
+    // Si le collaborateur a un niveau > 0 ou un statut différent de POSITIF, il a un PAQ
     const s = (collab.statut || "").toUpperCase();
-
-    if (s === "ARCHIVE") {
-      return { label: "Archivé", disabled: true,
-               className: "action-btn btn-paq btn-paq-disabled",
-               title: "Ce collaborateur est archivé" };
-    }
-    if (hasPaqActif(collab)) {
-      return { label: "PAQ en cours", disabled: true,
-               className: "action-btn btn-paq btn-paq-disabled",
-               title: "Un dossier PAQ est déjà en cours" };
-    }
-    if (!hasSixMonthsPassed(collab)) {
-      const days = daysUntilPaq(collab);
-      return {
-        label: days != null ? `Créer PAQ (${days}j)` : "Créer PAQ",
-        disabled: true,
-        className: "action-btn btn-paq btn-paq-disabled",
-        title: `PAQ disponible dans ${days ?? "?"} jour(s)`,
-      };
-    }
-    return { label: "Créer PAQ", disabled: false,
-             className: "action-btn btn-paq",
-             title: "Créer le dossier PAQ" };
+    return s !== "POSITIF" && s !== "N/A" && collab.niveau !== undefined && collab.niveau !== null;
   };
 
-  // ── Filtrage ──────────────────────────────────────────────────────────────
+  const formatDate = (d) => {
+    if (!d) return "N/A";
+    try { return new Date(d).toLocaleDateString("fr-FR"); } catch { return d; }
+  };
+
+  const getStatusBadgeClass = (statut, niveau) => {
+    const s = (statut || "").toUpperCase();
+    if (s === "ARCHIVE") return "badge-soft-dark";
+    if (s === "POSITIF") return "badge-soft-success";
+    if (s === "CLOTURE") return "badge-soft-info";
+    if (niveau === 1)    return "badge-soft-info";
+    if (niveau === 2)    return "badge-soft-warning";
+    if (niveau >= 3)     return "badge-soft-danger";
+    return "badge-soft-secondary";
+  };
+
   const filteredCollaborators = useMemo(() => {
     const s = search.toLowerCase().trim();
     const latestMatricule = location.state?.newCollaborator?.matricule || sessionStorage.getItem("latest_collaborator_matricule");
@@ -184,30 +124,9 @@ export default function CollaboratorManagement() {
     return sortCollaborators(filtered, latestMatricule, sortMode);
   }, [collaborators, search, sortMode, location.state]);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
-  const getStatusBadgeClass = (niveau, statut) => {
-    const s = (statut || "").toUpperCase();
-    if (s === "ARCHIVE") return "badge-soft-dark";
-    if (s === "POSITIF") return "badge-soft-success";
-    if (niveau === 1)    return "badge-soft-info";
-    if (niveau === 2)    return "badge-soft-warning";
-    if (niveau >= 3)     return "badge-soft-danger";
-    return "badge-soft-secondary";
-  };
-
-  const formatDate = (d) => {
-    if (!d) return "N/A";
-    try { return new Date(d).toLocaleDateString("fr-FR"); } catch { return d; }
-  };
-
-  const getCurrentPaqLevel = (c) =>
-    c.niveau !== undefined && c.niveau !== null ? c.niveau : 0;
-
-  // ── Rendu ─────────────────────────────────────────────────────────────────
   return (
     <div className="container py-4 collab-page">
 
-      {/* Topbar */}
       <div className="collab-topbar">
         <div className="collab-title">Gestion Collaborateurs</div>
         <button
@@ -219,39 +138,37 @@ export default function CollaboratorManagement() {
         </button>
       </div>
 
-      {/* Recherche */}
       <div className="collab-search mb-4">
         <div className="collab-toolbar">
-        <div className="input-group collab-search-group">
-          <span className="input-group-text"><i className="fas fa-search"></i></span>
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Rechercher par matricule, nom..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button className="btn btn-outline-secondary" onClick={() => setSearch("")}>✕</button>
-          )}
-        </div>
-        <div className="collab-filter-box">
-          <label htmlFor="collab-sort" className="collab-filter-label">Tri</label>
-          <select
-            id="collab-sort"
-            className="form-select collab-filter-select"
-            value={sortMode}
-            onChange={(e) => setSortMode(e.target.value)}
-          >
-            <option value="latest_added">Dernier ajoute en premier</option>
-            <option value="hire_date">Date embauche recente</option>
-            <option value="matricule">Matricule</option>
-          </select>
-        </div>
+          <div className="input-group collab-search-group">
+            <span className="input-group-text"><i className="fas fa-search"></i></span>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Rechercher par matricule, nom..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {search && (
+              <button className="btn btn-outline-secondary" onClick={() => setSearch("")}>✕</button>
+            )}
+          </div>
+          <div className="collab-filter-box">
+            <label htmlFor="collab-sort" className="collab-filter-label">Tri</label>
+            <select
+              id="collab-sort"
+              className="form-select collab-filter-select"
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value)}
+            >
+              <option value="latest_added">Dernier ajouté en premier</option>
+              <option value="hire_date">Date embauche récente</option>
+              <option value="matricule">Matricule</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Contenu */}
       {loading ? (
         <div className="text-center py-5">
           <div className="spinner-border text-primary" role="status"></div>
@@ -288,8 +205,42 @@ export default function CollaboratorManagement() {
             </thead>
             <tbody>
               {filteredCollaborators.map((c) => {
-                const level       = getCurrentPaqLevel(c);
-                const creerConfig = getCreerPaqConfig(c);
+                const sixMonthsPassed = hasSixMonthsPassed(c);
+                const hasPaq = hasActivePaq(c);
+                
+                // Déterminer l'affichage du bouton PAQ
+                let paqButton = null;
+                if (hasPaq) {
+                  paqButton = (
+                    <button
+                      className="action-btn btn-view"
+                      onClick={() => navigate(`/paq-dossier/${c.matricule}`)}
+                      title="Consulter le dossier PAQ"
+                    >
+                      Voir PAQ
+                    </button>
+                  );
+                } else if (sixMonthsPassed) {
+                  paqButton = (
+                    <button
+                      className="action-btn btn-paq"
+                      onClick={() => navigate(`/paq-dossier/${c.matricule}`)}
+                      title="Créer le dossier PAQ"
+                    >
+                      Créer PAQ
+                    </button>
+                  );
+                } else {
+                  paqButton = (
+                    <button
+                      className="action-btn btn-paq-disabled"
+                      disabled
+                      title={`PAQ disponible après 6 mois d'ancienneté (${formatDate(c.hireDate)})`}
+                    >
+                      Créer PAQ
+                    </button>
+                  );
+                }
 
                 return (
                   <tr key={c.matricule}>
@@ -301,7 +252,7 @@ export default function CollaboratorManagement() {
                       <div className="niveau-stack">
                         {[0,1,2,3,4,5].map(n => (
                           <span key={n}
-                            className={`niveau-pill n${n} ${level === n ? "active" : ""}`}
+                            className={`niveau-pill n${n} ${c.niveau === n ? "active" : ""}`}
                             title={`Niveau ${n}`}
                           >N{n}</span>
                         ))}
@@ -313,23 +264,16 @@ export default function CollaboratorManagement() {
                         : <span className="text-muted">Aucune</span>}
                     </td>
                     <td className="statut-cell">
-                      <span className={`badge-custom ${getStatusBadgeClass(c.niveau, c.statut)}`}>
+                      <span className={`badge-custom ${getStatusBadgeClass(c.statut, c.niveau)}`}>
                         {c.statut || "N/A"}
                       </span>
                     </td>
                     <td className="actions-cell">
                       <div className="actions-group">
+                        {/* Bouton PAQ (Créer ou Voir selon situation) */}
+                        {paqButton}
 
-                        {/* ── 1. Voir PAQ ─ toujours cliquable ── */}
-                        <button
-                          className="action-btn btn-view"
-                          onClick={() => navigate(`/paq-dossier/${c.matricule}`)}
-                          title="Consulter le dossier PAQ"
-                        >
-                          Voir PAQ
-                        </button>
-
-                        {/* ── 2. Modifier ── */}
+                        {/* Bouton Modifier */}
                         <button
                           className="action-btn btn-edit"
                           onClick={() =>
@@ -342,9 +286,7 @@ export default function CollaboratorManagement() {
                           Modifier
                         </button>
 
-                        
-
-                        {/* ── 4. Supprimer ── */}
+                        {/* Bouton Supprimer */}
                         <button
                           className="action-btn btn-delete"
                           onClick={() => deleteCollaborator(c.matricule, `${c.nom} ${c.prenom}`)}
@@ -352,7 +294,6 @@ export default function CollaboratorManagement() {
                         >
                           Supprimer
                         </button>
-
                       </div>
                     </td>
                   </tr>
@@ -364,4 +305,4 @@ export default function CollaboratorManagement() {
       )}
     </div>
   );
-}   
+}

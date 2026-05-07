@@ -11,7 +11,6 @@ public class EntretienFinal {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Matricule du collaborateur pour retrouver les entretiens par matricule
     @Column(nullable = false)
     private String matricule;
 
@@ -22,11 +21,7 @@ public class EntretienFinal {
     @Column(columnDefinition = "TEXT")
     private String commentaireRH;
 
-    @Lob
-    @Column(columnDefinition = "LONGTEXT")
-    private String signatureBase64;
-
-    // ── Getters & Setters ────────────────────────────────────────────────
+    // Getters & Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -44,7 +39,4 @@ public class EntretienFinal {
 
     public String getCommentaireRH() { return commentaireRH; }
     public void setCommentaireRH(String commentaireRH) { this.commentaireRH = commentaireRH; }
-
-    public String getSignatureBase64() { return signatureBase64; }
-    public void setSignatureBase64(String signatureBase64) { this.signatureBase64 = signatureBase64; }
 }

@@ -356,3 +356,23 @@ body {
     left: 24px; right: 24px;
   }
 }
+
+/* Ajouter à la fin de login.css */
+.lc-footer {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.lc-forgot-link {
+  background: none;
+  border: none;
+  color: #e8a020;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.lc-forgot-link:hover {
+  color: #f39c12;
+}

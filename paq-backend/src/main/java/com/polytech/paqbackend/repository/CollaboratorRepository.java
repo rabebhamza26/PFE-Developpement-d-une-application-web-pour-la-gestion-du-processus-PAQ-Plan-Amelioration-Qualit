@@ -104,12 +104,7 @@ public interface CollaboratorRepository extends JpaRepository<Collaborator, Stri
         return findSansFaute(LocalDate.now().minusMonths(6));
     }
 
-    /**
-     * Méthode par défaut pour getAllWithPaq avec la date courante
-     */
-    default List<CollaborateurDTO> getAllWithPaq() {
-        return getAllWithPaq(LocalDate.now().minusMonths(6));
-    }
+
 
     /**
      * Compte les collaborateurs par segment
@@ -135,4 +130,43 @@ public interface CollaboratorRepository extends JpaRepository<Collaborator, Stri
         AND c.archived = false AND c.depart = false
     """)
     List<Collaborator> findByPaqNiveau(@Param("niveau") int niveau);
+
+
+
+
+
+
+
+
+
+
+
+
+
+    /**
+     * Récupère tous les collaborateurs avec leurs informations PAQ
+     */
+    @Query("""
+        SELECT new com.polytech.paqbackend.dto.CollaborateurDTO(
+            c.matricule,
+            c.name,
+            c.prenom,
+            c.segment,
+            c.hireDate,
+            COALESCE(p.niveau, 0),
+            p.derniereFaute,
+            CASE 
+                WHEN p.id IS NULL THEN 'POSITIF'
+                WHEN p.statut = 'CLOTURE' THEN 'CLOTURE'
+                WHEN p.statut = 'CRITIQUE' THEN 'CRITIQUE'
+                ELSE CONCAT('NIVEAU ', p.niveau)
+            END,
+            p.id IS NOT NULL
+        )
+        FROM Collaborator c
+        LEFT JOIN PaqDossier p ON c.matricule = p.collaboratorMatricule AND p.actif = true AND p.archived = false
+        WHERE c.archived = false AND c.depart = false
+        ORDER BY c.matricule
+    """)
+    List<CollaborateurDTO> getAllWithPaq();
 }

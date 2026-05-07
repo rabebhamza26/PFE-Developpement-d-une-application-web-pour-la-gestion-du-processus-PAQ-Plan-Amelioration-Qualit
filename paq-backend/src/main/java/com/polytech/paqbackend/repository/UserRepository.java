@@ -1,5 +1,6 @@
 package com.polytech.paqbackend.repository;
 
+import com.polytech.paqbackend.dto.SiteUserDistributionDTO;
 import com.polytech.paqbackend.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,6 +18,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByActiveTrue();
     long countByCreatedAtAfter(LocalDateTime dateTime);
     User findByEmail(String email);
+
 
     @Query("select u.role, count(u) from User u group by u.role")
     List<Object[]> countUsersByRole();
@@ -40,4 +42,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "LEFT JOIN FETCH u.plants " +
             "LEFT JOIN FETCH u.segments")
     List<User> findAllWithAllRelations();
+
+    @Query("SELECT new com.polytech.paqbackend.dto.SiteUserDistributionDTO(s.id, s.name, COUNT(u)) " +
+            "FROM User u JOIN u.sites s GROUP BY s.id, s.name ORDER BY COUNT(u) DESC")
+    List<SiteUserDistributionDTO> findUserCountBySite();
+
+
+
+    Optional<User> findOptionalByEmail(String email);
+
+
+
+    @Query("SELECT u FROM User u WHERE u.role = 'ADMIN'")
+    List<User> findAllAdmins();
+
 }

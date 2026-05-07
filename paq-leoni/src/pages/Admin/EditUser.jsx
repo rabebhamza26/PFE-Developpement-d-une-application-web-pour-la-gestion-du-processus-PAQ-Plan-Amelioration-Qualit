@@ -114,34 +114,43 @@ export default function EditUser() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSaving(true);
+  e.preventDefault();
+  setError("");
+  setSaving(true);
 
-    try {
-      const dataToSend = { 
-        nomUtilisateur: form.nomUtilisateur,
-        login: form.login,
-        email: form.email,
-        role: form.role,
-        active: form.active,
-        siteIds: form.siteIds,
-        plantIds: form.plantIds,
-        segmentIds: form.segmentIds
-      };
-      
-      if (form.password && form.password.trim()) {
-        dataToSend.password = form.password;
-      }
+  try {
+    const dataToSend = { 
+      nomUtilisateur: form.nomUtilisateur,
+      login: form.login,
+      email: form.email,
+      role: form.role,
+      active: form.active,
+      siteIds: form.siteIds,
+      plantIds: form.plantIds,
+      segmentIds: form.segmentIds
+    };
 
-      await userService.updateUser(id, dataToSend);
-      navigate("/admin/users");
-    } catch (err) {
-      setError("Erreur lors de la modification: " + (err.response?.data?.message || err.message));
-    } finally {
-      setSaving(false);
+    let updatedPassword = null;
+
+    if (form.password && form.password.trim()) {
+      dataToSend.password = form.password;
+      updatedPassword = form.password;
     }
-  };
+
+    await userService.updateUser(id, dataToSend);
+
+    navigate("/admin/users", {
+      state: updatedPassword
+        ? { updatedPassword, userId: parseInt(id) }
+        : {}
+    });
+
+  } catch (err) {
+    setError("Erreur: " + (err.response?.data?.message || err.message));
+  } finally {
+    setSaving(false);
+  }
+};
 
   if (loading) {
     return (
@@ -176,7 +185,7 @@ export default function EditUser() {
               <form onSubmit={handleSubmit}>
                 <div className="row">
                   <div className="col-md-6 mb-3">
-                    <label htmlFor="nomUtilisateur" className="form-label">Nom complet *</label>
+                    <label htmlFor="nomUtilisateur" className="form-label">Nom complet </label>
                     <input
                       type="text"
                       className="form-control"
@@ -189,7 +198,7 @@ export default function EditUser() {
                   </div>
 
                   <div className="col-md-6 mb-3">
-                    <label htmlFor="login" className="form-label">Login *</label>
+                    <label htmlFor="login" className="form-label">Login </label>
                     <input
                       type="text"
                       className="form-control"
@@ -204,7 +213,7 @@ export default function EditUser() {
 
                 <div className="row">
                   <div className="col-md-6 mb-3">
-                    <label htmlFor="email" className="form-label">Email *</label>
+                    <label htmlFor="email" className="form-label">Email </label>
                     <input
                       type="email"
                       className="form-control"
@@ -234,7 +243,7 @@ export default function EditUser() {
                 </div>
 
                 <div className="mb-3">
-                  <label htmlFor="role" className="form-label">Rôle *</label>
+                  <label htmlFor="role" className="form-label">Rôle </label>
                   <select 
                     name="role" 
                     value={form.role} 
@@ -248,13 +257,12 @@ export default function EditUser() {
                     <option value="SGL">SGL</option>
                     <option value="HP">HP</option>
                     <option value="RH">RH</option>
-                    <option value="COORDINATEUR_FORMATION">Coordinateur Formation</option>
                   </select>
                 </div>
 
                 <div className="mb-3">
                   <label className="form-label">
-                    <i className="fas fa-building me-2"></i>Sites (sélection multiple)
+                    <i className="fas fa-building me-2"></i>Sites 
                   </label>
                   <select 
                     multiple 
@@ -269,12 +277,11 @@ export default function EditUser() {
                       </option>
                     ))}
                   </select>
-                  <small className="text-muted">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs sites</small>
                 </div>
 
                 <div className="mb-3">
                   <label className="form-label">
-                    <i className="fas fa-industry me-2"></i>Plants (sélection multiple)
+                    <i className="fas fa-industry me-2"></i>Plants 
                   </label>
                   <select 
                     multiple 
@@ -293,14 +300,12 @@ export default function EditUser() {
                   {form.siteIds.length === 0 && (
                     <small className="text-muted">Sélectionnez d'abord au moins un site</small>
                   )}
-                  {form.siteIds.length > 0 && (
-                    <small className="text-muted">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs plants</small>
-                  )}
+                 
                 </div>
 
                 <div className="mb-4">
                   <label className="form-label">
-                    <i className="fas fa-tag me-2"></i>Segments (sélection multiple)
+                    <i className="fas fa-tag me-2"></i>Segments 
                   </label>
                   <select 
                     multiple 
@@ -315,7 +320,6 @@ export default function EditUser() {
                       </option>
                     ))}
                   </select>
-                  <small className="text-muted">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs segments</small>
                 </div>
 
                 <div className="d-flex gap-2 justify-content-end">

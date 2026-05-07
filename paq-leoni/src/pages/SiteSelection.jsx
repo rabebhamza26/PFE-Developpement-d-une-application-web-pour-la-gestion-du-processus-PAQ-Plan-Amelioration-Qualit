@@ -13,11 +13,17 @@ export default function SiteSelection() {
   useEffect(() => { loadSites(); }, []);
 
   const loadSites = async () => {
-    try {
+     try {
       setLoading(true);
+      console.log("Appel à siteService.getAll()...");
       const res = await siteService.getAll();
+      console.log("Réponse reçue:", res);
+      console.log("Sites:", res.data);
       setSites(res.data || []);
-    } catch {
+    } catch (err) {
+      console.error("Erreur détaillée:", err);
+      console.error("Status:", err.response?.status);
+      console.error("Message:", err.response?.data);
       setError("Impossible de charger les sites.");
     } finally {
       setLoading(false);
