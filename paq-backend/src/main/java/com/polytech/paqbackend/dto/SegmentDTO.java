@@ -12,5 +12,8 @@ import lombok.NoArgsConstructor;
 public class SegmentDTO {
     private Long id;
     private String nomSegment;
-
+    private Long plantId;
+    private String plantName;
+    private Long siteId;
+    private String siteName;
 }

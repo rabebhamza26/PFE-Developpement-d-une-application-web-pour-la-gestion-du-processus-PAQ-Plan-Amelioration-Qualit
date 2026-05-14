@@ -2,9 +2,13 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { collaboratorService, getSegments } from "../../services/api";
 import "../../styles/collaborator.css";
+import { useSelection } from "../../context/SelectionContext";
+
 
 export default function EditCollaborator() {
     const { matricule } = useParams();
+        const { selectedSite, selectedPlant } = useSelection(); 
+
     const [formData, setFormData] = useState({
         matricule: "",
         name: "",
@@ -39,7 +43,19 @@ export default function EditCollaborator() {
         const loadSegments = async () => {
             try {
                 setSegmentsLoading(true);
-                const res = await getSegments();
+                
+                let res;
+                if (selectedPlant && selectedPlant.id) {
+                    // Filtrer par plant
+                    res = await getSegmentsByPlant(selectedPlant.id);
+                } else if (selectedSite && selectedSite.id) {
+                    // Filtrer par site uniquement
+                    res = await getSegmentsBySite(selectedSite.id);
+                } else {
+                    // Fallback - tous les segments
+                    res = await getSegments();
+                }
+                
                 const list = Array.isArray(res.data) ? res.data : [];
                 const sorted = [...list].sort((a, b) =>
                     getSegmentLabel(a).localeCompare(getSegmentLabel(b), "fr", { sensitivity: "base" })
@@ -52,8 +68,9 @@ export default function EditCollaborator() {
                 setSegmentsLoading(false);
             }
         };
+        
         loadSegments();
-    }, []);
+    }, [selectedSite, selectedPlant]);
 
     /**
      * Récupère les informations du collaborateur à modifier

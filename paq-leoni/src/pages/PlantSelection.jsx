@@ -1,12 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { plantService, siteService } from "../services/api";
+import { useI18n } from "../context/I18nContext";
+import { useSelection } from "../context/SelectionContext";
 import "../styles/plant-selection.css";
 
 
 export default function PlantSelection() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const { siteId } = useParams();
+    const { setSelectedSite, setSelectedPlant, selectedSite } = useSelection(); 
+
 
   const [plants, setPlants] = useState([]);
   const [siteName, setSiteName] = useState("");
@@ -17,13 +22,23 @@ export default function PlantSelection() {
   useEffect(() => {
     siteService
       .getById(siteId)
-      .then((res) => setSiteName(res.data?.name || "Site inconnu"))
-      .catch(() => setSiteName("Site inconnu"));
+      .then((res) => setSiteName(res.data?.name || t("unknown_site")))
+      .catch(() => setSiteName(t("unknown_site")));
   }, [siteId]);
 
   // Charger les plants FILTRÉS par siteId
   useEffect(() => {
     loadPlants();
+   siteService
+      .getById(siteId)
+      .then((res) => {
+        setSiteName(res.data?.name || t("unknown_site"));
+        // Stocker le site si pas déjà fait
+        if (!selectedSite) {
+          setSelectedSite(res.data);
+        }
+      })
+      .catch(() => setSiteName(t("unknown_site")));
   }, [siteId]);
 
   const loadPlants = async () => {
@@ -35,7 +50,7 @@ export default function PlantSelection() {
       const res = await plantService.getBySite(siteId);
       setPlants(Array.isArray(res.data) ? res.data : []);
     } catch {
-      setError("Impossible de charger les plants de ce site.");
+      setError(t("plant_load_error"));
       setPlants([]);
     } finally {
       setLoading(false);
@@ -43,6 +58,7 @@ export default function PlantSelection() {
   };
 
   const handlePlantSelect = (plant) => {
+     setSelectedPlant(plant);
     navigate("/login", {
       state: { siteName, plantName: plant.name, siteId, plantId: plant.id },
     });
@@ -55,13 +71,13 @@ export default function PlantSelection() {
       <div className="ps-content">
         
     <header className="ps-hero">
-  <h1 className="ps-hero-title">PAQ Web System</h1>
-  <p className="ps-hero-sub">Processus d'Amélioration Qualité</p>
+  <h1 className="ps-hero-title">{t("app_name")}</h1>
+  <p className="ps-hero-sub">{t("app_tagline")}</p>
 </header>
 
 {/* Breadcrumb amélioré */}
 <div className="ps-breadcrumb">
-  <span className="ps-bc-site">{siteName || "Chargement..."}</span>
+  <span className="ps-bc-site">{siteName || t("loading")}</span>
 
   <svg viewBox="0 0 16 16" fill="none" className="ps-bc-icon">
     <path d="M5 3l5 5-5 5"
@@ -72,14 +88,8 @@ export default function PlantSelection() {
     />
   </svg>
 
-  <span className="ps-bc-current">Choisissez votre plant</span>
+  <span className="ps-bc-current">{t("choose_plant")}</span>
 </div>
-
-        {/* Section title */}
-        <div className="ps-section-header">
-          <div className="ps-section-line" />
-          <div className="ps-section-line" />
-        </div>
 
         {/* Error */}
         {error && <div className="ps-error">{error}</div>}
@@ -98,7 +108,7 @@ export default function PlantSelection() {
                     <path d="M24 16v8M24 30h.01" stroke="currentColor" strokeWidth="2"
                       strokeLinecap="round"/>
                   </svg>
-                  <p>Aucun plant disponible pour ce site.</p>
+                  <p>{t("no_plant_available")}</p>
                 </div>
               )
             : plants.map((plant, i) => (
@@ -117,7 +127,7 @@ export default function PlantSelection() {
                     </svg>
                   </div>
                   <div className="ps-card-body">
-                    <span className="ps-card-label">Plant</span>
+                    <span className="ps-card-label">{t("plant")}</span>
                     <h3 className="ps-card-name">{plant.name}</h3>
                   </div>
                   <div className="ps-card-arrow">

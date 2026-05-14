@@ -169,12 +169,21 @@ export default function UsersManagement() {
   };
 
   const getPlantsBySite = (siteId) => {
-    if (!siteId) return plants;
+    if (!siteId) return [];
     return plants.filter(p => p.siteId === parseInt(siteId));
   };
 
+  const getSegmentsByPlant = (plantId) => {
+    if (!plantId) return [];
+    return segments.filter(s => s.plantId === parseInt(plantId));
+  };
+
   const resetFilters = () => {
-    setFilterSite(""); setFilterPlant(""); setFilterSegment(""); setFilterRole(""); setSearchTerm("");
+    setFilterSite("");
+    setFilterPlant("");
+    setFilterSegment("");
+    setFilterRole("");
+    setSearchTerm("");
   };
 
   const getRoleBadgeClass = (role) => {
@@ -233,6 +242,15 @@ export default function UsersManagement() {
     setVisiblePasswords(prev => ({ ...prev, [userId]: !prev[userId] }));
   };
 
+  // Navigation handlers
+  const openAddModal = () => {
+    navigate("/admin/add-user");
+  };
+
+  const openEditModal = async (user) => {
+    navigate(`/admin/edit-user/${user.id}`);
+  };
+
   return (
     <div className="users-management-container">
       <div className="header-container">
@@ -242,7 +260,7 @@ export default function UsersManagement() {
       </div>
 
       <div className="add-user-wrapper">
-        <button onClick={() => navigate("/admin/add-user")} className="btn-add-user">
+        <button onClick={openAddModal} className="btn-add-user">
           <span>Ajouter un utilisateur</span>
         </button>
       </div>
@@ -264,7 +282,7 @@ export default function UsersManagement() {
           <div className="filter-group">
             <label className="filter-label">Site</label>
             <select className="filter-select" value={filterSite}
-              onChange={e => { setFilterSite(e.target.value); setFilterPlant(""); }}>
+              onChange={e => { setFilterSite(e.target.value); setFilterPlant(""); setFilterSegment(""); }}>
               <option value="">Tous les sites</option>
               {sites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
@@ -272,16 +290,16 @@ export default function UsersManagement() {
           <div className="filter-group">
             <label className="filter-label">Plant</label>
             <select className="filter-select" value={filterPlant}
-              onChange={e => setFilterPlant(e.target.value)} disabled={!filterSite}>
+              onChange={e => { setFilterPlant(e.target.value); setFilterSegment(""); }} disabled={!filterSite}>
               <option value="">Tous les plants</option>
               {getPlantsBySite(filterSite).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
           <div className="filter-group">
             <label className="filter-label">Segment</label>
-            <select className="filter-select" value={filterSegment} onChange={e => setFilterSegment(e.target.value)}>
+            <select className="filter-select" value={filterSegment} onChange={e => setFilterSegment(e.target.value)} disabled={!filterPlant}>
               <option value="">Tous les segments</option>
-              {segments.map(s => <option key={s.id} value={s.id}>{s.nomSegment}</option>)}
+              {getSegmentsByPlant(filterPlant).map(s => <option key={s.id} value={s.id}>{s.nomSegment}</option>)}
             </select>
           </div>
           <div className="filter-group">
@@ -412,7 +430,7 @@ export default function UsersManagement() {
 
                     <td className="actions-cell">
                       <div className="actions-group">
-                        <button onClick={() => navigate(`/admin/edit-user/${user.id}`)}
+                        <button onClick={() => openEditModal(user)}
                           className="action-btn action-edit" title="Modifier">
                           <i className="fas fa-edit"></i>
                         </button>

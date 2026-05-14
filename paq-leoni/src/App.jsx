@@ -32,24 +32,29 @@ import ScrollToTop from "./components/ScrollToTop";
 import { AuthProvider } from "./context/AuthContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import { useAuth } from "./context/AuthContext"; 
-
+import { useI18n } from "./context/I18nContext";
+import { SelectionProvider } from "./context/SelectionContext";
 
 
 function App() {
 
    const { loading } = useAuth(); //  Récupérer l'état de chargement
+   const { t } = useI18n();
 
   // Afficher un écran de chargement pendant la restauration
   if (loading) {
     return (
       <div className="app-loading">
         <div className="loading-spinner"></div>
-        <p>Chargement de l'application...</p>
+        <p>{t("loading")}</p>
       </div>
     );
   }
 
   return (
+
+     <SelectionProvider>
+      {/* Vos routes et composants */}
     <AuthProvider>
       <NotificationProvider>
 
@@ -95,6 +100,8 @@ function App() {
 
       </NotificationProvider>
     </AuthProvider>
+        </SelectionProvider>
+
   );
 }
 

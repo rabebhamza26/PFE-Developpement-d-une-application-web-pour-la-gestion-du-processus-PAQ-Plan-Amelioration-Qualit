@@ -1,6 +1,7 @@
 package com.polytech.paqbackend.dto;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public class EntretienDecisionRequestDTO {
     private String typeFaute;
@@ -8,7 +9,9 @@ public class EntretienDecisionRequestDTO {
     private String synthese;
     private String decision;
     private String justification;
-    private String destinataireEmail;
+    private String destinataireEmail; // Gardé pour compatibilité
+    private List<String> destinatairesEmails; // Liste d'emails pour SL
+    private String messageOptionnel; // Message optionnel
 
     // GETTERS & SETTERS
     public String getTypeFaute() { return typeFaute; }
@@ -28,4 +31,10 @@ public class EntretienDecisionRequestDTO {
 
     public String getJustification() { return justification; }
     public void setJustification(String justification) { this.justification = justification; }
+
+    public List<String> getDestinatairesEmails() { return destinatairesEmails; }
+    public void setDestinatairesEmails(List<String> destinatairesEmails) { this.destinatairesEmails = destinatairesEmails; }
+
+    public String getMessageOptionnel() { return messageOptionnel; }
+    public void setMessageOptionnel(String messageOptionnel) { this.messageOptionnel = messageOptionnel; }
 }

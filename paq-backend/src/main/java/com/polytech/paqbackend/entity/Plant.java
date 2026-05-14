@@ -2,6 +2,8 @@ package com.polytech.paqbackend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -20,6 +22,9 @@ public class Plant {
     private Site site;
 
 
+    @OneToMany(mappedBy = "plant", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnore
+    private List<Segment> segments = new ArrayList<>();
 
     public Plant() {}
 
@@ -36,4 +41,12 @@ public class Plant {
     public void setId(Long id) { this.id = id; }
     public void setName(String name) { this.name = name; }
     public void setSite(Site site) { this.site = site; }
+
+    public List<Segment> getSegments() {
+        return segments;
+    }
+
+    public void setSegments(List<Segment> segments) {
+        this.segments = segments;
+    }
 }

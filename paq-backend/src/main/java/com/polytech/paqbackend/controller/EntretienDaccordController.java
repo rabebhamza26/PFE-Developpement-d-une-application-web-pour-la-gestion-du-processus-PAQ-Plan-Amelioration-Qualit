@@ -11,14 +11,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Entretien d'Accord (niveau 2)
- *
- * Règles métier :
- *  - SL : Créer / Modifier / Supprimer / Valider
- *  - QM_SEGMENT : Valider
- *  - Tous : Consulter
- */
 @RestController
 @RequestMapping("/api/entretiens-daccord")
 public class EntretienDaccordController {
@@ -30,71 +22,41 @@ public class EntretienDaccordController {
     }
 
     @PostMapping("/{matricule}")
-    @PreAuthorize("hasAuthority('accord:create')")
-    public ResponseEntity<?> create(
-            @PathVariable String matricule,
-            @RequestBody EntretienDaccordRequestDTO dto,
-            Authentication authentication) {
-
-        String expediteurEmail = authentication.getName();
-        EntretienDaccord saved = service.createAvecNotification(matricule, dto, expediteurEmail);
-        return ResponseEntity.ok(saved);
+    @PreAuthorize("hasRole('SL')")
+    public ResponseEntity<?> create(@PathVariable String matricule, @RequestBody EntretienDaccordRequestDTO dto, Authentication authentication) {
+        return ResponseEntity.ok(service.createAvecNotification(matricule, dto, authentication.getName()));
     }
 
     @PutMapping("/{matricule}/{id}")
-    @PreAuthorize("hasAuthority('accord:update')")
-    public ResponseEntity<EntretienDaccord> update(
-            @PathVariable String matricule,
-            @PathVariable Long id,
-            @RequestBody EntretienDaccordRequestDTO dto,
-            Authentication authentication) {
+    @PreAuthorize("hasRole('SL')")
+    public ResponseEntity<EntretienDaccord> update(@PathVariable String matricule, @PathVariable Long id, @RequestBody EntretienDaccordRequestDTO dto, Authentication authentication) {
+        return ResponseEntity.ok(service.updateAvecNotification(id, matricule, dto, authentication.getName()));
+    }
 
-        String expediteurEmail = authentication.getName();
-        EntretienDaccord updated = service.updateAvecNotification(id, matricule, dto, expediteurEmail);
-        return ResponseEntity.ok(updated);
+    // ✅ SL soumet pour validation (envoi email au QM_SEGMENT)
+    @PostMapping("/{matricule}/{id}/valider-premiere")
+    @PreAuthorize("hasRole('SL')")
+    public ResponseEntity<?> validerPremiere(@PathVariable String matricule, @PathVariable Long id, @RequestBody EntretienDaccordRequestDTO dto, Authentication authentication) {
+        return ResponseEntity.ok(service.validerPremiere(id, matricule, dto, authentication.getName()));
+    }
+
+    // ✅ QM_SEGMENT valide finalement (PAS d'email)
+    @PostMapping("/{matricule}/{id}/valider")
+    @PreAuthorize("hasRole('QM_SEGMENT')")
+    public ResponseEntity<?> valider(@PathVariable String matricule, @PathVariable Long id, @RequestBody EntretienDaccordRequestDTO dto, Authentication authentication) {
+        return ResponseEntity.ok(service.validerFinale(id, matricule, dto, authentication.getName()));
     }
 
     @DeleteMapping("/{matricule}/{id}")
-    @PreAuthorize("hasAuthority('accord:delete')")
-    public ResponseEntity<Void> delete(
-            @PathVariable String matricule,
-            @PathVariable Long id,
-            @RequestBody(required = false) Map<String, String> body,
-            Authentication authentication) {
-
-        String expediteurEmail   = authentication.getName();
-        String destinataireEmail = body != null ? body.get("destinataireEmail") : null;
-        String nomCollab         = body != null ? body.get("nomCollab") : matricule;
-
-        service.deleteAvecNotification(id, matricule, expediteurEmail, destinataireEmail, nomCollab);
+    @PreAuthorize("hasRole('SL')")
+    public ResponseEntity<Void> delete(@PathVariable String matricule, @PathVariable Long id, @RequestBody(required = false) Map<String, String> body, Authentication authentication) {
+        service.deleteAvecNotification(id, matricule, authentication.getName(), body != null ? body.get("destinataireEmail") : null, matricule);
         return ResponseEntity.noContent().build();
     }
 
-    /** Valider — accessible à SL (accord:validate) et QM_SEGMENT (accord:validate) */
-    @PostMapping("/{matricule}/{id}/valider")
-    @PreAuthorize("hasAuthority('accord:validate')")
-    public ResponseEntity<?> valider(
-            @PathVariable String matricule,
-            @PathVariable Long id,
-            @RequestBody EntretienDaccordRequestDTO dto,
-            Authentication authentication) {
-
-        String expediteurEmail = authentication.getName();
-        // La validation est traitée comme une mise à jour avec flag "validé"
-        dto.setValidationMesures("Oui");
-        EntretienDaccord updated = service.updateAvecNotification(id, matricule, dto, expediteurEmail);
-        return ResponseEntity.ok(updated);
-    }
-
     @GetMapping("/matricule/{matricule}")
-    @PreAuthorize("hasAuthority('accord:read')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<EntretienDaccord>> getByMatricule(@PathVariable String matricule) {
         return ResponseEntity.ok(service.findByMatricule(matricule));
-    }
-
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('accord:read')")
-    public ResponseEntity<EntretienDaccord> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(service.findById(id));
     }
 }

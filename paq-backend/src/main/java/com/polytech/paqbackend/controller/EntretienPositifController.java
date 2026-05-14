@@ -6,10 +6,7 @@ import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.Cell;
 import com.itextpdf.layout.element.Paragraph;
 import com.polytech.paqbackend.dto.CollaborateurSansFauteDto;
-import com.polytech.paqbackend.dto.EnvoyerSlRequest;
 import com.polytech.paqbackend.dto.ValiderEntretienPositifRequest;
-import com.polytech.paqbackend.entity.User;
-import com.polytech.paqbackend.repository.UserRepository;
 import com.polytech.paqbackend.service.EntretienPositifService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -21,7 +18,7 @@ import com.itextpdf.kernel.colors.ColorConstants;
 
 import java.io.ByteArrayOutputStream;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.UnitValue;
@@ -32,9 +29,6 @@ public class EntretienPositifController {
 
     @Autowired
     private EntretienPositifService entretienPositifService;
-
-    @Autowired
-    private UserRepository userRepository;
 
     /**
      * Récupérer la liste des collaborateurs sans faute
@@ -47,16 +41,6 @@ public class EntretienPositifController {
     }
 
     /**
-     * Envoyer la liste des collaborateurs sans faute au SL
-     * Accessible uniquement par SL
-     */
-    @PostMapping("/envoyer-sl")
-    @PreAuthorize("hasRole('SL')")
-    public ResponseEntity<?> envoyerListeSl(@RequestBody EnvoyerSlRequest request) {
-        return ResponseEntity.ok(entretienPositifService.envoyerListeSl(request));
-    }
-
-    /**
      * Archiver/valider l'entretien positif
      * Accessible uniquement par SL
      */
@@ -64,33 +48,6 @@ public class EntretienPositifController {
     @PreAuthorize("hasRole('SL')")
     public ResponseEntity<?> validerEntretienPositif(@RequestBody ValiderEntretienPositifRequest request) {
         return ResponseEntity.ok(entretienPositifService.archiverPaq(request));
-    }
-
-    /**
-     * Récupérer les emails publics
-     * Accessible uniquement par SL
-     */
-    @GetMapping("/public/emails")
-    @PreAuthorize("hasRole('SL')")
-    public ResponseEntity<List<String>> getPublicEmails() {
-        try {
-            List<String> emails = userRepository.findAll().stream()
-                    .filter(user -> user.getEmail() != null && !user.getEmail().isEmpty())
-                    .map(User::getEmail)
-                    .distinct()
-                    .collect(Collectors.toList());
-
-            System.out.println("=== EMAILS RECUPERES ===");
-            System.out.println("Nombre d'emails trouvés: " + emails.size());
-            emails.forEach(email -> System.out.println(" - " + email));
-
-            return ResponseEntity.ok(emails);
-
-        } catch (Exception e) {
-            System.err.println("Erreur lors de la récupération des emails: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
-        }
     }
 
     /**
@@ -108,32 +65,18 @@ public class EntretienPositifController {
             PdfDocument pdf = new PdfDocument(writer);
             Document document = new Document(pdf);
 
-            document.add(new Paragraph("Liste des collaborateurs sans faute")
-                    .setBold()
-                    .setFontSize(16));
+            document.add(new Paragraph("🎉 FÉLICITATIONS - COLLABORATEURS À FÉLICITER 🎉")
+                    .setBold().setFontSize(16).setFontColor(ColorConstants.GREEN));
+            document.add(new Paragraph("Généré le : " + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+                    .setFontSize(10));
 
             Table table = new Table(new float[]{3, 3, 3, 2});
             table.setWidth(UnitValue.createPercentValue(100));
 
-            table.addHeaderCell(new Cell()
-                    .add(new Paragraph("Nom"))
-                    .setBold()
-                    .setBackgroundColor(ColorConstants.LIGHT_GRAY));
-
-            table.addHeaderCell(new Cell()
-                    .add(new Paragraph("Prénom"))
-                    .setBold()
-                    .setBackgroundColor(ColorConstants.LIGHT_GRAY));
-
-            table.addHeaderCell(new Cell()
-                    .add(new Paragraph("Matricule"))
-                    .setBold()
-                    .setBackgroundColor(ColorConstants.LIGHT_GRAY));
-
-            table.addHeaderCell(new Cell()
-                    .add(new Paragraph("Jours sans faute"))
-                    .setBold()
-                    .setBackgroundColor(ColorConstants.LIGHT_GRAY));
+            table.addHeaderCell(new Cell().add(new Paragraph("Nom")).setBold().setBackgroundColor(ColorConstants.GREEN));
+            table.addHeaderCell(new Cell().add(new Paragraph("Prénom")).setBold().setBackgroundColor(ColorConstants.GREEN));
+            table.addHeaderCell(new Cell().add(new Paragraph("Matricule")).setBold().setBackgroundColor(ColorConstants.GREEN));
+            table.addHeaderCell(new Cell().add(new Paragraph("Jours sans faute")).setBold().setBackgroundColor(ColorConstants.GREEN));
 
             for (CollaborateurSansFauteDto c : list) {
                 table.addCell(new Cell().add(new Paragraph(c.getNom() != null ? c.getNom() : "")));
@@ -146,13 +89,32 @@ public class EntretienPositifController {
             document.close();
 
             return ResponseEntity.ok()
-                    .header("Content-Disposition", "attachment; filename=collaborateurs.pdf")
+                    .header("Content-Disposition", "attachment; filename=collaborateurs_a_feliciter.pdf")
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(out.toByteArray());
 
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    // Ajoutez cet endpoint dans EntretienPositifController.java
+
+    @PostMapping("/test-envoi-auto")
+    @PreAuthorize("hasRole('SL')")
+    public ResponseEntity<?> testEnvoiAutomatique() {
+        try {
+            // Appel manuel de la méthode d'envoi automatique
+            entretienPositifService.envoyerAutomatiquementAuxSL();
+            return ResponseEntity.ok(Map.of(
+                    "message", "Test d'envoi automatique déclenché avec succès",
+                    "status", "SUCCESS"
+            ));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Erreur: " + e.getMessage()));
         }
     }
 }

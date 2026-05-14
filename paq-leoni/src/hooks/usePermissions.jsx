@@ -8,59 +8,74 @@ export function usePermissions() {
 
   const has = (perm) => permissions.includes(perm);
 
+  // Vérification des rôles
+  const isSL = role === "SL";
+  const isSGL = role === "SGL";
+  const isQMSegment = role === "QM_SEGMENT";
+  const isQMPlant = role === "QM_PLANT";
+  const isHP = role === "HP";
+  const isRH = role === "RH";
+  const isAdmin = role === "ADMIN";
+
+  // ⚠️ Pour l'entretien explicatif, SEULS SL et SGL ont accès
+  // ADMIN n'a PAS accès aux entretiens explicatifs
+  const canCreateExplicatif = (isSL || isSGL) && has("explicatif:create");
+  const canUpdateExplicatif = (isSL || isSGL) && has("explicatif:update");
+  const canDeleteExplicatif = (isSL || isSGL) && has("explicatif:delete");
+  const canValidateExplicatif = (isSL || isSGL) && has("explicatif:validate");
+  const canReadExplicatif = (isSL || isSGL) && has("explicatif:read");
+
   return {
     // Rôles
-    isSL:         role === "SL",
-    isSGL:        role === "SGL",
-    isQMSegment:  role === "QM_SEGMENT",
-    isQMPlant:    role === "QM_PLANT",
-    isHP:         role === "HP",
-    isRH:         role === "RH",
-    isAdmin:      role === "ADMIN",
+    isSL,
+    isSGL,
+    isQMSegment,
+    isQMPlant,
+    isHP,
+    isRH,
+    isAdmin,
 
-    // Entretien Explicatif
-    canCreateExplicatif:   has("explicatif:create"),   // SL, SGL
-    canUpdateExplicatif:   has("explicatif:update"),   // SL, SGL
-    canDeleteExplicatif:   has("explicatif:delete"),   // SL, SGL
-    canValidateExplicatif: has("explicatif:validate"),  // SL, SGL
-    canReadExplicatif:     has("explicatif:read"),
+    // ========== ENTRETIEN EXPLICATIF (Niveau 1) ==========
+    // ⚠️ Seuls SL et SGL (PAS ADMIN)
+    canCreateExplicatif,
+    canUpdateExplicatif,
+    canDeleteExplicatif,
+    canValidateExplicatif,
+    canReadExplicatif,
 
-    // Entretien d'Accord
-    canCreateAccord:   has("accord:create"),    // SL
-    canUpdateAccord:   has("accord:update"),    // SL
-    canDeleteAccord:   has("accord:delete"),    // SL
-    canValidateAccord: has("accord:validate"),  // SL, QM_SEGMENT
-    canReadAccord:     has("accord:read"),
+    // ========== ENTRETIEN D'ACCORD (Niveau 2) ==========
+    canCreateAccord: (isSL ) && has("accord:create"),
+    canUpdateAccord: (isSL ) && has("accord:update"),
+    canDeleteAccord: (isSL ) && has("accord:delete"),
+    canValidateAccord: (isSL || isQMSegment ) && has("accord:validate"),
+    canReadAccord: has("accord:read"),
 
-    // Entretien de Mesure
-    canCreateMesure:    has("mesure:create"),    // SL
-    canUpdateMesure:    has("mesure:update"),    // SGL
-    canDeleteMesure:    has("mesure:delete"),    // SGL
-    canValidate1Mesure: has("mesure:validate1"), // QM_SEGMENT
-    canValidate2Mesure: has("mesure:validate2"), // SGL
-    canReadMesure:      has("mesure:read"),
+    // ========== ENTRETIEN DE MESURE (Niveau 3) ==========
+    canCreateMesure: (isSL ) && has("mesure:create"),
+    canUpdateMesure: (isSGL ) && has("mesure:update"),
+    canDeleteMesure: (isSGL  ) && has("mesure:delete"),
+    canValidate1Mesure: (isQMSegment ) && has("mesure:validate1"),
+    canValidate2Mesure: (isSGL ) && has("mesure:validate2"),
+    canReadMesure: has("mesure:read"),
 
-    // Entretien de Décision
-    canCreateDecision:    has("decision:create"),    // SL
-    canUpdateDecision:    has("decision:update"),    // SL
-    canDeleteDecision:    has("decision:delete"),
-    canValidate1Decision: has("decision:validate1"), // HP, SGL
-    canValidate2Decision: has("decision:validate2"), // QM_PLANT
-    canReadDecision:      has("decision:read"),
+    // ========== ENTRETIEN DE DÉCISION (Niveau 4) ==========
+    canCreateDecision: (isSL ) && has("decision:create"),
+    canUpdateDecision: (isSL  ) && has("decision:update"),
+    canDeleteDecision: (isSL  ) && has("decision:delete"),
+    canValidate1Decision: (isHP || isSGL ) && has("decision:validate1"),
+    canValidate2Decision: (isQMPlant ) && has("decision:validate2"),
+    canReadDecision: has("decision:read"),
 
-    // Entretien Final
-    canCreateFinal:   has("final:create"),    // RH
-    canUpdateFinal:   has("final:update"),    // RH
-    canDeleteFinal:   has("final:delete"),    // RH
-    canValidateFinal: has("final:validate"),  // RH
-    canReadFinal:     has("final:read"),
+    // ========== ENTRETIEN FINAL (Niveau 5) ==========
+    canCreateFinal: (isRH ) && has("final:create"),
+    canUpdateFinal: (isRH ) && has("final:update"),
+    canDeleteFinal: (isRH ) && has("final:delete"),
+    canValidateFinal: (isRH ) && has("final:validate"),
+    canReadFinal: has("final:read"),
 
-    // Défaut grave
-    canNotifyDefautGrave: has("defaut:grave:notify"), // SL, SGL
-
-    // Positif
-    canSendPositif:    has("positif:send"),    // SL
-    canArchivePositif: has("positif:archive"), // SL
-    canReadPositif:    has("positif:read"),
+    // ========== ENTRETIEN POSITIF ==========
+    canSendPositif: (isSL ) && has("positif:send"),
+    canArchivePositif: (isSL ) && has("positif:archive"),
+    canReadPositif: has("positif:read"),
   };
 }

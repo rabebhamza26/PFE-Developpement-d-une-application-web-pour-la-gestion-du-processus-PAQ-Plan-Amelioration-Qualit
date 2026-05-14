@@ -2,10 +2,12 @@
 import React, { useState } from "react";
 import API from "../services/api";
 import { showErrorAlert, showSuccessAlert } from "../utils/entretienAlerts";
+import { useI18n } from "../context/I18nContext";
 
 import "../styles/forgot-password-modal.css";
 
 export default function ForgotPasswordModal({ isOpen, onClose }) {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [login, setLogin] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,8 +27,8 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
       });
 
       if (response.data.success) {
-        setMessage(response.data.message);
-        await showSuccessAlert("Demande envoyee", response.data.message || "Votre demande a bien ete envoyee.");
+        setMessage(response.data.message || t("request_sent_detail"));
+        await showSuccessAlert(t("request_sent"), response.data.message || t("request_sent_detail"));
         setEmail("");
         setLogin("");
         setTimeout(() => {
@@ -34,14 +36,14 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
           setMessage(null);
         }, 1200);
       } else {
-        const message = response.data.message || "Une erreur est survenue";
+        const message = response.data.message || t("generic_error");
         setError(message);
-        await showErrorAlert("Envoi impossible", message);
+        await showErrorAlert(t("request_failed"), message);
       }
     } catch (err) {
-      const message = err.response?.data?.message || "Une erreur est survenue";
+      const message = err.response?.data?.message || t("generic_error");
       setError(message);
-      await showErrorAlert("Envoi impossible", message);
+      await showErrorAlert(t("request_failed"), message);
     } finally {
       setLoading(false);
     }
@@ -53,14 +55,13 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
     <div className="fpm-overlay" onClick={onClose}>
       <div className="fpm-modal" onClick={(e) => e.stopPropagation()}>
         <div className="fpm-header">
-          <h3>Mot de passe oublié</h3>
+          <h3>{t("forgot_password")}</h3>
           <button className="fpm-close" onClick={onClose}>×</button>
         </div>
 
         <div className="fpm-body">
           <p>
-            Entrez votre email ou votre login. L'administrateur recevra votre demande 
-            et vous enverra un nouveau mot de passe par email.
+            {t("forgot_password_description")}
           </p>
 
           {message && (
@@ -83,29 +84,29 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
 
           <form onSubmit={handleSubmit}>
             <div className="fpm-field">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">{t("email")}</label>
               <input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="votre@email.com"
+                placeholder={t("email_placeholder")}
                 disabled={loading}
               />
             </div>
 
             <div className="fpm-divider">
-              <span>ou</span>
+              <span>{t("or")}</span>
             </div>
 
             <div className="fpm-field">
-              <label htmlFor="login">Login</label>
+              <label htmlFor="login">{t("username")}</label>
               <input
                 id="login"
                 type="text"
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
-                placeholder="Votre login"
+                placeholder={t("username_placeholder")}
                 disabled={loading}
               />
             </div>
@@ -122,7 +123,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
                   <span className="fpm-dot"></span>
                 </span>
               ) : (
-                "Envoyer la demande"
+                t("send_request")
               )}
             </button>
           </form>
@@ -130,7 +131,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
 
         <div className="fpm-footer">
           <button type="button" onClick={onClose} className="fpm-cancel">
-            Annuler
+            {t("cancel")}
           </button>
         </div>
       </div>

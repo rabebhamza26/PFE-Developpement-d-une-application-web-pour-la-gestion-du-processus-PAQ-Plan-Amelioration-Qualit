@@ -323,4 +323,11 @@ public class EntretienFinalService {
             </html>
             """, nomCollab, matricule);
     }
+
+    public EntretienFinal findById(Long id) {
+        return entretienFinalRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
+    }
+
+
 }

@@ -1,10 +1,23 @@
-// EditUser.jsx - Version corrigée (sans l'avertissement selected)
+// EditUser.jsx - Version avec cascade Site → Plant → Segment
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { userService, siteService, plantService, getSegments } from "../../services/api";
+import { useI18n } from "../../context/I18nContext";
 
 export default function EditUser() {
+  const { t } = useI18n();
   const { id } = useParams();
+
+  const roles = [
+    { value: "ADMIN", label: t("admin") },
+    { value: "SL", label: t("sl") },
+    { value: "QM_SEGMENT", label: t("qm_segment") },
+    { value: "QM_PLANT", label: t("qm_plant") },
+    { value: "SGL", label: t("sgl") },
+    { value: "HP", label: t("hp") },
+    { value: "RH", label: t("rh") }
+  ];
+
   const [form, setForm] = useState({
     nomUtilisateur: "",
     login: "",
@@ -18,8 +31,9 @@ export default function EditUser() {
   });
   const [sites, setSites] = useState([]);
   const [allPlants, setAllPlants] = useState([]);
-  const [segments, setSegments] = useState([]);
+  const [allSegments, setAllSegments] = useState([]);
   const [filteredPlants, setFilteredPlants] = useState([]);
+  const [filteredSegments, setFilteredSegments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -28,6 +42,18 @@ export default function EditUser() {
   useEffect(() => {
     loadData();
   }, [id]);
+
+  // Met à jour les segments quand les plants sélectionnés changent
+  useEffect(() => {
+    if (form.plantIds && form.plantIds.length > 0) {
+      const segmentsForPlants = allSegments.filter(segment => 
+        form.plantIds.includes(segment.plantId)
+      );
+      setFilteredSegments(segmentsForPlants);
+    } else {
+      setFilteredSegments([]);
+    }
+  }, [form.plantIds, allSegments]);
 
   const loadData = async () => {
     try {
@@ -42,7 +68,8 @@ export default function EditUser() {
       setSites(sitesRes.data || []);
       const plantsData = plantsRes.data || [];
       setAllPlants(plantsData);
-      setSegments(segmentsRes.data || []);
+      const segmentsData = segmentsRes.data || [];
+      setAllSegments(segmentsData);
       
       const user = userRes.data;
       setForm({
@@ -62,8 +89,16 @@ export default function EditUser() {
         const filtered = plantsData.filter(plant => user.siteIds.includes(plant.siteId));
         setFilteredPlants(filtered);
       }
+      
+      // Filter segments based on selected plants
+      if (user.plantIds && user.plantIds.length > 0) {
+        const segmentsForPlants = segmentsData.filter(segment => 
+          user.plantIds.includes(segment.plantId)
+        );
+        setFilteredSegments(segmentsForPlants);
+      }
     } catch (err) {
-      setError("Erreur lors du chargement: " + (err.response?.data?.message || err.message));
+      setError(t("error_loading_data") + ": " + (err.response?.data?.message || err.message));
       console.error("Erreur chargement:", err);
     } finally {
       setLoading(false);
@@ -84,7 +119,8 @@ export default function EditUser() {
     setForm({
       ...form,
       siteIds: siteIds,
-      plantIds: [] // Reset plants when sites change
+      plantIds: [], // Reset plants when sites change
+      segmentIds: [] // Reset segments when sites change
     });
     
     if (siteIds.length > 0) {
@@ -93,6 +129,7 @@ export default function EditUser() {
     } else {
       setFilteredPlants([]);
     }
+    setFilteredSegments([]);
   };
 
   const handlePlantChange = (e) => {
@@ -100,8 +137,18 @@ export default function EditUser() {
     const plantIds = selectedOptions.map(opt => parseInt(opt.value));
     setForm({
       ...form,
-      plantIds: plantIds
+      plantIds: plantIds,
+      segmentIds: [] // Reset segments when plants change
     });
+    
+    if (plantIds.length > 0) {
+      const segmentsForPlants = allSegments.filter(segment => 
+        plantIds.includes(segment.plantId)
+      );
+      setFilteredSegments(segmentsForPlants);
+    } else {
+      setFilteredSegments([]);
+    }
   };
 
   const handleSegmentChange = (e) => {
@@ -114,50 +161,50 @@ export default function EditUser() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError("");
-  setSaving(true);
+    e.preventDefault();
+    setError("");
+    setSaving(true);
 
-  try {
-    const dataToSend = { 
-      nomUtilisateur: form.nomUtilisateur,
-      login: form.login,
-      email: form.email,
-      role: form.role,
-      active: form.active,
-      siteIds: form.siteIds,
-      plantIds: form.plantIds,
-      segmentIds: form.segmentIds
-    };
+    try {
+      const dataToSend = { 
+        nomUtilisateur: form.nomUtilisateur,
+        login: form.login,
+        email: form.email,
+        role: form.role,
+        active: form.active,
+        siteIds: form.siteIds,
+        plantIds: form.plantIds,
+        segmentIds: form.segmentIds
+      };
 
-    let updatedPassword = null;
+      let updatedPassword = null;
 
-    if (form.password && form.password.trim()) {
-      dataToSend.password = form.password;
-      updatedPassword = form.password;
+      if (form.password && form.password.trim()) {
+        dataToSend.password = form.password;
+        updatedPassword = form.password;
+      }
+
+      await userService.updateUser(id, dataToSend);
+
+      navigate("/admin/users", {
+        state: updatedPassword
+          ? { updatedPassword, userId: parseInt(id) }
+          : {}
+      });
+
+    } catch (err) {
+      setError(t("error_saving_data") + ": " + (err.response?.data?.message || err.message));
+    } finally {
+      setSaving(false);
     }
-
-    await userService.updateUser(id, dataToSend);
-
-    navigate("/admin/users", {
-      state: updatedPassword
-        ? { updatedPassword, userId: parseInt(id) }
-        : {}
-    });
-
-  } catch (err) {
-    setError("Erreur: " + (err.response?.data?.message || err.message));
-  } finally {
-    setSaving(false);
-  }
-};
+  };
 
   if (loading) {
     return (
       <div className="container-fluid mt-4">
         <div className="text-center py-4">
           <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Chargement...</span>
+            <span className="visually-hidden">{t("loading")}</span>
           </div>
         </div>
       </div>
@@ -172,7 +219,7 @@ export default function EditUser() {
             <div className="card-header bg-warning text-dark">
               <h4 className="card-title mb-0">
                 <i className="fas fa-user-edit me-2"></i>
-                Modifier l'utilisateur
+                {t("edit_user")}
               </h4>
             </div>
             <div className="card-body">
@@ -185,7 +232,7 @@ export default function EditUser() {
               <form onSubmit={handleSubmit}>
                 <div className="row">
                   <div className="col-md-6 mb-3">
-                    <label htmlFor="nomUtilisateur" className="form-label">Nom complet </label>
+                    <label htmlFor="nomUtilisateur" className="form-label">{t("full_name")}</label>
                     <input
                       type="text"
                       className="form-control"
@@ -198,7 +245,7 @@ export default function EditUser() {
                   </div>
 
                   <div className="col-md-6 mb-3">
-                    <label htmlFor="login" className="form-label">Login </label>
+                    <label htmlFor="login" className="form-label">{t("login")}</label>
                     <input
                       type="text"
                       className="form-control"
@@ -213,7 +260,7 @@ export default function EditUser() {
 
                 <div className="row">
                   <div className="col-md-6 mb-3">
-                    <label htmlFor="email" className="form-label">Email </label>
+                    <label htmlFor="email" className="form-label">{t("email")}</label>
                     <input
                       type="email"
                       className="form-control"
@@ -226,43 +273,39 @@ export default function EditUser() {
                   </div>
 
                   <div className="col-md-6 mb-3">
-                    <label htmlFor="password" className="form-label">Nouveau mot de passe</label>
+                    <label htmlFor="password" className="form-label">{t("password")}</label>
                     <input
                       type="password"
                       className="form-control"
                       id="password"
                       name="password"
-                      placeholder="Laissez vide pour conserver l'ancien"
+                      placeholder={t("leave_empty_to_keep")}
                       value={form.password}
                       onChange={handleChange}
                     />
                     <div className="form-text">
-                      Remplissez ce champ uniquement si vous souhaitez changer le mot de passe
+                      {t("leave_empty_to_keep")}
                     </div>
                   </div>
                 </div>
 
                 <div className="mb-3">
-                  <label htmlFor="role" className="form-label">Rôle </label>
-                  <select 
-                    name="role" 
-                    value={form.role} 
-                    onChange={handleChange} 
+                  <label htmlFor="role" className="form-label">{t("role")}</label>
+                  <select
+                    name="role"
+                    value={form.role}
+                    onChange={handleChange}
                     className="form-select"
                   >
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="SL">SL</option>
-                    <option value="QM_SEGMENT">QM Segment</option>
-                    <option value="QM_PLANT">QM Plant</option>
-                    <option value="SGL">SGL</option>
-                    <option value="HP">HP</option>
-                    <option value="RH">RH</option>
+                    {roles.map(role => (
+                      <option key={role.value} value={role.value}>{role.label}</option>
+                    ))}
                   </select>
                 </div>
 
                 <div className="mb-3">
                   <label className="form-label">
-                    <i className="fas fa-building me-2"></i>Sites 
+                    <i className="fas fa-building me-2"></i>{t("sites")}
                   </label>
                   <select 
                     multiple 
@@ -281,7 +324,7 @@ export default function EditUser() {
 
                 <div className="mb-3">
                   <label className="form-label">
-                    <i className="fas fa-industry me-2"></i>Plants 
+                    <i className="fas fa-industry me-2"></i>{t("plants")}
                   </label>
                   <select 
                     multiple 
@@ -291,43 +334,58 @@ export default function EditUser() {
                     value={form.plantIds.map(id => id.toString())}
                     style={{ minHeight: '120px' }}
                   >
-                    {filteredPlants.map(plant => (
-                      <option key={plant.id} value={plant.id}>
-                        {plant.name}
-                      </option>
-                    ))}
+                    {filteredPlants.length > 0 ? (
+                      filteredPlants.map(plant => (
+                        <option key={plant.id} value={plant.id}>
+                          {plant.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option disabled>{t("select_site_first")}</option>
+                    )}
                   </select>
                   {form.siteIds.length === 0 && (
-                    <small className="text-muted">Sélectionnez d'abord au moins un site</small>
+                    <small className="text-muted" style={{ color: "#f59e0b" }}>
+                    </small>
                   )}
                  
                 </div>
 
                 <div className="mb-4">
                   <label className="form-label">
-                    <i className="fas fa-tag me-2"></i>Segments 
+                    <i className="fas fa-tag me-2"></i>{t("segments")}
                   </label>
                   <select 
                     multiple 
                     className="form-select" 
                     onChange={handleSegmentChange}
+                    disabled={form.plantIds.length === 0}
                     value={form.segmentIds.map(id => id.toString())}
                     style={{ minHeight: '120px' }}
                   >
-                    {segments.map(segment => (
-                      <option key={segment.id} value={segment.id}>
-                        {segment.nomSegment}
-                      </option>
-                    ))}
+                    {filteredSegments.length > 0 ? (
+                      filteredSegments.map(segment => (
+                        <option key={segment.id} value={segment.id}>
+                          {segment.nomSegment}
+                        </option>
+                      ))
+                    ) : (
+                      <option disabled>{t("select_plant_first")}</option>
+                    )}
                   </select>
+                  {form.plantIds.length === 0 && form.siteIds.length > 0 && (
+                    <small className="text-muted" style={{ color: "#f59e0b" }}>
+                    </small>
+                  )}
+                
                 </div>
 
                 <div className="d-flex gap-2 justify-content-end">
                   <button type="button" className="btn btn-secondary" onClick={() => navigate("/admin/users")} disabled={saving}>
-                    Annuler
+                    {t("cancel")}
                   </button>
                   <button type="submit" className="btn btn-warning" disabled={saving}>
-                    {saving ? "Modification en cours..." : "Modifier l'utilisateur"}
+                    {saving ? t("saving") : t("edit_user")}
                   </button>
                 </div>
               </form>

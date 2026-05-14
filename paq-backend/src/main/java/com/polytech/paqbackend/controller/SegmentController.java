@@ -26,6 +26,8 @@ public class SegmentController {
         return ResponseEntity.ok(segments);
     }
 
+
+
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SegmentDTO> getSegmentById(@PathVariable Long id) {
@@ -50,5 +52,21 @@ public class SegmentController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         segmentService.deleteSegment(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/site/{siteId}/plant/{plantId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<SegmentDTO>> getSegmentsBySiteAndPlant(
+            @PathVariable Long siteId,
+            @PathVariable Long plantId) {
+        List<SegmentDTO> segments = segmentService.getSegmentsBySiteAndPlant(siteId, plantId);
+        return ResponseEntity.ok(segments);
+    }
+
+    @GetMapping("/plant/{plantId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<SegmentDTO>> getSegmentsByPlant(@PathVariable Long plantId) {
+        List<SegmentDTO> segments = segmentService.getSegmentsByPlant(plantId);
+        return ResponseEntity.ok(segments);
     }
 }

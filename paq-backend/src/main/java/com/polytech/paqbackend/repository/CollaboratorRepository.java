@@ -14,7 +14,6 @@ import java.util.Optional;
 @Repository
 public interface CollaboratorRepository extends JpaRepository<Collaborator, String> {
 
-
     boolean existsByMatricule(String matricule);
 
     long countByActifTrue();
@@ -24,15 +23,39 @@ public interface CollaboratorRepository extends JpaRepository<Collaborator, Stri
     @Query("SELECT c FROM Collaborator c WHERE c.actif = true AND c.depart = false")
     List<Collaborator> findAllActive();
 
-    // Add missing methods for PaqSchedulerService
     @Query("SELECT c FROM Collaborator c WHERE c.depart = false AND c.archived = false")
     List<Collaborator> findByDepartFalseAndArchivedFalse();
 
     @Query("SELECT c FROM Collaborator c WHERE c.depart = true AND c.archived = false")
     List<Collaborator> findByDepartTrueAndArchivedFalse();
 
+    // =========================================================
+    // NOUVELLES REQUÊTES : résolution segment ↔ plant/site
+    // =========================================================
+
     /**
-     * Récupère tous les collaborateurs avec leurs informations PAQ
+     * Retourne les noms de segments appartenant à un plant donné.
+     * Utilisé pour filtrer les collaborateurs quand le frontend
+     * envoie plantId en paramètre.
+     */
+    @Query("SELECT s.nomSegment FROM Segment s WHERE s.plant.id = :plantId")
+    List<String> findSegmentNamesByPlantId(@Param("plantId") Long plantId);
+
+    /**
+     * Retourne les noms de segments appartenant à un site donné
+     * (via plant → site).
+     * Utilisé pour filtrer les collaborateurs quand le frontend
+     * envoie siteId en paramètre.
+     */
+    @Query("SELECT s.nomSegment FROM Segment s WHERE s.plant.site.id = :siteId")
+    List<String> findSegmentNamesBySiteId(@Param("siteId") Long siteId);
+
+    // =========================================================
+    // REQUÊTES EXISTANTES
+    // =========================================================
+
+    /**
+     * Récupère tous les collaborateurs avec leurs informations PAQ (version avec paramètre)
      */
     @Query("""
         SELECT new com.polytech.paqbackend.dto.CollaborateurDTO(
@@ -61,10 +84,17 @@ public interface CollaboratorRepository extends JpaRepository<Collaborator, Stri
         WHERE c.archived = false AND c.depart = false
         ORDER BY c.matricule
     """)
-    List<CollaborateurDTO> getAllWithPaq(@Param("sixMonthsAgo") LocalDate sixMonthsAgo);
+    List<CollaborateurDTO> getAllWithPaqWithDate(@Param("sixMonthsAgo") LocalDate sixMonthsAgo);
 
     /**
-     * Récupère les collaborateurs sans faute (sans dossier PAQ ou avec niveau 0)
+     * Récupère tous les collaborateurs avec leurs informations PAQ (version sans paramètre)
+     */
+    default List<CollaborateurDTO> getAllWithPaq() {
+        return getAllWithPaqWithDate(LocalDate.now().minusMonths(6));
+    }
+
+    /**
+     * Récupère les collaborateurs sans faute
      */
     @Query("""
         SELECT new com.polytech.paqbackend.dto.CollaborateurDTO(
@@ -95,32 +125,18 @@ public interface CollaboratorRepository extends JpaRepository<Collaborator, Stri
           AND (p.id IS NULL OR p.niveau = 0)
         ORDER BY c.matricule
     """)
-    List<CollaborateurDTO> findSansFaute(@Param("sixMonthsAgo") LocalDate sixMonthsAgo);
+    List<CollaborateurDTO> findSansFauteWithDate(@Param("sixMonthsAgo") LocalDate sixMonthsAgo);
 
-    /**
-     * Méthode par défaut pour findSansFaute avec la date courante
-     */
     default List<CollaborateurDTO> findSansFaute() {
-        return findSansFaute(LocalDate.now().minusMonths(6));
+        return findSansFauteWithDate(LocalDate.now().minusMonths(6));
     }
 
-
-
-    /**
-     * Compte les collaborateurs par segment
-     */
     @Query("SELECT c.segment, COUNT(c) FROM Collaborator c WHERE c.archived = false AND c.depart = false GROUP BY c.segment")
     List<Object[]> countBySegment();
 
-    /**
-     * Récupère les collaborateurs par segment
-     */
     @Query("SELECT c FROM Collaborator c WHERE c.segment = :segment AND c.archived = false AND c.depart = false")
     List<Collaborator> findBySegment(@Param("segment") String segment);
 
-    /**
-     * Récupère les collaborateurs avec un niveau spécifique
-     */
     @Query("""
         SELECT c FROM Collaborator c 
         WHERE c.matricule IN (
@@ -131,20 +147,51 @@ public interface CollaboratorRepository extends JpaRepository<Collaborator, Stri
     """)
     List<Collaborator> findByPaqNiveau(@Param("niveau") int niveau);
 
-
-
-
-
-
-
-
-
-
-
-
+    // ========== MÉTHODES DE FILTRAGE PAR SEGMENT / SITE / PLANT ==========
 
     /**
-     * Récupère tous les collaborateurs avec leurs informations PAQ
+     * Récupère les collaborateurs filtrés par liste de segments.
+     * C'est la requête principale utilisée par /view avec filtre.
+     */
+    @Query("""
+        SELECT new com.polytech.paqbackend.dto.CollaborateurDTO(
+            c.matricule,
+            c.name,
+            c.prenom,
+            c.segment,
+            c.hireDate,
+            COALESCE(p.niveau, 0),
+            p.derniereFaute,
+            CASE 
+                WHEN p.id IS NULL THEN 'POSITIF'
+                WHEN p.statut = 'CLOTURE' THEN 'CLOTURE'
+                WHEN p.statut = 'CRITIQUE' THEN 'CRITIQUE'
+                ELSE CONCAT('NIVEAU ', p.niveau)
+            END,
+            CASE 
+                WHEN p.id IS NULL 
+                     AND c.hireDate <= :sixMonthsAgo 
+                THEN true
+                ELSE false
+            END
+        )
+        FROM Collaborator c
+        LEFT JOIN PaqDossier p ON c.matricule = p.collaboratorMatricule AND p.actif = true AND p.archived = false
+        WHERE c.archived = false 
+          AND c.depart = false
+          AND c.segment IN :segments
+        ORDER BY c.matricule
+    """)
+    List<CollaborateurDTO> getCollaboratorsBySegmentsWithDate(
+            @Param("segments") List<String> segments,
+            @Param("sixMonthsAgo") LocalDate sixMonthsAgo);
+
+    default List<CollaborateurDTO> getCollaboratorsBySegments(List<String> segments) {
+        return getCollaboratorsBySegmentsWithDate(segments, LocalDate.now().minusMonths(6));
+    }
+
+    /**
+     * Récupère les collaborateurs par segment unique.
      */
     @Query("""
         SELECT new com.polytech.paqbackend.dto.CollaborateurDTO(
@@ -166,7 +213,68 @@ public interface CollaboratorRepository extends JpaRepository<Collaborator, Stri
         FROM Collaborator c
         LEFT JOIN PaqDossier p ON c.matricule = p.collaboratorMatricule AND p.actif = true AND p.archived = false
         WHERE c.archived = false AND c.depart = false
+          AND (:segment IS NULL OR c.segment = :segment)
         ORDER BY c.matricule
     """)
-    List<CollaborateurDTO> getAllWithPaq();
+    List<CollaborateurDTO> getCollaboratorsBySegment(@Param("segment") String segment);
+
+    /**
+     * Récupère les collaborateurs par site (via segment → plant → site).
+     */
+    @Query("""
+        SELECT new com.polytech.paqbackend.dto.CollaborateurDTO(
+            c.matricule,
+            c.name,
+            c.prenom,
+            c.segment,
+            c.hireDate,
+            COALESCE(p.niveau, 0),
+            p.derniereFaute,
+            CASE 
+                WHEN p.id IS NULL THEN 'POSITIF'
+                WHEN p.statut = 'CLOTURE' THEN 'CLOTURE'
+                WHEN p.statut = 'CRITIQUE' THEN 'CRITIQUE'
+                ELSE CONCAT('NIVEAU ', p.niveau)
+            END,
+            p.id IS NOT NULL
+        )
+        FROM Collaborator c
+        LEFT JOIN PaqDossier p ON c.matricule = p.collaboratorMatricule AND p.actif = true AND p.archived = false
+        WHERE c.archived = false AND c.depart = false
+          AND c.segment IN (
+              SELECT s.nomSegment FROM Segment s WHERE s.plant.site.id IN :siteIds
+          )
+        ORDER BY c.matricule
+    """)
+    List<CollaborateurDTO> getCollaboratorsBySites(@Param("siteIds") List<Long> siteIds);
+
+    /**
+     * Récupère les collaborateurs par plant (via segment → plant).
+     */
+    @Query("""
+        SELECT new com.polytech.paqbackend.dto.CollaborateurDTO(
+            c.matricule,
+            c.name,
+            c.prenom,
+            c.segment,
+            c.hireDate,
+            COALESCE(p.niveau, 0),
+            p.derniereFaute,
+            CASE 
+                WHEN p.id IS NULL THEN 'POSITIF'
+                WHEN p.statut = 'CLOTURE' THEN 'CLOTURE'
+                WHEN p.statut = 'CRITIQUE' THEN 'CRITIQUE'
+                ELSE CONCAT('NIVEAU ', p.niveau)
+            END,
+            p.id IS NOT NULL
+        )
+        FROM Collaborator c
+        LEFT JOIN PaqDossier p ON c.matricule = p.collaboratorMatricule AND p.actif = true AND p.archived = false
+        WHERE c.archived = false AND c.depart = false
+          AND c.segment IN (
+              SELECT s.nomSegment FROM Segment s WHERE s.plant.id IN :plantIds
+          )
+        ORDER BY c.matricule
+    """)
+    List<CollaborateurDTO> getCollaboratorsByPlants(@Param("plantIds") List<Long> plantIds);
 }

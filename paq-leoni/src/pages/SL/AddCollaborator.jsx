@@ -2,11 +2,12 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { collaboratorService, getSegments } from "../../services/api";
 import "../../styles/collaborator.css";
+import { useSelection } from "../../context/SelectionContext";
 
 export default function AddCollaborator() {
     const [formData, setFormData] = useState({
         matricule: "",
-        name: "",      // Nom complet
+        name: "",      
         prenom: "",
         segment: "",
         hireDate: "",
@@ -15,8 +16,11 @@ export default function AddCollaborator() {
     const [success, setSuccess] = useState("");
     const [loading, setLoading] = useState(false);
     const [segments, setSegments] = useState([]);
+    const [allSegments, setAllSegments] = useState([]);
     const [segmentsLoading, setSegmentsLoading] = useState(true);
     const navigate = useNavigate();
+
+    const { selectedSite, selectedPlant } = useSelection(); 
 
     const getSegmentLabel = (segment) =>
         segment?.nomSegment ||
@@ -26,25 +30,55 @@ export default function AddCollaborator() {
         segment?.libelle ||
         String(segment ?? "");
 
+    const getSegmentId = (segment) =>
+        segment?.idSegment || segment?.id || segment?._id || getSegmentLabel(segment);
+
     useEffect(() => {
-        const loadSegments = async () => {
+        // Charger tous les segments une seule fois au montage
+        const loadAllSegments = async () => {
             try {
                 setSegmentsLoading(true);
                 const res = await getSegments();
                 const list = Array.isArray(res.data) ? res.data : [];
-                const sorted = [...list].sort((a, b) =>
-                    getSegmentLabel(a).localeCompare(getSegmentLabel(b), "fr", { sensitivity: "base" })
-                );
-                setSegments(sorted);
+                setAllSegments(list);
             } catch (err) {
                 console.error("Erreur chargement segments:", err);
-                setSegments([]);
+                setAllSegments([]);
             } finally {
                 setSegmentsLoading(false);
             }
         };
-        loadSegments();
+        
+        loadAllSegments();
     }, []);
+
+    // Filtrer les segments quand la séchange (site/plant) change
+    useEffect(() => {
+        if (allSegments.length === 0) return;
+        
+        let filteredSegments = [...allSegments];
+        
+        if (selectedPlant && selectedPlant.id) {
+            // Filtrer par plant
+            filteredSegments = allSegments.filter(seg => 
+                seg.plantId === selectedPlant.id || 
+                seg.plant?.id === selectedPlant.id ||
+                seg.plant_id === selectedPlant.id
+            );
+        } else if (selectedSite && selectedSite.id) {
+            // Filtrer par site
+            filteredSegments = allSegments.filter(seg => 
+                seg.siteId === selectedSite.id || 
+                seg.site?.id === selectedSite.id ||
+                seg.site_id === selectedSite.id
+            );
+        }
+        
+        const sorted = [...filteredSegments].sort((a, b) =>
+            getSegmentLabel(a).localeCompare(getSegmentLabel(b), "fr", { sensitivity: "base" })
+        );
+        setSegments(sorted);
+    }, [selectedSite, selectedPlant, allSegments]);
 
     /**
      * Gère les changements dans les champs du formulaire
@@ -96,11 +130,14 @@ export default function AddCollaborator() {
             setLoading(true);
             
             // Construction du payload pour l'API
+            const selectedSegmentObj = segments.find(seg => getSegmentLabel(seg) === formData.segment);
+            
             const payload = {
                 matricule: formData.matricule,
                 name: formData.name.trim(),
                 prenom: formData.prenom.trim(),
                 segment: formData.segment,
+                segmentId: selectedSegmentObj ? getSegmentId(selectedSegmentObj) : null,
                 hireDate: formData.hireDate,
             };
             
@@ -130,144 +167,166 @@ export default function AddCollaborator() {
                         <h2 className="collab-form-title">Ajouter un Collaborateur</h2>
                     </div>
                 </div>
-            <div className="form-container card shadow-sm border-0 collab-form-card">
-                <div className="card-body p-4 p-md-5">
+                <div className="form-container card shadow-sm border-0 collab-form-card">
+                    <div className="card-body p-4 p-md-5">
 
-                    {error && (
-                        <div className="alert alert-danger alert-dismissible fade show" role="alert">
-                            <i className="fas fa-exclamation-triangle me-2"></i>
-                            {error}
-                            <button type="button" className="btn-close" onClick={() => setError("")}></button>
-                        </div>
-                    )}
-                    
-                    {success && (
-                        <div className="alert alert-success alert-dismissible fade show" role="alert">
-                            <i className="fas fa-check-circle me-2"></i>
-                            {success}
-                            <button type="button" className="btn-close" onClick={() => setSuccess("")}></button>
-                        </div>
-                    )}
+                        {error && (
+                            <div className="alert alert-danger alert-dismissible fade show" role="alert">
+                                <i className="fas fa-exclamation-triangle me-2"></i>
+                                {error}
+                                <button type="button" className="btn-close" onClick={() => setError("")}></button>
+                            </div>
+                        )}
+                        
+                        {success && (
+                            <div className="alert alert-success alert-dismissible fade show" role="alert">
+                                <i className="fas fa-check-circle me-2"></i>
+                                {success}
+                                <button type="button" className="btn-close" onClick={() => setSuccess("")}></button>
+                            </div>
+                        )}
 
-                    <form onSubmit={handleSubmit} className="collab-form-grid">
-                        <div className="form-group mb-3 collab-field">
-                            <label htmlFor="matricule" className="form-label">
-                                Matricule <span className="text-danger">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="matricule"
-                                name="matricule"
-                                value={formData.matricule}
-                                onChange={handleChange}
-                                inputMode="numeric"
-                                pattern="\d{8}"
-                                maxLength={8}
-                                className="form-control"
-                                placeholder="Entrez 8 chiffres"
-                                required
-                            />
-                            <small className="text-muted">8 chiffres uniquement</small>
-                        </div>
+                       
 
-                        <div className="form-group mb-3 collab-field">
-                            <label htmlFor="name" className="form-label">
-                                Nom <span className="text-danger">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="name"
-                                name="name"
-                                value={formData.name}
-                                onChange={handleChange}
-                                className="form-control"
-                                placeholder="Nom du collaborateur"
-                                required
-                            />
-                        </div>
+                        <form onSubmit={handleSubmit} className="collab-form-grid">
+                            <div className="form-group mb-3 collab-field">
+                                <label htmlFor="matricule" className="form-label">
+                                    Matricule <span className="text-danger"></span>
+                                </label>
+                                <input
+                                    type="text"
+                                    id="matricule"
+                                    name="matricule"
+                                    value={formData.matricule}
+                                    onChange={handleChange}
+                                    inputMode="numeric"
+                                    pattern="\d{8}"
+                                    maxLength={8}
+                                    className="form-control"
+                                    placeholder="Entrez 8 chiffres"
+                                    required
+                                />
+                            </div>
 
-                        <div className="form-group mb-3 collab-field">
-                            <label htmlFor="prenom" className="form-label">
-                                Prénom <span className="text-danger">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                id="prenom"
-                                name="prenom"
-                                value={formData.prenom}
-                                onChange={handleChange}
-                                className="form-control"
-                                placeholder="Prénom du collaborateur"
-                                required
-                            />
-                        </div>
+                            <div className="form-group mb-3 collab-field">
+                                <label htmlFor="name" className="form-label">
+                                    Nom <span className="text-danger"></span>
+                                </label>
+                                <input
+                                    type="text"
+                                    id="name"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    className="form-control"
+                                    placeholder="Nom du collaborateur"
+                                    required
+                                />
+                            </div>
 
-                        <div className="form-group mb-3 collab-field">
-                            <label htmlFor="segment" className="form-label">
-                                Segment <span className="text-danger">*</span>
-                            </label>
-                            <select
-                                id="segment"
-                                name="segment"
-                                value={formData.segment}
-                                onChange={handleChange}
-                                className="form-select"
-                                required
-                            >
-                                <option value="">
-                                    {segmentsLoading ? "Chargement..." : "Sélectionner un segment"}
-                                </option>
-                                {segments.map((segment) => {
-                                    const label = getSegmentLabel(segment);
-                                    const key = segment?.idSegment ?? segment?.id ?? label;
-                                    return (
-                                        <option key={key} value={label}>
-                                            {label}
-                                        </option>
-                                    );
-                                })}
-                            </select>
-                        </div>
+                            <div className="form-group mb-3 collab-field">
+                                <label htmlFor="prenom" className="form-label">
+                                    Prénom <span className="text-danger"></span>
+                                </label>
+                                <input
+                                    type="text"
+                                    id="prenom"
+                                    name="prenom"
+                                    value={formData.prenom}
+                                    onChange={handleChange}
+                                    className="form-control"
+                                    placeholder="Prénom du collaborateur"
+                                    required
+                                />
+                            </div>
 
-                        <div className="form-group mb-4 collab-field collab-field-full">
-                            <label htmlFor="hireDate" className="form-label">
-                                Date d'embauche <span className="text-danger">*</span>
-                            </label>
-                            <input
-                                type="date"
-                                id="hireDate"
-                                name="hireDate"
-                                value={formData.hireDate}
-                                onChange={handleChange}
-                                className="form-control"
-                                required
-                            />
-                        </div>
+                            <div className="form-group mb-3 collab-field">
+                                <label htmlFor="segment" className="form-label">
+                                    Segment <span className="text-danger"></span>
+                                </label>
+                                <select
+                                    id="segment"
+                                    name="segment"
+                                    value={formData.segment}
+                                    onChange={handleChange}
+                                    className="form-select"
+                                    required
+                                    disabled={segmentsLoading}
+                                >
+                                    <option value="">
+                                        {segmentsLoading ? "Chargement..." : 
+                                         (segments.length === 0 && !segmentsLoading ? "Aucun segment disponible" : "Sélectionner un segment")}
+                                    </option>
+                                    {segments.map((segment) => {
+                                        const label = getSegmentLabel(segment);
+                                        const key = getSegmentId(segment);
+                                        return (
+                                            <option key={key} value={label}>
+                                                {label}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                                {selectedSite && !selectedPlant && segments.length === 0 && !segmentsLoading && (
+                                    <small className="text-warning d-block mt-1">
+                                        <i className="fas fa-exclamation-triangle me-1"></i>
+                                        Aucun segment trouvé pour ce site
+                                    </small>
+                                )}
+                                {selectedPlant && segments.length === 0 && !segmentsLoading && (
+                                    <small className="text-warning d-block mt-1">
+                                        <i className="fas fa-exclamation-triangle me-1"></i>
+                                        Aucun segment trouvé pour ce plant
+                                    </small>
+                                )}
+                               
+                            </div>
 
-                        <div className="form-buttons d-flex flex-column flex-sm-row gap-2 collab-form-actions collab-field-full">
-                            <button 
-                                type="submit" 
-                                disabled={loading} 
-                                className="btn btn-primary"
-                            >
-                                {loading ? (
-                                    <>
-                                        <span className="spinner-border spinner-border-sm me-2"></span>
-                                        Enregistrement...
-                                    </>
-                                ) : "Ajouter"}
-                            </button>
-                            <button 
-                                type="button" 
-                                onClick={() => navigate("/collaborateurs")} 
-                                className="btn btn-outline-secondary"
-                            >
-                                Annuler
-                            </button>
-                        </div>
-                    </form>
+                            <div className="form-group mb-4 collab-field collab-field-full">
+                                <label htmlFor="hireDate" className="form-label">
+                                    Date d'embauche <span className="text-danger"></span>
+                                </label>
+                                <input
+                                    type="date"
+                                    id="hireDate"
+                                    name="hireDate"
+                                    value={formData.hireDate}
+                                    onChange={handleChange}
+                                    className="form-control"
+                                    required
+                                />
+                            </div>
+
+                            <div className="form-buttons d-flex flex-column flex-sm-row gap-2 collab-form-actions collab-field-full">
+                                <button 
+                                    type="submit" 
+                                    disabled={loading} 
+                                    className="btn btn-primary"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <span className="spinner-border spinner-border-sm me-2"></span>
+                                            Enregistrement...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="fas fa-save me-2"></i>
+                                            Ajouter
+                                        </>
+                                    )}
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => navigate("/collaborateurs")} 
+                                    className="btn btn-outline-secondary"
+                                >
+                                    <i className="fas fa-times me-2"></i>
+                                    Annuler
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            </div>
             </div>
         </div>
     );

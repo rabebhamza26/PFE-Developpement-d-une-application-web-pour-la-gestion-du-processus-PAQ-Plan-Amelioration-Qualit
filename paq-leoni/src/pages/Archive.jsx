@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { archiveService } from "../services/api";
+import { useI18n } from "../context/I18nContext";
 import "../styles/archive.css";
 
 // ─── Mapping type → label / couleur badge ────────────────────────────────────
@@ -52,6 +53,7 @@ const formatDate = (dateStr) => {
 
 // ─── Modal de consultation d'une archive ─────────────────────────────────────
 function ArchiveDetailModal({ archive, onClose }) {
+  const { t } = useI18n();
   if (!archive) return null;
 
   const type = normalizeType(archive.type);
@@ -75,9 +77,9 @@ function ArchiveDetailModal({ archive, onClose }) {
         {/* En-tête */}
         <div className="arch-modal-header">
           <div>
-            <h2 className="arch-modal-title">Dossier Archivé</h2>
+            <h2 className="arch-modal-title">{t("archived_file")}</h2>
             <p className="arch-modal-subtitle">
-              Archivé le {formatDate(archive.dateArchivage)}
+              {t("archived_on", { date: formatDate(archive.dateArchivage) })}
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -95,7 +97,7 @@ function ArchiveDetailModal({ archive, onClose }) {
           {/* Section collaborateur */}
           <div className="arch-modal-section">
             <div className="arch-modal-section-title">
-              Informations Collaborateur
+              {t("collaborator_information")}
             </div>
             <div className="arch-info-grid">
               <div className="arch-info-item">
@@ -107,16 +109,16 @@ function ArchiveDetailModal({ archive, onClose }) {
                 <span>{archive.nomPrenom || "–"}</span>
               </div>
               <div className="arch-info-item">
-                <label>Type d'entretien</label>
+                <label>{t("type_of_meeting")}</label>
                 <span>{typeLabel}</span>
               </div>
               <div className="arch-info-item">
-                <label>Date d'archivage</label>
+                <label>{t("archiving_date")}</label>
                 <span>{formatDate(archive.dateArchivage)}</span>
               </div>
               {archive.niveau !== null && archive.niveau !== undefined && (
                 <div className="arch-info-item">
-                  <label>Niveau atteint</label>
+                  <label>{t("level_reached")}</label>
                   <span>
                     <div className="niveau-pills-modal">
                       {[1, 2, 3, 4, 5].map((n) => (
@@ -135,19 +137,19 @@ function ArchiveDetailModal({ archive, onClose }) {
               )}
               {archive.statut && (
                 <div className="arch-info-item">
-                  <label>Statut final</label>
+                  <label>{t("final_status")}</label>
                   <span className="statut-badge">{archive.statut}</span>
                 </div>
               )}
               {archive.dateCreation && (
                 <div className="arch-info-item">
-                  <label>Début PAQ</label>
+                  <label>{t("paq_start")}</label>
                   <span>{formatDate(archive.dateCreation)}</span>
                 </div>
               )}
               {archive.dateFin && (
                 <div className="arch-info-item">
-                  <label>Fin PAQ</label>
+                  <label>{t("paq_end")}</label>
                   <span>{formatDate(archive.dateFin)}</span>
                 </div>
               )}
@@ -158,7 +160,7 @@ function ArchiveDetailModal({ archive, onClose }) {
           {historiqueEvents.length > 0 ? (
             <div className="arch-modal-section">
               <div className="arch-modal-section-title">
-                Historique des Événements ({historiqueEvents.length})
+                {t("event_history", { count: historiqueEvents.length })}
               </div>
               <div className="arch-historique-list">
                 {historiqueEvents.map((evt, idx) => (
@@ -184,10 +186,10 @@ function ArchiveDetailModal({ archive, onClose }) {
           ) : (
             <div className="arch-modal-section">
               <div className="arch-modal-section-title">
-                Historique des Événements
+                {t("event_history")}
               </div>
               <p style={{ color: "#94a3b8", fontSize: "13px" }}>
-                Aucun événement enregistré.
+                {t("no_events_recorded")}
               </p>
             </div>
           )}

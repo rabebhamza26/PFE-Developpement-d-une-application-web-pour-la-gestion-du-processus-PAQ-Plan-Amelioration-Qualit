@@ -16,12 +16,10 @@ public class Site {
 
     private String name;
 
-    // Relation OneToMany vers Plant (garder celle-ci)
     @OneToMany(mappedBy = "site", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Plant> plants;
 
-    // Nouvelle relation ManyToMany (côté inverse)
     @ManyToMany(mappedBy = "sites", fetch = FetchType.LAZY)
     @JsonIgnore
     private Set<User> users;

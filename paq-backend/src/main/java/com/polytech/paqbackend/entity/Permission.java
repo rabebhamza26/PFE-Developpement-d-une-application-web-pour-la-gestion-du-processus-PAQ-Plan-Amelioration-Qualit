@@ -54,8 +54,7 @@ public enum Permission {
     FINAL_VALIDATE("final:validate"),
     FINAL_READ("final:read"),
 
-    // ── Défaut grave / SGL obligatoire ───────────────────
-    DEFAUT_GRAVE_NOTIFY("defaut:grave:notify"),
+
 
     // ── PAQ général ──────────────────────────────────────
     PAQ_READ("paq:read"),

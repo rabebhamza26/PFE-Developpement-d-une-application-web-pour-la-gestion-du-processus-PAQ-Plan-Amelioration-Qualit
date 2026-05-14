@@ -3,8 +3,6 @@ package com.polytech.paqbackend.service;
 
 
 
-import com.polytech.paqbackend.dto.CollaborateurSansFauteDto;
-import com.polytech.paqbackend.dto.EnvoyerSlRequest;
 import com.polytech.paqbackend.entity.Collaborator;
 import com.polytech.paqbackend.entity.PaqDossier;
 
@@ -24,8 +22,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Service
 public class PaqSchedulerService {
@@ -166,7 +162,7 @@ public class PaqSchedulerService {
                 int periode = paqHistory.size() + 1;
                 String historique = addHistorique(null, new HistoriqueEvent(
                         now,
-                        "Création automatique du dossier PAQ",
+                        "DOSSIER PAQ CRÉÉ",
                         String.format("Période %d: %s - %s", periode, now, now.plusMonths(6))
                 ));
                 newPaq.setHistorique(historique);
@@ -268,30 +264,6 @@ public class PaqSchedulerService {
     }
 
 
-        /**
-         * Vérifie tous les 6 mois (1er mars et 1er septembre) les collaborateurs sans faute
-         * et envoie automatiquement la liste au SL
-         */
-        @Scheduled(cron = "0 0 8 1 3,9 *") // 1er mars et 1er septembre à 8h
-        public void verifierEtEnvoyerListe() {
-            System.out.println("=== Vérification automatique des collaborateurs sans faute (période 6 mois) ===");
-
-            List<CollaborateurSansFauteDto> sansFaute = entretienPositifService.getCollaborateursSansFaute();
-
-            if (!sansFaute.isEmpty()) {
-                EnvoyerSlRequest request = new EnvoyerSlRequest();
-                request.setMatricules(sansFaute.stream()
-                        .map(CollaborateurSansFauteDto::getMatricule)
-                        .collect(Collectors.toList()));
-                request.setSlDestinataire("sl@leoni.com");
-                request.setDateEnvoi(LocalDate.now().toString()); // format ISO yyyy-MM-dd                request.setMessage("Liste automatique des collaborateurs sans faute depuis 6 mois");
-
-                entretienPositifService.envoyerListeSl(request);
-                System.out.println("✅ Liste envoyée automatiquement pour " + sansFaute.size() + " collaborateurs");
-            } else {
-                System.out.println("📭 Aucun collaborateur sans faute sur les 6 derniers mois");
-            }
-        }
 
 
 

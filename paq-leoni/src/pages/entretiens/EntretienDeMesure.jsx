@@ -1,27 +1,82 @@
-// EntretienDeMesure.jsx - Version corrigée avec gestion des rôles
 import React, { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
 import {
-  entretienMesureService,
-  fauteService,
   collaboratorService,
+  entretienMesureService, 
   entretienDaccordService,
+  entretienService, 
+  entretienDecisionService,
+  fauteService,
   userService,
 } from "../../services/api";
-import "../../styles/entretien-mesure.css";
+import { useNavigate, useParams } from "react-router-dom";
+import "../../styles/entretien-decision.css";
 import "../../styles/paq-dossier.css";
 import { showErrorAlert, showInfoToast, showSuccessAlert, showSuccessToast } from "../../utils/entretienAlerts";
 
-// Composant Modal Email
-function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails, action = "création" }) {
-  const [selectedEmail, setSelectedEmail] = useState("");
+// Composant Modal Email pour sélection multiple (comme entretien de mesure)
+function EmailModal({ isOpen, onClose, onConfirm, usersList, loadingUsers, action = "création" }) {
+  const [selectedEmails, setSelectedEmails] = useState([]);
   const [message, setMessage] = useState("");
+  const [emailFilter, setEmailFilter] = useState("all");
 
   if (!isOpen) return null;
 
+  const isValidationSLAction = action === "validationSL";
+
+  const getFilteredUsers = () => {
+    if (emailFilter === "all") {
+      return usersList;
+    }
+    return usersList.filter(user => user.role === emailFilter);
+  };
+
+  const toggleEmailSelection = (email) => {
+    if (selectedEmails.includes(email)) {
+      setSelectedEmails(selectedEmails.filter(e => e !== email));
+    } else {
+      setSelectedEmails([...selectedEmails, email]);
+    }
+  };
+
+  const toggleAllEmails = () => {
+    const filteredUsers = getFilteredUsers();
+    const allEmailsInList = filteredUsers.map(u => u.email);
+    if (selectedEmails.length === allEmailsInList.length && allEmailsInList.length > 0) {
+      setSelectedEmails([]);
+    } else {
+      setSelectedEmails(allEmailsInList);
+    }
+  };
+
+  const handleConfirm = () => {
+    if (isValidationSLAction) {
+      // Pour validation SL: au moins 1 email obligatoire
+      if (selectedEmails.length === 0) {
+        showErrorAlert("Email requis", "Veuillez sélectionner au moins un destinataire");
+        return;
+      }
+      onConfirm(selectedEmails, message);
+    } else if (action === "suppression") {
+      if (selectedEmails.length === 0) {
+        showErrorAlert("Email requis", "Veuillez sélectionner un destinataire");
+        return;
+      }
+      onConfirm(selectedEmails[0], message);
+    } else {
+      if (selectedEmails.length === 0) {
+        showErrorAlert("Email requis", "Veuillez sélectionner un destinataire");
+        return;
+      }
+      onConfirm(selectedEmails[0], message);
+    }
+  };
+
+  const filteredUsers = getFilteredUsers();
+  const allSelected = filteredUsers.length > 0 && selectedEmails.length === filteredUsers.length;
+
   return (
     <div className="leoni-modal-overlay" onClick={onClose}>
-      <div className="leoni-modal" style={{ maxWidth: "500px" }} onClick={e => e.stopPropagation()}>
+      <div className="leoni-modal" style={{ maxWidth: "600px", maxHeight: "80vh", overflow: "auto" }} onClick={e => e.stopPropagation()}>
         <div className="leoni-modal-header">
           <div className="leoni-modal-icon leoni-modal-icon-info">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -30,27 +85,131 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails, act
             </svg>
           </div>
           <div>
-            <h3>Envoyer un email - {action === "création" ? "Création" : action === "modification" ? "Modification" : action === "validation1" ? "Validation QM-Segment" : action === "validation2" ? "Validation SGL" : "Suppression"}</h3>
-            <p>Choisissez le destinataire pour notifier de la {action === "suppression" ? "suppression" : action === "modification" ? "modification" : action === "validation1" ? "validation QM-Segment" : action === "validation2" ? "validation SGL" : "création"} de l'entretien</p>
+            <h3>Envoyer un email - {action === "validationSL" ? "Validation SL" : action === "suppression" ? "Suppression" : action === "modification" ? "Modification" : "Création"}</h3>
+            <p>
+              {isValidationSLAction 
+                ? "Sélectionnez les destinataires (HP, SGL, QM_PLANT) pour la convocation"
+                : action === "suppression"
+                ? "Choisissez le destinataire pour notifier de la suppression"
+                : "Choisissez le destinataire pour notifier"}
+            </p>
           </div>
           <button className="leoni-modal-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="leoni-modal-body">
-          <div className="leoni-form-group">
-            <label>Destinataire *</label>
-            <select 
-              className="leoni-input" 
-              value={selectedEmail} 
-              onChange={(e) => setSelectedEmail(e.target.value)}
-              disabled={loadingEmails}
-            >
-              <option value="">-- Sélectionnez un email --</option>
-              {emailsList.map((email, idx) => (
-                <option key={idx} value={email}>{email}</option>
-              ))}
-            </select>
-            {loadingEmails && <small>Chargement des emails...</small>}
+          {/* Filtres pour validation SL */}
+          {isValidationSLAction && usersList.length > 0 && (
+            <div style={{ marginBottom: 16, display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setEmailFilter("all")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "20px",
+                  border: "1px solid #ddd",
+                  background: emailFilter === "all" ? "#C8102E" : "white",
+                  color: emailFilter === "all" ? "white" : "#333",
+                  cursor: "pointer"
+                }}
+              >
+                Tous ({usersList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmailFilter("HP")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "20px",
+                  border: "1px solid #ddd",
+                  background: emailFilter === "HP" ? "#C8102E" : "white",
+                  color: emailFilter === "HP" ? "white" : "#333",
+                  cursor: "pointer"
+                }}
+              >
+                HP ({usersList.filter(u => u.role === "HP").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmailFilter("SGL")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "20px",
+                  border: "1px solid #ddd",
+                  background: emailFilter === "SGL" ? "#C8102E" : "white",
+                  color: emailFilter === "SGL" ? "white" : "#333",
+                  cursor: "pointer"
+                }}
+              >
+                SGL ({usersList.filter(u => u.role === "SGL").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmailFilter("QM_PLANT")}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "20px",
+                  border: "1px solid #ddd",
+                  background: emailFilter === "QM_PLANT" ? "#C8102E" : "white",
+                  color: emailFilter === "QM_PLANT" ? "white" : "#333",
+                  cursor: "pointer"
+                }}
+              >
+                QM_PLANT ({usersList.filter(u => u.role === "QM_PLANT").length})
+              </button>
+            </div>
+          )}
+
+          {/* Liste des emails avec cases à cocher */}
+          <div style={{ marginBottom: 20, maxHeight: "300px", overflow: "auto", border: "1px solid #e2e8f0", borderRadius: "8px" }}>
+            <div style={{ 
+              padding: "10px", 
+              background: "#f8f9fa", 
+              borderBottom: "1px solid #e2e8f0",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px"
+            }}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAllEmails}
+                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+              />
+              <strong style={{ flex: 1 }}>Sélectionner tout</strong>
+            </div>
+            {filteredUsers.length > 0 ? (
+              filteredUsers.map((user, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: "10px",
+                    borderBottom: "1px solid #e2e8f0",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    background: selectedEmails.includes(user.email) ? "#f0f9ff" : "white"
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedEmails.includes(user.email)}
+                    onChange={() => toggleEmailSelection(user.email)}
+                    style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500 }}>{user.email}</div>
+                    <div style={{ fontSize: "12px", color: "#666" }}>
+                      {user.nomUtilisateur || user.email} • {user.role || "Utilisateur"}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ padding: "20px", textAlign: "center", color: "#999" }}>
+                Aucun utilisateur trouvé
+              </div>
+            )}
           </div>
 
           <div className="leoni-form-group">
@@ -67,8 +226,17 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails, act
 
         <div className="leoni-modal-footer">
           <button type="button" className="leoni-btn leoni-btn-outline" onClick={onClose}>Annuler</button>
-          <button type="button" className="leoni-btn leoni-btn-primary" onClick={() => onConfirm(selectedEmail, message)} disabled={!selectedEmail}>
-            {action === "suppression" ? "Confirmer la suppression" : "Envoyer"}
+          <button 
+            type="button" 
+            className="leoni-btn leoni-btn-primary" 
+            onClick={handleConfirm}
+            disabled={selectedEmails.length === 0}
+            style={{
+              opacity: selectedEmails.length === 0 ? 0.5 : 1,
+              cursor: selectedEmails.length === 0 ? "not-allowed" : "pointer"
+            }}
+          >
+            {action === "suppression" ? "Confirmer la suppression" : `Envoyer à ${selectedEmails.length} destinataire(s)`}
           </button>
         </div>
       </div>
@@ -79,43 +247,39 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails, act
 const buildDefaultForm = () => ({
   typeFaute: "",
   dateEntretien: new Date().toISOString().split("T")[0],
-  causesPrincipales: "",
-  convention: "",
-  planAction: "",
-  dateRequalification: "",
+  decision: "",
+  justification: "",
 });
 
-export default function EntretienDeMesure({ niveau = 3 }) {
+export default function EntretienDeDecision({ niveau = 4 }) {
   const { matricule } = useParams();
   const navigate = useNavigate();
 
-  // Récupérer le rôle de l'utilisateur
   const [userRole, setUserRole] = useState(null);
   const [userPermissions, setUserPermissions] = useState([]);
-
-  const [typeOptions, setTypeOptions] = useState([]);
-  const [showDefautModal, setShowDefautModal] = useState(false);
-  const [defautTypeInput, setDefautTypeInput] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-
   const [collaborator, setCollaborator] = useState(null);
-  const [niveau2Data, setNiveau2Data] = useState(null);
+  const [resumeN1, setResumeN1] = useState(null);
+  const [resumeN2, setResumeN2] = useState(null);
+  const [resumeN3, setResumeN3] = useState(null);
   const [entretiensList, setEntretiensList] = useState([]);
-
-  const [emailsList, setEmailsList] = useState([]);
-  const [loadingEmails, setLoadingEmails] = useState(false);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [modalAction, setModalAction] = useState("création");
-
-  const [formData, setFormData] = useState(buildDefaultForm());
-  const [currentId, setCurrentId] = useState(null);
+  const [currentEntretienId, setCurrentEntretienId] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
-  const [loadingDraft, setLoadingDraft] = useState(false);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [showDefautModal, setShowDefautModal] = useState(false);
+  const [defautTypeInput, setDefautTypeInput] = useState("");
+  const [typeOptions, setTypeOptions] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [usersList, setUsersList] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [modalAction, setModalAction] = useState("création");
+  const [pendingSubmit, setPendingSubmit] = useState(false);
 
-  // Récupérer le rôle de l'utilisateur
+  const [formData, setFormData] = useState(buildDefaultForm());
+
   useEffect(() => {
     const userStr = sessionStorage.getItem("user");
     if (userStr) {
@@ -125,65 +289,90 @@ export default function EntretienDeMesure({ niveau = 3 }) {
     }
   }, []);
 
-  const loadEmails = async () => {
+  // Charger tous les utilisateurs avec leurs emails (comme entretien de mesure)
+  const loadAllUsersWithEmails = async () => {
     try {
-      setLoadingEmails(true);
-      const response = await userService.getAllEmails();
-      if (response && response.data && Array.isArray(response.data)) {
-        console.log("Emails chargés:", response.data);
-        setEmailsList(response.data);
-      } else {
-        setEmailsList([]);
-      }
+      const response = await userService.getAllUsersWithEmails();
+      return response.data || [];
     } catch (err) {
-      console.error("Erreur chargement emails:", err);
-      setEmailsList([]);
-    } finally {
-      setLoadingEmails(false);
+      console.error("Erreur chargement utilisateurs:", err);
+      try {
+        const emailResponse = await userService.getAllEmails();
+        return emailResponse.data.map(email => ({ email, nomUtilisateur: email, role: "UNKNOWN" }));
+      } catch (e) {
+        return [];
+      }
     }
   };
 
   useEffect(() => {
-    loadFautes();
-    loadDraft();
-    loadCollaborator();
-    loadNiveau2();
-    loadAllEntretiens();
-    loadEmails();
+    if (!matricule) return;
+    loadData();
   }, [matricule]);
+
+  const loadData = async () => {
+    setLoading(true);
+    await Promise.all([
+      loadFautes(),
+      loadCollaborator(),
+      loadResumes(),
+      loadAllEntretiens(),
+      loadAllUsersWithEmails().then(users => setUsersList(users))
+    ]);
+    loadDraft();
+    setLoading(false);
+  };
 
   const resetForm = () => {
     setFormData(buildDefaultForm());
-    setCurrentId(null);
+    setCurrentEntretienId(null);
     if (matricule) {
-      localStorage.removeItem(`mesure-draft-${matricule}`);
+      localStorage.removeItem(`entretien-decision-draft-${matricule}`);
     }
   };
 
   const loadCollaborator = async () => {
-    try { 
-      const r = await collaboratorService.getById(matricule); 
-      setCollaborator(r.data); 
-    } catch (e) { console.error(e); }
-  };
-
-  const loadNiveau2 = async () => {
     try {
-      const r = await entretienDaccordService.getByMatricule(matricule);
-      setNiveau2Data((r.data || []).at(-1) || null);
-    } catch { setNiveau2Data(null); }
+      const collab = await collaboratorService.getById(matricule);
+      setCollaborator(collab.data);
+    } catch (err) {
+      console.error(err);
+      setError("Impossible de charger les données du collaborateur.");
+    }
   };
 
   const loadFautes = async () => {
-    try { 
-      const r = await fauteService.getAll(); 
-      setTypeOptions(r.data.map(f => f.nom)); 
+    try {
+      const res = await fauteService.getAll();
+      setTypeOptions(res.data.map(f => f.nom));
     } catch { setTypeOptions([]); }
+  };
+
+  const loadDraft = () => {
+    try {
+      const draft = localStorage.getItem(`entretien-decision-draft-${matricule}`);
+      if (!draft) return;
+      const parsed = JSON.parse(draft);
+      setFormData(prev => ({ ...prev, ...parsed }));
+      if (parsed.id) setCurrentEntretienId(parsed.id);
+      setStatusMessage("Brouillon chargé avec succès.");
+    } catch (err) { console.warn("Brouillon non chargeable:", err); }
+  };
+
+  const loadResumes = async () => {
+    try {
+      const n1 = await entretienService.getByMatricule(matricule);
+      const n2 = await entretienDaccordService.getByMatricule(matricule);
+      const n3 = await entretienMesureService.getByMatricule(matricule);
+      setResumeN1(n1.data?.at(-1) || null);
+      setResumeN2(n2.data?.at(-1) || null);
+      setResumeN3(n3.data?.at(-1) || null);
+    } catch (e) { console.error(e); }
   };
 
   const loadAllEntretiens = async () => {
     try {
-      const res = await entretienMesureService.getByMatricule(matricule);
+      const res = await entretienDecisionService.getByMatricule(matricule);
       const list = Array.isArray(res.data) ? res.data : [];
       setEntretiensList(list);
       
@@ -192,58 +381,70 @@ export default function EntretienDeMesure({ niveau = 3 }) {
         chargerEntretienDansFormulaire(dernier);
       }
     } catch (err) {
-      console.warn("Impossible de charger les entretiens de mesure:", err);
+      console.warn("Impossible de charger les entretiens de décision:", err);
     }
   };
 
   const chargerEntretienDansFormulaire = (entretien) => {
     if (!entretien) return;
     
-    setCurrentId(entretien.id);
+    setCurrentEntretienId(entretien.id);
     setFormData({
       typeFaute: entretien.typeFaute || "",
       dateEntretien: entretien.dateEntretien || new Date().toISOString().split("T")[0],
-      causesPrincipales: entretien.causesPrincipales || "",
-      convention: entretien.convention || "",
-      planAction: entretien.planAction || "",
-      dateRequalification: entretien.dateRequalification || "",
+      decision: entretien.decision || "",
+      justification: entretien.justification || "",
     });
     
     if (entretien.typeFaute && !typeOptions.includes(entretien.typeFaute)) {
       setTypeOptions(prev => [...prev, entretien.typeFaute]);
     }
     
-    setStatus("Entretien chargé avec succès.");
-    setTimeout(() => setStatus(""), 3000);
+    setStatusMessage("Entretien chargé avec succès.");
+    setTimeout(() => setStatusMessage(""), 3000);
   };
 
-  const loadDraft = () => {
-    const raw = localStorage.getItem(`mesure-draft-${matricule}`);
-    if (!raw) return;
-    const p = JSON.parse(raw);
-    setFormData(p);
-    setCurrentId(p.id || null);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleChange = e => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const addTypeOption = async () => {
+    if (!defautTypeInput.trim()) return;
+    try {
+      const res = await fauteService.create({ nom: defautTypeInput });
+      const nom = res.data.nom;
+      setTypeOptions(prev => [...prev, nom]);
+      setFormData(prev => ({ ...prev, typeFaute: nom }));
+      setShowDefautModal(false);
+      setDefautTypeInput("");
+      setStatusMessage("Type de faute ajouté avec succès.");
+      showSuccessToast("Faute ajoutée");
+    } catch { setError("Erreur ajout faute"); showErrorAlert("Ajout impossible", "Erreur lors de l'ajout du type de faute."); }
+  };
 
-  const handleSaveDraft = () => {
+  const handleEnregistrer = () => {
     setSavingDraft(true);
-    localStorage.setItem(`mesure-draft-${matricule}`, JSON.stringify({ ...formData, id: currentId }));
-    setStatus("Brouillon enregistré");
-    setSavingDraft(false);
-    setTimeout(() => setStatus(""), 3000);
+    try {
+      const payload = { ...formData, id: currentEntretienId };
+      localStorage.setItem(`entretien-decision-draft-${matricule}`, JSON.stringify(payload));
+      setStatusMessage("Brouillon enregistré avec succès.");
+      showSuccessToast("Brouillon enregistré");
+      setTimeout(() => setStatusMessage(""), 3000);
+    } catch { setError("Impossible d'enregistrer le brouillon."); showErrorAlert("Brouillon non enregistré", "Impossible d'enregistrer le brouillon."); }
+    finally { setSavingDraft(false); }
   };
 
   const handleAjouter = () => {
     resetForm();
-    setStatus("Formulaire réinitialisé");
-    setTimeout(() => setStatus(""), 2000);
+    setStatusMessage("Nouveau formulaire prêt.");
+    showInfoToast("Formulaire réinitialisé");
+    setTimeout(() => setStatusMessage(""), 2000);
   };
 
   const handleModifier = async () => {
     if (entretiensList.length === 0) {
-      setError("Aucun entretien de mesure existant à modifier.");
+      setError("Aucun entretien de décision existant à modifier.");
       return;
     }
     const dernier = entretiensList.sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))[0];
@@ -258,150 +459,220 @@ export default function EntretienDeMesure({ niveau = 3 }) {
     try {
       const nomCollab = collaborator ? `${collaborator.name} ${collaborator.prenom}` : matricule;
       
-      await entretienMesureService.deleteWithNotification(matricule, currentId, destinataireEmail, nomCollab);
+      await entretienDecisionService.deleteWithNotification(matricule, currentEntretienId, destinataireEmail, nomCollab);
       
       resetForm();
       await loadAllEntretiens();
-      setStatus("Entretien de mesure supprimé avec succès. Email envoyé.");
+      setStatusMessage("Entretien de décision supprimé avec succès. Email envoyé.");
+      await showSuccessAlert("Entretien supprimé", "L'entretien de décision a bien été supprimé.");
       setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
     } catch (err) {
       setError("Erreur lors de la suppression : " + (err.response?.data?.message || err.message));
+      showErrorAlert("Suppression impossible", err.response?.data?.message || err.message);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSupprimer = () => {
-    if (!currentId) {
-      setError("Aucun entretien chargé pour suppression.");
-      return;
+  // Ouvrir la modale de sélection d'email (comme entretien de mesure)
+  const openEmailModal = (action) => {
+    // Recharger les utilisateurs si nécessaire
+    if (usersList.length === 0) {
+      loadAllUsersWithEmails().then(users => setUsersList(users));
     }
-    setModalAction("suppression");
+    setModalAction(action);
     setShowEmailModal(true);
   };
 
-  // ✅ Gestion des différentes actions selon le rôle
-  const handleSubmitConfirm = async (destinataireEmail, message) => {
+  // Soumettre avec les emails sélectionnés
+  const submitWithEmails = async (emails, message) => {
     setShowEmailModal(false);
-    setSaving(true);
-
+    setPendingSubmit(true);
+    
     try {
+      const currentUser = JSON.parse(sessionStorage.getItem("user"));
+      const expediteurEmail = currentUser?.email || "";
+      
       const payload = { 
-        ...formData, 
-        destinataireEmail
+        typeFaute: formData.typeFaute,
+        dateEntretien: formData.dateEntretien,
+        decision: formData.decision,
+        justification: formData.justification || "",
+        destinatairesEmails: emails.join(","), // Tous les emails en une seule chaîne
+        message: message
       };
 
-      // ✅ Cas 1: Validation QM_SEGMENT (1ère validation)
-      if (userRole === "QM_SEGMENT" && currentId) {
-        await entretienMesureService.valider1(matricule, currentId, payload);
-        setStatus("Entretien de mesure validé avec succès (QM-Segment). Email envoyé.");
+      let response;
+      
+      if (modalAction === "validationSL" && currentEntretienId) {
+        // Validation SL avec envoi d'emails
+        response = await entretienDecisionService.validerParSL(matricule, currentEntretienId, payload);
+        setStatusMessage(`Entretien de décision soumis pour validation. Emails envoyés à ${emails.length} destinataire(s).`);
+        await showSuccessAlert("Entretien soumis", `L'entretien a été soumis pour validation. ${emails.length} email(s) envoyé(s).`);
       } 
-      // ✅ Cas 2: Validation SGL (2ème validation)
-      else if (userRole === "SGL" && currentId) {
-        await entretienMesureService.valider2(matricule, currentId, payload);
-        setStatus("Entretien de mesure validé avec succès (SGL). Email envoyé.");
+      else if (modalAction === "modification" && currentEntretienId) {
+        // Modification
+        response = await entretienDecisionService.updateWithNotification(matricule, currentEntretienId, payload);
+        setStatusMessage("Entretien de décision modifié avec succès.");
+        await showSuccessAlert("Entretien modifié", "La modification a été enregistrée.");
       }
-      // ✅ Cas 3: Modification (SGL seulement)
-      else if (userRole === "SGL" && currentId) {
-        await entretienMesureService.updateWithNotification(matricule, currentId, payload);
-        setStatus("Entretien de mesure modifié avec succès. Email envoyé.");
-      }
-      // ✅ Cas 4: Création (SL seulement)
-      else if (userRole === "SL" && !currentId) {
-        await entretienMesureService.create(matricule, payload);
-        setStatus("Entretien de mesure créé avec succès. Email envoyé.");
-      }
-      // ✅ Cas 5: ADMIN peut tout faire
-      else if (userRole === "ADMIN") {
-        if (currentId) {
-          await entretienMesureService.updateWithNotification(matricule, currentId, payload);
-          setStatus("Entretien de mesure modifié avec succès. Email envoyé.");
-        } else {
-          await entretienMesureService.create(matricule, payload);
-          setStatus("Entretien de mesure créé avec succès. Email envoyé.");
+      else if (modalAction === "création" && !currentEntretienId) {
+        // Création
+        response = await entretienDecisionService.create(matricule, payload);
+        if (response.data && response.data.id) {
+          setCurrentEntretienId(response.data.id);
         }
-      }
-      else {
-        setError("Action non autorisée pour votre rôle.");
-        return;
+        setStatusMessage("Entretien de décision créé avec succès.");
+        await showSuccessAlert("Entretien créé", "L'entretien de décision a été créé.");
       }
       
-      localStorage.removeItem(`mesure-draft-${matricule}`);
+      localStorage.removeItem(`entretien-decision-draft-${matricule}`);
       await loadAllEntretiens();
       setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data || "Erreur lors de la sauvegarde";
-      setError(typeof msg === "string" ? msg : "Erreur lors de la sauvegarde");
-      console.error("Erreur détaillée:", err);
+      console.error(err);
+      let errorMessage = "Erreur lors de la sauvegarde";
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
+      showErrorAlert("Enregistrement impossible", errorMessage);
+    } finally { 
+      setPendingSubmit(false);
+    }
+  };
+
+  // Validation sans email (HP, SGL, QM_PLANT)
+  const submitWithoutEmail = async () => {
+    setSaving(true);
+    
+    try {
+      const payload = { 
+        typeFaute: formData.typeFaute,
+        dateEntretien: formData.dateEntretien,
+        decision: formData.decision,
+        justification: formData.justification || "",
+      };
+
+      if ((userRole === "HP" || userRole === "SGL") && currentEntretienId) {
+        await entretienDecisionService.valider1(matricule, currentEntretienId, payload);
+        setStatusMessage("Entretien de décision validé (1ère validation).");
+        await showSuccessAlert("Validation enregistrée", "Première validation effectuée.");
+      } 
+      else if (userRole === "QM_PLANT" && currentEntretienId) {
+        await entretienDecisionService.valider2(matricule, currentEntretienId, payload);
+        setStatusMessage("Entretien de décision validé (2ème validation).");
+        await showSuccessAlert("Validation enregistrée", "L'entretien de décision est validé.");
+      }
+      else {
+        setError(`Action non autorisée pour votre rôle: ${userRole}`);
+        setSaving(false);
+        return;
+      }
+      
+      localStorage.removeItem(`entretien-decision-draft-${matricule}`);
+      await loadAllEntretiens();
+      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
+    } catch (err) {
+      console.error(err);
+      let errorMessage = "Erreur lors de la sauvegarde";
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
+      showErrorAlert("Enregistrement impossible", errorMessage);
     } finally { 
       setSaving(false);
     }
   };
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-    setStatus("");
+    setError(""); setStatusMessage("");
 
-    if (!formData.typeFaute) return setError("Le type de faute est obligatoire");
-    if (!formData.dateRequalification) return setError("La date de requalification est obligatoire");
-
-    const de = new Date(formData.dateEntretien);
-    const dr = new Date(formData.dateRequalification);
-    const mx = new Date(de); mx.setDate(mx.getDate() + 7);
-    if (dr > mx) return setError("La requalification doit être au maximum 7 jours après l'entretien");
+    if (!formData.typeFaute) return setError("Veuillez sélectionner un type de faute.");
+    if (!formData.decision) return setError("Veuillez saisir une décision.");
 
     // Déterminer l'action en fonction du rôle
-    if (userRole === "QM_SEGMENT" && currentId) {
-      setModalAction("validation1");
-    } else if (userRole === "SGL" && currentId) {
-      setModalAction("validation2");
+    if (userRole === "SL" && currentEntretienId) {
+      // SL qui valide - ouvre modale avec sélection d'emails
+      openEmailModal("validationSL");
+    } else if (userRole === "SL" && !currentEntretienId) {
+      // SL qui crée - ouvre modale
+      openEmailModal("création");
+    } else if (userRole === "SL" && currentEntretienId && modalAction === "modification") {
+      openEmailModal("modification");
+    } else if ((userRole === "HP" || userRole === "SGL") && currentEntretienId) {
+      // Validation 1ère sans email
+      await submitWithoutEmail();
+    } else if (userRole === "QM_PLANT" && currentEntretienId) {
+      // Validation 2ème sans email
+      await submitWithoutEmail();
     } else {
-      setModalAction(currentId ? "modification" : "création");
+      setError(`Action non autorisée pour votre rôle: ${userRole}`);
     }
-    setShowEmailModal(true);
   };
 
-  const addTypeOption = async () => {
-    if (!defautTypeInput.trim()) return;
-    try {
-      const res = await fauteService.create({ nom: defautTypeInput });
-      const nom = res.data.nom;
-      setTypeOptions(p => [...p, nom]);
-      setFormData(p => ({ ...p, typeFaute: nom }));
-      setShowDefautModal(false);
-      setDefautTypeInput("");
-      setStatus("Type de faute ajouté avec succès");
-    } catch { setError("Erreur lors de l'ajout du type de faute"); }
-  };
-
-  const getMaxDate = () => {
-    if (!formData.dateEntretien) return "";
-    const d = new Date(formData.dateEntretien);
-    d.setDate(d.getDate() + 7);
-    return d.toISOString().split("T")[0];
-  };
-
-  // ✅ Permissions selon le rôle
+  // Permissions selon le rôle
   const canCreate = userRole === "SL" || userRole === "ADMIN";
-  const canModify = userRole === "SGL" || userRole === "ADMIN";
-  const canValidate1 = userRole === "QM_SEGMENT" || userRole === "ADMIN";
-  const canValidate2 = userRole === "SGL" || userRole === "ADMIN";
-  const canDelete = userRole === "SGL" || userRole === "ADMIN";
+  const canModify = userRole === "SL" || userRole === "ADMIN";
+  const canDelete = userRole === "SL" || userRole === "ADMIN";
+  const canValidate1 = (userRole === "HP" || userRole === "SGL") || userRole === "ADMIN";
+  const canValidate2 = userRole === "QM_PLANT" || userRole === "ADMIN";
   
-  // Déterminer si les champs sont modifiables
   const isEditable = () => {
     if (userRole === "ADMIN") return true;
-    if (userRole === "SL" && !currentId) return true; // SL peut créer
-    if (userRole === "SGL" && currentId) return true; // SGL peut modifier
+    if (userRole === "SL") return true;
     return false;
   };
 
-  const fmt = d => { if (!d) return "–"; try { return new Date(d).toLocaleDateString("fr-FR"); } catch { return d; } };
+  const showModifyButton = () => {
+    if (userRole === "ADMIN" && currentEntretienId) return true;
+    if (userRole === "SL" && currentEntretienId) return true;
+    return false;
+  };
+
+  // Vérifier si l'entretien a déjà été validé
+  const estValideParSL = () => entretiensList.some(e => e.statusSl === "VALIDE");
+  const estValideParHPSGL = () => entretiensList.some(e => e.statusHpSgl === "VALIDE");
+  const estValideParQMPlant = () => entretiensList.some(e => e.statusQmPlant === "VALIDE");
+
+  const getValiderLabel = () => {
+    if (saving || pendingSubmit) return "Enregistrement...";
+    if (userRole === "SL") {
+      if (currentEntretienId) return "📝 Valider & Convoquer";
+      return "➕ Créer & Convoquer";
+    }
+    if (userRole === "HP" || userRole === "SGL") {
+      return estValideParHPSGL() ? "✅ Déjà validé (1ère)" : "🔵 Valider (1ère validation)";
+    }
+    if (userRole === "QM_PLANT") {
+      return estValideParQMPlant() ? "✅ Déjà validé (2ème)" : "🟢 Valider (2ème validation)";
+    }
+    return "Valider";
+  };
+
+  const isValiderDisabled = () => {
+    if (userRole === "HP" || userRole === "SGL") {
+      if (estValideParHPSGL()) return true;
+    }
+    if (userRole === "QM_PLANT") {
+      if (estValideParQMPlant()) return true;
+      if (!estValideParHPSGL()) return true; // Nécessite validation 1ère d'abord
+    }
+    return false;
+  };
+
+  const fmt = d => { if (!d) return "—"; try { return new Date(d).toLocaleDateString("fr-FR"); } catch { return d; } };
+
+  if (loading) return <div className="fd-loading">Chargement...</div>;
 
   return (
-    <div className="em-root">
-
+    <div className="decision-root">
       <div className="leoni-header">
         <div className="leoni-header-left">
           <button onClick={() => navigate(`/paq-dossier/${matricule}`)} className="leoni-btn-back">
@@ -411,144 +682,192 @@ export default function EntretienDeMesure({ niveau = 3 }) {
         <div className="leoni-header-title">
           <div className="leoni-logo-bar">
             <div className="leoni-logo-accent" />
-            <h1>Entretien de Mesure</h1>
+            <h1>Entretien de Décision</h1>
           </div>
           {collaborator && (
             <span className="leoni-header-sub">
-              {(collaborator.name || "").trim()} {(collaborator.prenom || "").trim()} — {collaborator.matricule || matricule}
+              {collaborator.name} {collaborator.prenom} — {collaborator.matricule}
             </span>
           )}
-          {userRole === "QM_SEGMENT" && currentId && (
-            <span className="leoni-badge-qm">🔵 Mode validation QM-Segment</span>
+          {userRole === "HP" && currentEntretienId && (
+            <span className="leoni-badge-hp">🏷️ Mode validation HP (1ère)</span>
           )}
-          {userRole === "SGL" && currentId && (
-            <span className="leoni-badge-sgl">🟢 Mode validation SGL / Modification</span>
+          {userRole === "SGL" && currentEntretienId && (
+            <span className="leoni-badge-sgl">🏷️ Mode validation SGL (1ère)</span>
           )}
-          {userRole === "SL" && !currentId && (
+          {userRole === "QM_PLANT" && currentEntretienId && (
+            <span className="leoni-badge-qm-plant">🏷️ Mode validation QM-Plant (2ème)</span>
+          )}
+          {userRole === "SL" && !currentEntretienId && (
             <span className="leoni-badge-sl">📝 Mode création</span>
           )}
         </div>
         <div className="leoni-header-actions" />
       </div>
 
-      <div className="em-layout">
+      {/* Info rôle */}
+      <div style={{ padding: "0 24px", marginBottom: 16 }}>
+        {userRole === "SL" && (
+          <div className="leoni-alert leoni-alert-info">
+            📝 <strong>Mode SL</strong> : Vous pouvez créer, modifier, supprimer et valider l'entretien de décision.
+            La validation envoie une convocation par email aux destinataires sélectionnés.
+          </div>
+        )}
+        {(userRole === "HP" || userRole === "SGL") && (
+          <div className="leoni-alert leoni-alert-info">
+            🔵 <strong>Mode {userRole}</strong> : Vous pouvez effectuer la <strong>1ère validation</strong>.
+            {estValideParHPSGL() ? " Cet entretien a déjà été validé." : " Aucun email n'est envoyé."}
+          </div>
+        )}
+        {userRole === "QM_PLANT" && (
+          <div className="leoni-alert leoni-alert-info">
+            🟢 <strong>Mode QM_PLANT</strong> : Vous pouvez effectuer la <strong>2ème validation</strong>.
+            {!estValideParHPSGL() && " (La validation HP/SGL est requise d'abord)"}
+            {estValideParQMPlant() && " Cet entretien a déjà été validé."}
+          </div>
+        )}
+      </div>
 
-        <aside>
-          <div className="em-card">
-            <div className="em-card-hd">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+      <div className="decision-page">
+        <aside className="decision-sidebar">
+          <div className="sd-card">
+            <div className="sd-card-hd">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
                 <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" strokeWidth="2"/>
                 <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
               </svg>
               Informations Collaborateur
             </div>
-            <div className="em-card-bd">
-              <div className="em-grid-info">
-                <div className="em-row-line">
-                  <span className="em-label">Nom & Prenom</span>
-                  <span className="em-value">{collaborator ? `${collaborator.name} ${collaborator.prenom}` : "—"}</span>
+            <div className="sd-card-bd">
+              <div className="sd-avatar">
+                {`${collaborator?.name?.[0]||""}${collaborator?.prenom?.[0]||""}`.toUpperCase() || "?"}
+              </div>
+              <div className="sd-name">{collaborator?.name} {collaborator?.prenom}</div>
+              <div className="sd-info-grid">
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">Matricule</span>
+                  <span className="sd-info-value">{collaborator?.matricule || "–"}</span>
                 </div>
-                <div className="em-row-line">
-                  <span className="em-label">Matricule</span>
-                  <span className="em-value">{matricule}</span>
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">Segment</span>
+                  <span className="sd-info-value">{collaborator?.segment || "–"}</span>
                 </div>
-                <div className="em-row-line">
-                  <span className="em-label">Segment</span>
-                  <span className="em-value">{collaborator?.segment || "–"}</span>
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">Date embauche</span>
+                  <span className="sd-info-value">{fmt(collaborator?.hireDate)}</span>
                 </div>
-                <div className="em-row-line">
-                  <span className="em-label">Statut</span>
-                  <span className="em-value status">{collaborator?.status || "ACTIF"}</span>
-                </div>
-                <div className="em-row-line">
-                  <span className="em-label">Embauche</span>
-                  <span className="em-value">{fmt(collaborator?.hireDate)}</span>
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">Statut</span>
+                  <span className="sd-info-value green">{collaborator?.status || "ACTIF"}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="em-card">
-            <div className="em-card-hd amber">
-              Résumé — Entretien d'Accord (N2)
-            </div>
-            <div className="em-card-bd">
-              {niveau2Data ? (
-                <div className="em-grid-info">
-                  <div className="em-row-line">
-                    <span className="em-label">Type faute</span>
-                    <span className="em-value">{niveau2Data.typeFaute || "–"}</span>
-                  </div>
-                  <div className="em-row-line">
-                    <span className="em-label">Date</span>
-                    <span className="em-value">{fmt(niveau2Data.date || niveau2Data.dateEntretien)}</span>
-                  </div>
-                  <div className="em-row-line">
-                    <span className="em-label">Validation</span>
-                    <span className="em-value" style={{ color: niveau2Data.validationMesures === "Oui" ? "var(--green)" : "var(--red)" }}>
-                      {niveau2Data.validationMesures || "–"}
-                    </span>
-                  </div>
-                  {niveau2Data.mesuresProposees && (
-                    <div className="em-row-line">
-                      <span className="em-label">Mesures</span>
-                      <span className="em-value" style={{ fontSize: 12 }}>{niveau2Data.mesuresProposees}</span>
-                    </div>
-                  )}
+          {/* Statut des validations */}
+          {currentEntretienId && (
+            <div className="sd-card">
+              <div className="sd-card-hd">Statut des validations</div>
+              <div className="sd-card-bd">
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">SL</span>
+                  <span className={`sd-info-value ${estValideParSL() ? 'text-success' : 'text-warning'}`}>
+                    {estValideParSL() ? "✅ Validé" : "⏳ En attente"}
+                  </span>
                 </div>
-              ) : (
-                <div className="em-n2-empty">Aucun entretien d'accord trouvé</div>
-              )}
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">HP/SGL (1ère)</span>
+                  <span className={`sd-info-value ${estValideParHPSGL() ? 'text-success' : 'text-warning'}`}>
+                    {estValideParHPSGL() ? "✅ Validé" : "⏳ En attente"}
+                  </span>
+                </div>
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">QM_PLANT (2ème)</span>
+                  <span className={`sd-info-value ${estValideParQMPlant() ? 'text-success' : 'text-warning'}`}>
+                    {estValideParQMPlant() ? "✅ Validé" : estValideParHPSGL() ? "⏳ En attente" : "🔒 Bloqué"}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </aside>
 
-        <main>
+        <div className="decision-main">
+          <div className="resume-row">
+            {[
+              { title: "Entretien 1 — Explicatif", data: resumeN1, labelKey: "Mesures correctives", valKey: v => v.mesuresCorrectives || "–" },
+              { title: "Entretien 2 — Accord",     data: resumeN2, labelKey: "Mesures correctives proposées", valKey: v => v.mesuresProposees   || "–" },
+              { title: "Entretien 3 — Mesure",     data: resumeN3, labelKey: "Plan d'action", valKey: v => v.planAction || "–" },
+            ].map((r, i) => (
+              <div key={i} className="resume-mini-card">
+                <div className="resume-mini-hd">{r.title}</div>
+                <div className="resume-mini-bd">
+                  {r.data ? (
+                    <>
+                      <div className="resume-mini-line">
+                        <span className="resume-mini-lbl">Faute</span>
+                        <span className="resume-mini-val">{r.data.typeFaute || "–"}</span>
+                      </div>
+                      <div className="resume-mini-line">
+                        <span className="resume-mini-lbl">Date</span>
+                        <span className="resume-mini-val">{fmt(r.data.date || r.data.dateFaute || r.data.dateEntretien)}</span>
+                      </div>
+                      <div className="resume-mini-line">
+                        <span className="resume-mini-lbl">{r.labelKey}</span>
+                        <span className="resume-mini-val">{r.valKey(r.data)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="resume-mini-none">Aucun entretien trouvé</div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {statusMessage && (
+            <div className="fd-alert fd-alert-ok">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              {statusMessage}
+            </div>
+          )}
           {error && (
-            <div className="em-err">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <div className="fd-alert fd-alert-err">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
                 <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
               </svg>
               {error}
             </div>
           )}
-          {status && (
-            <div className="em-ok">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              {status}
-            </div>
-          )}
 
-          <form onSubmit={handleSubmit}>
-            <div className="em-section">
-              <div className="leoni-card-header">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-                Formulaire
-              </div>
-              <div className="em-sec-bd">
-                <div className="em-field">
-                  <label className="em-lbl">Type de faute <span className="req">*</span></label>
-                  <div className="em-frow">
-                    <div className="em-dw">
-                      <input type="text" className="em-inp"
-                        placeholder="Rechercher ou sélectionner une faute..."
+          <div className="form-main-card">
+            <div className="leoni-card-header">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              Formulaire
+            </div>
+
+            <div className="form-main-bd">
+              <form onSubmit={handleSubmit}>
+                <div className="fd-group">
+                  <label className="fd-label">Type de faute <span className="req">*</span></label>
+                  <div className="fd-faute-row">
+                    <div className="fd-dw">
+                      <input type="text" className="fd-inp" placeholder="Rechercher ou sélectionner une faute..."
                         value={formData.typeFaute}
                         onChange={e => { setFormData(p => ({...p, typeFaute: e.target.value})); setShowDropdown(true); }}
                         onFocus={() => setShowDropdown(true)}
                         disabled={!isEditable()}
                       />
                       {showDropdown && typeOptions.length > 0 && (
-                        <div className="em-dlist">
-                          {typeOptions
-                            .filter(o => o.toLowerCase().includes(formData.typeFaute.toLowerCase()))
+                        <div className="fd-dlist">
+                          {typeOptions.filter(o => o.toLowerCase().includes(formData.typeFaute.toLowerCase()))
                             .map((o, i) => (
-                              <div key={i} className="em-ditem"
-                                onMouseDown={() => { setFormData(p => ({...p, typeFaute: o})); setShowDropdown(false); }}>
+                              <div key={i} className="fd-ditem" onMouseDown={() => { setFormData(p => ({...p, typeFaute: o})); setShowDropdown(false); }}>
                                 {o}
                               </div>
                             ))}
@@ -557,7 +876,7 @@ export default function EntretienDeMesure({ niveau = 3 }) {
                     </div>
                     <button 
                       type="button" 
-                      className="em-btn-add-faute" 
+                      className="fd-btn-add" 
                       onClick={() => setShowDefautModal(true)}
                       disabled={!isEditable()}
                     >
@@ -566,159 +885,123 @@ export default function EntretienDeMesure({ niveau = 3 }) {
                   </div>
                 </div>
 
-                <div className="em-row2">
-                  <div className="em-field">
-                    <label className="em-lbl">Date entretien <span className="req">*</span></label>
+                <div className="fd-row2">
+                  <div className="fd-group">
+                    <label className="fd-label">Date entretien</label>
                     <input 
                       type="date" 
                       name="dateEntretien" 
-                      className="em-inp"
+                      className="fd-inp" 
                       value={formData.dateEntretien} 
                       onChange={handleChange}
                       disabled={!isEditable()}
                     />
                   </div>
-                  <div className="em-field">
-                    <label className="em-lbl">Date requalification <span className="req">*</span></label>
-                    <input 
-                      type="date" 
-                      name="dateRequalification" 
-                      className="em-inp"
-                      value={formData.dateRequalification} 
+                  <div className="fd-group">
+                    <label className="fd-label">Décision <span className="req">*</span></label>
+                    <select 
+                      name="decision" 
+                      className="fd-sel" 
+                      value={formData.decision} 
                       onChange={handleChange}
-                      min={formData.dateEntretien} 
-                      max={getMaxDate()}
-                      disabled={!isEditable()}
-                    />
-                    <span className="em-hint">Maximum 7 jours après l'entretien</span>
+                      disabled={!isEditable() && userRole !== "HP" && userRole !== "SGL" && userRole !== "QM_PLANT"}
+                    >
+                      <option value="">— Choisir —</option>
+                      <option>Avertissement</option>
+                      <option>Formation</option>
+                      <option>Mutation</option>
+                      <option>Suspension</option>
+                      <option>Licenciement</option>
+                    </select>
                   </div>
                 </div>
 
-                <div className="em-field">
-                  <label className="em-lbl">Causes profondes</label>
+                <div className="fd-group">
+                  <label className="fd-label">Justification</label>
                   <textarea 
-                    name="causesPrincipales" 
-                    className="em-ta" 
+                    name="justification" 
+                    className="fd-ta" 
                     rows={3}
-                    value={formData.causesPrincipales} 
+                    value={formData.justification} 
                     onChange={handleChange}
-                    placeholder="Décrivez les causes profondes identifiées..."
-                    disabled={!isEditable() && userRole !== "QM_SEGMENT" && userRole !== "SGL"}
+                    placeholder="Motivez la décision prise lors de cet entretien..."
+                    disabled={!isEditable()}
                   />
                 </div>
 
-                <div className="em-field">
-                  <label className="em-lbl">Convention établie</label>
-                  <textarea 
-                    name="convention" 
-                    className="em-ta" 
-                    rows={3}
-                    value={formData.convention} 
-                    onChange={handleChange}
-                    placeholder="Convention établie lors de l'entretien..."
-                    disabled={!isEditable() && userRole !== "QM_SEGMENT" && userRole !== "SGL"}
-                  />
-                </div>
-
-                <div className="em-field">
-                  <label className="em-lbl">Plan d'action correctif</label>
-                  <textarea 
-                    name="planAction" 
-                    className="em-ta" 
-                    rows={3}
-                    value={formData.planAction} 
-                    onChange={handleChange}
-                    placeholder="Actions correctives à mettre en place..."
-                    disabled={!isEditable() && userRole !== "QM_SEGMENT" && userRole !== "SGL"}
-                  />
-                </div>
-
-                <div className="em-actions-bar">
-                  {/* Création - visible pour SL et ADMIN */}
-                  {canCreate && !currentId && (
-                    <button type="button" className="em-btn em-btn-ajouter" onClick={handleAjouter}>
-                      Ajouter
-                    </button>
-                  )}
-                  
-                  {/* Modification - visible pour SGL et ADMIN */}
-                  {canModify && currentId && (
-                    <button type="button" className="em-btn em-btn-modifier" onClick={handleModifier} disabled={loadingDraft}>
-                      {loadingDraft ? "..." : "Modifier"}
-                    </button>
-                  )}
-                  
-                  {/* Brouillon - visible pour SL et ADMIN en création, SGL en modification */}
+                <div className="fd-actions">
                   {(canCreate || canModify) && (
-                    <button type="button" className="em-btn em-btn-draft" onClick={handleSaveDraft} disabled={savingDraft}>
+                    <button type="button" className="fd-btn fd-btn-draft" onClick={handleEnregistrer} disabled={savingDraft}>
                       {savingDraft ? "Enregistrement..." : "Enregistrer Brouillon"}
                     </button>
                   )}
                   
-                  {/* Validation - QM_SEGMENT pour valider1, SGL pour valider2 */}
-                  {canValidate1 && currentId && userRole === "QM_SEGMENT" && (
-                    <button type="submit" className="em-btn em-btn-valider" disabled={saving}>
-                      {saving ? "..." : "Valider (QM-Segment)"}
+                  {canCreate && !currentEntretienId && (
+                    <button type="button" className="fd-btn fd-btn-ajouter" onClick={handleAjouter}>
+                      Ajouter
                     </button>
                   )}
                   
-                  {canValidate2 && currentId && userRole === "SGL" && (
-                    <button type="submit" className="em-btn em-btn-valider" disabled={saving}>
-                      {saving ? "..." : "Valider (SGL)"}
+                  {/* Bouton Modifier */}
+                  {showModifyButton() && (
+                    <button type="button" className="fd-btn fd-btn-modifier" onClick={handleModifier} disabled={savingDraft}>
+                      {savingDraft ? "..." : "Modifier"}
                     </button>
                   )}
                   
-                  {/* Création initiale pour SL */}
-                  {canCreate && !currentId && (
-                    <button type="submit" className="em-btn em-btn-valider" disabled={saving}>
-                      {saving ? "..." : "Créer"}
+                  {/* Bouton Valider principal */}
+                  {(canCreate || canValidate1 || canValidate2) && (
+                    <button 
+                      type="submit" 
+                      className="fd-btn fd-btn-valider" 
+                      disabled={saving || pendingSubmit || isValiderDisabled()}
+                      title={isValiderDisabled() ? "Validation déjà effectuée ou conditions non remplies" : ""}
+                    >
+                      {getValiderLabel()}
                     </button>
                   )}
                   
-                  {/* ADMIN peut tout faire */}
-                  {userRole === "ADMIN" && (
-                    <button type="submit" className="em-btn em-btn-valider" disabled={saving}>
-                      {saving ? "..." : (currentId ? "Modifier" : "Créer")}
-                    </button>
-                  )}
-                  
-                  {/* Suppression - visible pour SGL et ADMIN */}
-                  {canDelete && currentId && (
-                    <button type="button" className="em-btn em-btn-supprimer" onClick={handleSupprimer}>
+                  {/* Bouton Supprimer */}
+                  {canDelete && currentEntretienId && (
+                    <button 
+                      type="button" 
+                      className="fd-btn fd-btn-supprimer" 
+                      onClick={() => openEmailModal("suppression")}
+                    >
                       Supprimer
                     </button>
                   )}
+                  
+                  <button type="button" className="fd-btn fd-btn-annuler" onClick={() => navigate(`/paq-dossier/${matricule}`)}>
+                    Annuler
+                  </button>
                 </div>
-              </div>
+              </form>
             </div>
-          </form>
-        </main>
+          </div>
+        </div>
       </div>
 
       <EmailModal
         isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
-        onConfirm={handleSubmitConfirm}
-        emailsList={emailsList}
-        loadingEmails={loadingEmails}
+        onConfirm={modalAction === "suppression" ? handleDeleteConfirm : submitWithEmails}
+        usersList={usersList}
+        loadingUsers={loadingUsers}
         action={modalAction}
       />
 
       {showDefautModal && (
-        <div className="em-moverlay" onClick={() => setShowDefautModal(false)}>
-          <div className="em-modal" onClick={e => e.stopPropagation()}>
+        <div className="fd-moverlay" onClick={() => setShowDefautModal(false)}>
+          <div className="fd-modal" onClick={e => e.stopPropagation()}>
             <h3>Ajouter un type de faute</h3>
-            <div style={{marginBottom:4}}>
-              <label className="em-lbl">Nom du type de faute</label>
-              <input className="em-inp" value={defautTypeInput}
-                onChange={e => setDefautTypeInput(e.target.value)}
-                placeholder="Ex : Nouvelle faute"
-                onKeyDown={e => e.key === "Enter" && addTypeOption()}
-                autoFocus/>
-            </div>
-            <div className="em-modal-act">
-              <button className="em-btn-gh" onClick={() => setShowDefautModal(false)}>Annuler</button>
-              <button className="em-btn-pr" onClick={addTypeOption} disabled={!defautTypeInput.trim()}>Ajouter</button>
+            <label className="fd-label">Nom du type de faute</label>
+            <input className="fd-inp" style={{marginTop:6}} value={defautTypeInput}
+              onChange={e => setDefautTypeInput(e.target.value)} placeholder="Saisir un nouveau type de faute"
+              onKeyDown={e => e.key === "Enter" && addTypeOption()} autoFocus/>
+            <div className="fd-modal-acts">
+              <button className="fd-mbtn-cancel" onClick={() => setShowDefautModal(false)}>Annuler</button>
+              <button className="fd-mbtn-ok" onClick={addTypeOption} disabled={!defautTypeInput.trim()}>Ajouter</button>
             </div>
           </div>
         </div>

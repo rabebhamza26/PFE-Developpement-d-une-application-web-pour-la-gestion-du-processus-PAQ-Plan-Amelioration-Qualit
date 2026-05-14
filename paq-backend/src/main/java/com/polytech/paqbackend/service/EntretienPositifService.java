@@ -9,25 +9,20 @@ import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.properties.UnitValue;
 import com.polytech.paqbackend.dto.CollaborateurSansFauteDto;
-import com.polytech.paqbackend.dto.EnvoyerSlRequest;
 import com.polytech.paqbackend.dto.ValiderEntretienPositifRequest;
-import com.polytech.paqbackend.entity.Archive;
-import com.polytech.paqbackend.entity.Collaborator;
-import com.polytech.paqbackend.entity.EntretienPositif;
-import com.polytech.paqbackend.entity.PaqDossier;
-import com.polytech.paqbackend.repository.ArchiveRepository;
-import com.polytech.paqbackend.repository.CollaboratorRepository;
-import com.polytech.paqbackend.repository.EntretienPositifRepository;
-import com.polytech.paqbackend.repository.PaqRepository;
+import com.polytech.paqbackend.entity.*;
+import com.polytech.paqbackend.repository.*;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
@@ -52,11 +47,18 @@ public class EntretienPositifService {
     @Autowired
     private ArchiveRepository archiveRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @Autowired(required = false)
     private JavaMailSender mailSender;
 
+    @Value("${spring.mail.username}")
+    private String fromEmail;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter MOIS_FORMATTER = DateTimeFormatter.ofPattern("MMMM yyyy", new Locale("fr"));
 
     // ── Historique helper ──────────────────────────────────────────────────────
 
@@ -73,7 +75,7 @@ public class EntretienPositifService {
             this.detail = detail;
         }
 
-        public String getDate()   { return date; }
+        public String getDate() { return date; }
         public void setDate(String date) { this.date = date; }
         public String getAction() { return action; }
         public void setAction(String action) { this.action = action; }
@@ -103,27 +105,23 @@ public class EntretienPositifService {
         LocalDate now = LocalDate.now();
         List<Collaborator> actifs = collaboratorRepository.findByDepartFalseAndArchivedFalse();
 
-        System.out.println("Nombre total de collaborateurs actifs: " + actifs.size());
-
         List<CollaborateurSansFauteDto> result = new ArrayList<>();
 
         for (Collaborator c : actifs) {
             try {
-                LocalDate derniereFaute = null;
                 long joursSansFaute = 0;
-                LocalDate dateDebut = c.getHireDate();
 
                 Optional<PaqDossier> paqOpt = paqRepository
                         .findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(c.getMatricule());
 
                 if (paqOpt.isPresent()) {
                     PaqDossier paq = paqOpt.get();
-                    derniereFaute = paq.getDerniereFaute();
+                    LocalDate derniereFaute = paq.getDerniereFaute();
 
                     if (derniereFaute != null) {
                         joursSansFaute = ChronoUnit.DAYS.between(derniereFaute, now);
                     } else {
-                        dateDebut = paq.getDateCreation() != null ? paq.getDateCreation() : c.getHireDate();
+                        LocalDate dateDebut = paq.getDateCreation() != null ? paq.getDateCreation() : c.getHireDate();
                         joursSansFaute = ChronoUnit.DAYS.between(dateDebut, now);
                     }
                 } else {
@@ -137,7 +135,7 @@ public class EntretienPositifService {
                             c.getPrenom() != null ? c.getPrenom() : "",
                             c.getSegment(),
                             c.getHireDate(),
-                            derniereFaute,
+                            null,
                             joursSansFaute
                     );
                     result.add(dto);
@@ -147,172 +145,277 @@ public class EntretienPositifService {
             }
         }
 
-        System.out.println("Nombre de collaborateurs éligibles (>=180 jours): " + result.size());
         return result;
     }
 
-    // ── Envoi email au SL ──────────────────────────────────────────────────────
+    // Récupérer les collaborateurs sans faute pour un SL spécifique (basé sur ses segments)
+    public List<CollaborateurSansFauteDto> getCollaborateursSansFauteParSl(User sl) {
+        List<CollaborateurSansFauteDto> tous = getCollaborateursSansFaute();
+        Set<String> segmentsSl = getSegmentsForUser(sl);
 
-    @Transactional
-    public Map<String, Object> envoyerListeSl(EnvoyerSlRequest request) {
-        Map<String, Object> response = new HashMap<>();
-        try {
-            if (request.getSlDestinataire() == null || request.getSlDestinataire().isBlank()) {
-                throw new RuntimeException("Email SL obligatoire");
-            }
-            if (!request.getSlDestinataire().matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")) {
-                throw new RuntimeException("Adresse email invalide");
-            }
-            if (request.getDateEnvoi() == null || request.getDateEnvoi().isBlank()) {
-                throw new RuntimeException("Date d'envoi obligatoire");
-            }
-
-            LocalDate dateEnvoi = LocalDate.parse(request.getDateEnvoi());
-            List<CollaborateurSansFauteDto> collaborateurs = getCollaborateursSansFaute();
-
-            List<CollaborateurSansFauteDto> aEnvoyer = collaborateurs;
-            if (request.getMatricules() != null && !request.getMatricules().isEmpty()) {
-                aEnvoyer = collaborateurs.stream()
-                        .filter(c -> request.getMatricules().contains(c.getMatricule()))
-                        .collect(Collectors.toList());
-            }
-
-            if (aEnvoyer.isEmpty()) {
-                throw new RuntimeException("Aucun collaborateur correspondant trouvé");
-            }
-
-            EntretienPositif entretien = new EntretienPositif();
-            entretien.setSlDestinataire(request.getSlDestinataire());
-            entretien.setDateEnvoi(dateEnvoi);
-            entretien.setNote(request.getMessage());
-            entretien.setCreatedAt(LocalDateTime.now());
-            entretien.setMatriculeCollaborateur(
-                    aEnvoyer.stream()
-                            .map(CollaborateurSansFauteDto::getMatricule)
-                            .collect(Collectors.joining(","))
-            );
-            entretienPositifRepository.save(entretien);
-
-            envoyerEmail(request.getSlDestinataire(), aEnvoyer, request.getMessage(), dateEnvoi);
-
-            response.put("success", true);
-            response.put("message", "Email envoyé avec succès à " + request.getSlDestinataire());
-            response.put("nb", aEnvoyer.size());
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            response.put("success", false);
-            response.put("message", e.getMessage());
+        if (segmentsSl.isEmpty()) {
+            return tous;
         }
-        return response;
+        return tous.stream()
+                .filter(c -> segmentsSl.contains(c.getSegment()))
+                .collect(Collectors.toList());
     }
 
-    private void envoyerEmail(String destinataire,
-                              List<CollaborateurSansFauteDto> collaborateurs,
-                              String message,
-                              LocalDate dateEnvoi) throws Exception {
+    private Set<String> getSegmentsForUser(User user) {
+        Set<String> segments = new HashSet<>();
+
+        if (user.getSegments() != null) {
+            user.getSegments().forEach(seg -> {
+                if (seg != null && seg.getNomSegment() != null) {
+                    segments.add(seg.getNomSegment());
+                }
+            });
+        }
+
+        if (user.getPlants() != null) {
+            user.getPlants().forEach(plant -> {
+                if (plant != null && plant.getSegments() != null) {
+                    plant.getSegments().forEach(seg -> {
+                        if (seg != null && seg.getNomSegment() != null) {
+                            segments.add(seg.getNomSegment());
+                        }
+                    });
+                }
+            });
+        }
+
+        if (user.getSites() != null) {
+            user.getSites().forEach(site -> {
+                if (site != null && site.getPlants() != null) {
+                    site.getPlants().forEach(plant -> {
+                        if (plant != null && plant.getSegments() != null) {
+                            plant.getSegments().forEach(seg -> {
+                                if (seg != null && seg.getNomSegment() != null) {
+                                    segments.add(seg.getNomSegment());
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        return segments;
+    }
+
+    /**
+     * Envoi automatique toutes les minutes pour test
+     */
+    /**
+     * Envoi automatique toutes les minutes pour test
+     */
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
+    public void envoyerAutomatiquementAuxSL() {
+        System.out.println("=== [TEST] Envoi automatique des entretiens positifs aux SL ===");
+        System.out.println("Timestamp: " + LocalDateTime.now());
+        System.out.println("MailSender configuré: " + (mailSender != null));
 
         if (mailSender == null) {
-            throw new RuntimeException("Service mail non configuré (vérifiez application.properties)");
+            System.err.println("❌ MailSender non configuré! Vérifiez votre configuration SMTP.");
+            return;
+        }
+
+        // ✅ CORRECTION : Utiliser "SL" (String) car la méthode attend un String
+        List<User> slUsers = userRepository.findAllSL();
+
+        System.out.println("Nombre de SL trouvés: " + (slUsers != null ? slUsers.size() : 0));
+
+        if (slUsers == null || slUsers.isEmpty()) {
+            System.out.println("❌ Aucun utilisateur avec rôle SL trouvé");
+            return;
+        }
+
+        int totalEnvoyes = 0;
+
+        for (User sl : slUsers) {
+            System.out.println("\n--- Traitement SL: " + sl.getLogin() + " ---");
+            System.out.println("Email SL: " + sl.getEmail());
+
+            if (sl.getEmail() == null || sl.getEmail().isEmpty()) {
+                System.out.println("⚠️ SL sans email: " + sl.getLogin());
+                continue;
+            }
+
+            List<CollaborateurSansFauteDto> collabPourSL = getCollaborateursSansFauteParSl(sl);
+            System.out.println("Collaborateurs éligibles trouvés: " + collabPourSL.size());
+
+            if (!collabPourSL.isEmpty()) {
+                try {
+                    boolean emailEnvoye = envoyerEmailAutomatique(sl, collabPourSL);
+                    if (emailEnvoye) {
+                        totalEnvoyes++;
+                        System.out.println("✅ Email envoyé avec succès à " + sl.getEmail());
+
+                        EntretienPositif entretien = new EntretienPositif();
+                        entretien.setSlDestinataire(sl.getEmail());
+                        entretien.setDateEnvoi(LocalDate.now());
+                        entretien.setNote("Envoi automatique - Félicitations aux collaborateurs");
+                        entretien.setCreatedAt(LocalDateTime.now());
+                        entretien.setMatriculeCollaborateur(
+                                collabPourSL.stream()
+                                        .map(CollaborateurSansFauteDto::getMatricule)
+                                        .collect(Collectors.joining(","))
+                        );
+                        entretienPositifRepository.save(entretien);
+                    } else {
+                        System.out.println("❌ Échec envoi email à " + sl.getEmail());
+                    }
+                } catch (Exception e) {
+                    System.err.println("❌ Erreur envoi email à " + sl.getEmail() + ": " + e.getMessage());
+                    e.printStackTrace();
+                }
+            } else {
+                System.out.println("⚠️ Aucun collaborateur éligible pour ce SL");
+            }
+        }
+
+        System.out.println("\n=== Envoi automatique terminé: " + totalEnvoyes + " email(s) envoyé(s) ===");
+    }
+
+    private boolean envoyerEmailAutomatique(User sl, List<CollaborateurSansFauteDto> collaborateurs) throws Exception {
+        if (mailSender == null) {
+            System.err.println("MailSender est null");
+            return false;
         }
 
         byte[] pdfBytes = generatePdf(collaborateurs);
+        LocalDate now = LocalDate.now();
 
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
-        helper.setTo(destinataire);
-        helper.setSubject("Entretien Positif – Collaborateurs à féliciter – "
-                + dateEnvoi.format(DateTimeFormatter.ofPattern("MMMM yyyy", new Locale("fr"))));
+        helper.setTo(sl.getEmail());
+        helper.setFrom(fromEmail != null ? fromEmail : "paq@leoni.com");
+        helper.setSubject("✨ Entretien Positif – Collaborateurs à féliciter – " + now.format(MOIS_FORMATTER));
 
-        StringBuilder html = new StringBuilder();
-        html.append("<!DOCTYPE html>")
-                .append("<html>")
-                .append("<head>")
-                .append("<meta charset='UTF-8'>")
-                .append("<style>")
-                .append("  .email-container { font-family: 'Segoe UI', Arial, sans-serif; max-width: 700px; margin: 0 auto; }")
-                .append("  .email-header { background: #C8102E; padding: 20px 28px; border-radius: 8px 8px 0 0; }")
-                .append("  .email-header h1 { color: white; margin: 0; font-size: 20px; }")
-                .append("  .email-header p { color: rgba(255,255,255,0.8); margin: 4px 0 0; font-size: 13px; }")
-                .append("  .email-body { background: #FFFFFF; border: 1px solid #E0E0E0; border-top: none; padding: 24px 28px; border-radius: 0 0 8px 8px; }")
-                .append("  .email-message { background: #FBF0F2; border-left: 4px solid #C8102E; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; }")
-                .append("  .email-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }")
-                .append("  .email-table th { background: #1a3a5c; color: white; padding: 12px 12px; text-align: left; border: 1px solid #2a4a6c; font-weight: 600; }")
-                .append("  .email-table td { padding: 10px 12px; border: 1px solid #E0E0E0; }")
-                .append("  .email-table tr:hover { background-color: #f5f5f5; }")
-                .append("  .email-table .matricule { font-family: monospace; font-weight: 500; }")
-                .append("  .email-table .jours { text-align: right; color: #1A7A46; font-weight: 600; }")
-                .append("  .email-footer { color: #6B6B6B; font-size: 12px; margin-top: 20px; text-align: center; border-top: 1px solid #E0E0E0; padding-top: 16px; }")
-                .append("</style>")
-                .append("</head>")
-                .append("<body>");
-
-        html.append("<div class='email-container'>")
-                .append("<div class='email-header'>")
-                .append("<h1>🏭 Entretien Positif</h1>")
-                .append("<p>").append(dateEnvoi.format(DATE_FORMATTER)).append("</p>")
-                .append("</div>")
-                .append("<div class='email-body'>")
-                .append("<p style='color:#4A4A4A;'>Bonjour,</p>")
-                .append("<p style='color:#4A4A4A;'>")
-                .append("Veuillez trouver ci-dessous la liste des ")
-                .append("<strong style='color:#C8102E;'>").append(collaborateurs.size()).append(" collaborateur(s)</strong>")
-                .append(" sans faute depuis plus de 6 mois, éligibles à un <strong>entretien positif</strong>.")
-                .append("</p>");
-
-        if (message != null && !message.isBlank()) {
-            html.append("<div class='email-message'>")
-                    .append("<p style='margin:0;color:#4A4A4A;font-size:14px;'>")
-                    .append("<strong>📝 Message :</strong> ").append(message)
-                    .append("</p></div>");
-        }
-
-        html.append("<table class='email-table'>")
-                .append("<thead>")
-                .append("<tr>")
-                .append("<th>👤 Nom</th>")
-                .append("<th>👤 Prénom</th>")
-                .append("<th>🆔 Matricule</th>")
-                .append("<th>📅 Jours sans faute</th>")
-                .append("</tr>")
-                .append("</thead>")
-                .append("<tbody>");
-
-        for (CollaborateurSansFauteDto c : collaborateurs) {
-            html.append("<tr>")
-                    .append("<td>").append(escapeHtml(c.getNom() != null ? c.getNom() : "")).append("</td>")
-                    .append("<td>").append(escapeHtml(c.getPrenom() != null ? c.getPrenom() : "")).append("</td>")
-                    .append("<td class='matricule'>").append(escapeHtml(c.getMatricule() != null ? c.getMatricule() : "")).append("</td>")
-                    .append("<td class='jours'>").append(c.getJoursSansFaute()).append(" j</td>")
-                    .append("</tr>");
-        }
-
-        html.append("</tbody>")
-                .append("</table>")
-                .append("<div class='email-footer'>")
-                .append("<p>ℹ️ Ce message est envoyé automatiquement par le système PAQ.</p>")
-                .append("<p style='margin-top:8px;'>&copy; 2026 PAQ System - LEONI</p>")
-                .append("</div>")
-                .append("</div>")
-                .append("</div>")
-                .append("</body>")
-                .append("</html>");
-
-        helper.setText(html.toString(), true);
+        String htmlContent = buildEmailContent(sl, collaborateurs, now);
+        helper.setText(htmlContent, true);
         helper.addAttachment(
-                "collaborateurs_sans_faute_" + dateEnvoi + ".pdf",
+                "collaborateurs_a_feliciter_" + now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + ".pdf",
                 new ByteArrayResource(pdfBytes)
         );
 
         mailSender.send(mimeMessage);
+        return true;
     }
 
-    // ── Helper pour échapper les caractères HTML ───────────────────────────────
+    private String buildEmailContent(User sl, List<CollaborateurSansFauteDto> collaborateurs, LocalDate dateEnvoi) {
+        int totalJours = collaborateurs.stream().mapToInt(c -> (int) c.getJoursSansFaute()).sum();
+        int moyenneJours = collaborateurs.isEmpty() ? 0 : totalJours / collaborateurs.size();
+        String scope = getScopeForUser(sl);
+
+        StringBuilder htmlBuilder = new StringBuilder();
+
+        htmlBuilder.append(String.format("""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset='UTF-8'>
+                <style>
+                    .email-container { font-family: 'Segoe UI', Arial, sans-serif; max-width: 700px; margin: 0 auto; }
+                    .email-header { background: #10B981; padding: 25px 30px; border-radius: 12px 12px 0 0; text-align: center; }
+                    .email-header h1 { color: white; margin: 0; font-size: 24px; }
+                    .email-header p { color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 14px; }
+                    .email-body { background: #FFFFFF; border: 1px solid #E5E7EB; border-top: none; padding: 28px 30px; border-radius: 0 0 12px 12px; }
+                    .email-message { background: #ECFDF5; border-left: 4px solid #10B981; padding: 16px 20px; border-radius: 0 8px 8px 0; margin: 20px 0; text-align: center; }
+                    .email-message p { margin: 0; font-size: 18px; font-weight: bold; color: #065F46; }
+                    .email-stats { display: flex; justify-content: space-between; margin: 20px 0; gap: 10px; }
+                    .email-stat-card { background: #F0FDF4; border-radius: 10px; padding: 12px; text-align: center; flex: 1; }
+                    .email-stat-number { font-size: 28px; font-weight: bold; color: #10B981; }
+                    .email-stat-label { font-size: 12px; color: #4B5563; }
+                    .email-table { width: 100%%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+                    .email-table th { background: #10B981; color: white; padding: 12px; text-align: left; border: 1px solid #34D399; }
+                    .email-table td { padding: 10px 12px; border: 1px solid #E5E7EB; }
+                    .email-table .matricule { font-family: monospace; }
+                    .email-table .jours { text-align: right; color: #10B981; font-weight: 600; }
+                    .email-footer { color: #6B7280; font-size: 11px; margin-top: 25px; text-align: center; border-top: 1px solid #E5E7EB; padding-top: 20px; }
+                </style>
+            </head>
+            <body>
+                <div class='email-container'>
+                    <div class='email-header'>
+                        <h1>🏆 FÉLICITATIONS ! 🏆</h1>
+                        <p>Entretien Positif - %s</p>
+                    </div>
+                    <div class='email-body'>
+                        <p>Bonjour <strong>%s</strong>,</p>
+                        <div class='email-message'>
+                            <p>✨ FÉLICITER SES COLLABORATEURS ! ✨</p>
+                        </div>
+                        <p>Nous avons le plaisir de vous informer que <strong>%d collaborateur(s)</strong> 
+                        de %s ont accompli <strong>plus de 6 mois sans aucune faute</strong>.</p>
+                        
+                        <p><strong>Liste des collaborateurs à féliciter :</strong></p>
+                        <table class='email-table'>
+                            <thead><tr><th>Nom</th><th>Prénom</th><th>Matricule</th><th>Jours sans faute</th></tr></thead>
+                            <tbody>
+            """,
+                dateEnvoi.format(DATE_FORMATTER),
+                sl.getNomUtilisateur() != null ? sl.getNomUtilisateur() : sl.getLogin(),
+                collaborateurs.size(),
+                scope,
+                collaborateurs.size(),
+                moyenneJours
+        ));
+
+        for (CollaborateurSansFauteDto c : collaborateurs) {
+            htmlBuilder.append(String.format("""
+                                <tr>
+                                    <td>%s</td>
+                                    <td>%s</td>
+                                    <td class='matricule'>%s</td>
+                                    <td class='jours'>%d j</td>
+                                </tr>
+                            """,
+                    escapeHtml(c.getNom() != null ? c.getNom() : ""),
+                    escapeHtml(c.getPrenom() != null ? c.getPrenom() : ""),
+                    escapeHtml(c.getMatricule()),
+                    c.getJoursSansFaute()
+            ));
+        }
+
+        htmlBuilder.append("""
+                            </tbody>
+                        </table>
+                        <div class='email-footer'>
+                            <p>ℹ️ Cet email est envoyé automatiquement par le système PAQ.</p>
+                            <p>🌿 Félicitez et valorisez vos collaborateurs pour leur excellence !</p>
+                            <p>&copy; 2026 PAQ System - LEONI</p>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+        """);
+
+        return htmlBuilder.toString();
+    }
+
+    private String getScopeForUser(User user) {
+        if (user.getSites() != null && !user.getSites().isEmpty()) {
+            return "du site: " + user.getSites().stream()
+                    .map(Site::getName)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining(", "));
+        }
+        if (user.getPlants() != null && !user.getPlants().isEmpty()) {
+            return "du plant: " + user.getPlants().stream()
+                    .map(Plant::getName)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining(", "));
+        }
+        return "votre périmètre";
+    }
+
     private String escapeHtml(String text) {
         if (text == null) return "";
-        return text
-                .replace("&", "&amp;")
+        return text.replace("&", "&amp;")
                 .replace("<", "&lt;")
                 .replace(">", "&gt;")
                 .replace("\"", "&quot;")
@@ -390,9 +493,9 @@ public class EntretienPositifService {
         PdfDocument pdf = new PdfDocument(writer);
         Document document = new Document(pdf);
 
-        document.add(new Paragraph("Liste des collaborateurs sans faute")
-                .setBold().setFontSize(16));
-        document.add(new Paragraph("Générée le : " + LocalDate.now().format(DATE_FORMATTER))
+        document.add(new Paragraph("✨ FÉLICITATIONS - COLLABORATEURS SANS FAUTE ✨")
+                .setBold().setFontSize(18).setFontColor(ColorConstants.GREEN));
+        document.add(new Paragraph("Généré le : " + LocalDate.now().format(DATE_FORMATTER))
                 .setFontSize(10));
 
         Table table = new Table(new float[]{3, 3, 3, 2});
@@ -403,7 +506,7 @@ public class EntretienPositifService {
             table.addHeaderCell(new Cell()
                     .add(new Paragraph(header))
                     .setBold()
-                    .setBackgroundColor(ColorConstants.LIGHT_GRAY));
+                    .setBackgroundColor(ColorConstants.GREEN));
         }
 
         for (CollaborateurSansFauteDto c : list) {
@@ -416,5 +519,9 @@ public class EntretienPositifService {
         document.add(table);
         document.close();
         return out.toByteArray();
+    }
+
+    public Optional<EntretienPositif> findById(Long id) {
+        return entretienPositifRepository.findById(id);
     }
 }

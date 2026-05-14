@@ -275,7 +275,7 @@ export default function SitesManagement() {
               )}
               <form onSubmit={handleSubmit}>
                 <div className="sm-field">
-                  <label>Nom du site <span className="sm-required">*</span></label>
+                  <label>Nom du site <span className="sm-required"></span></label>
                   <input
                     className="sm-input"
                     type="text"

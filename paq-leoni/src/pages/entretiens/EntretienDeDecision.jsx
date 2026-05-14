@@ -1,3 +1,5 @@
+// EntretienDeDecision.jsx - Version corrigée
+
 import React, { useEffect, useState } from "react";
 import {
   collaboratorService,
@@ -13,16 +15,71 @@ import "../../styles/entretien-decision.css";
 import "../../styles/paq-dossier.css";
 import { showErrorAlert, showInfoToast, showSuccessAlert, showSuccessToast } from "../../utils/entretienAlerts";
 
-// Composant Modal Email
-function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails, action = "création" }) {
-  const [selectedEmail, setSelectedEmail] = useState("");
+// Composant Modal Email pour sélection multiple avec filtres par rôle
+function EmailModal({ isOpen, onClose, onConfirm, usersList, loadingUsers, action = "création" }) {
+  const [selectedEmails, setSelectedEmails] = useState([]);
   const [message, setMessage] = useState("");
+  const [emailFilter, setEmailFilter] = useState("all");
+
+  // Réinitialiser la sélection quand la modale s'ouvre
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedEmails([]);
+      setMessage("");
+      setEmailFilter("all");
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const isValidationSLAction = action === "validationSL";
+
+  const getFilteredUsers = () => {
+    if (emailFilter === "all") {
+      return usersList;
+    }
+    return usersList.filter(user => user.role === emailFilter);
+  };
+
+  const toggleEmailSelection = (email) => {
+    if (selectedEmails.includes(email)) {
+      setSelectedEmails(selectedEmails.filter(e => e !== email));
+    } else {
+      setSelectedEmails([...selectedEmails, email]);
+    }
+  };
+
+  const toggleAllEmails = () => {
+    const filteredUsers = getFilteredUsers();
+    const allEmailsInList = filteredUsers.map(u => u.email);
+    if (selectedEmails.length === allEmailsInList.length && allEmailsInList.length > 0) {
+      setSelectedEmails([]);
+    } else {
+      setSelectedEmails(allEmailsInList);
+    }
+  };
+
+  const handleConfirm = () => {
+    if (selectedEmails.length === 0) {
+      showErrorAlert("Email requis", "Veuillez sélectionner au moins un destinataire");
+      return;
+    }
+    
+    if (isValidationSLAction) {
+      onConfirm(selectedEmails, message);
+    } else if (action === "suppression") {
+      onConfirm(selectedEmails[0], message);
+    } else {
+      onConfirm(selectedEmails, message);
+    }
+  };
+
+  const filteredUsers = getFilteredUsers();
+  const allSelected = filteredUsers.length > 0 && selectedEmails.length === filteredUsers.length;
+
   return (
     <div className="leoni-modal-overlay" onClick={onClose}>
-      <div className="leoni-modal" style={{ maxWidth: "500px" }} onClick={e => e.stopPropagation()}>
+      <div className="leoni-modal" style={{ maxWidth: "650px", maxHeight: "80vh", overflow: "auto" }} onClick={e => e.stopPropagation()}>
         <div className="leoni-modal-header">
           <div className="leoni-modal-icon leoni-modal-icon-info">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -31,45 +88,174 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails, act
             </svg>
           </div>
           <div>
-            <h3>Envoyer un email - {action === "création" ? "Création" : action === "modification" ? "Modification" : action === "validation1" ? "Validation HP/SGL" : action === "validation2" ? "Validation QM-Plant" : "Suppression"}</h3>
-            <p>Choisissez le destinataire pour notifier de la {action === "suppression" ? "suppression" : action === "modification" ? "modification" : action === "validation1" ? "validation HP/SGL" : action === "validation2" ? "validation QM-Plant" : "création"} de l'entretien</p>
+            <h3>Envoyer un email - {action === "validationSL" ? "Validation SL" : action === "suppression" ? "Suppression" : action === "modification" ? "Modification" : "Création"}</h3>
+            <p>
+              {isValidationSLAction 
+                ? "Sélectionnez les destinataires (HP, SGL, QM_PLANT) pour la convocation"
+                : action === "suppression"
+                ? "Choisissez le destinataire pour notifier de la suppression"
+                : "Sélectionnez les destinataires pour notifier"}
+            </p>
           </div>
           <button className="leoni-modal-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="leoni-modal-body">
-          <div className="leoni-form-group">
-            <label>Destinataire *</label>
-            <select 
-              className="leoni-input" 
-              value={selectedEmail} 
-              onChange={(e) => setSelectedEmail(e.target.value)}
-              disabled={loadingEmails}
-            >
-              <option value="">-- Sélectionnez un email --</option>
-              {emailsList.map((email, idx) => (
-                <option key={idx} value={email}>{email}</option>
-              ))}
-            </select>
-            {loadingEmails && <small>Chargement des emails...</small>}
+          {usersList.length > 0 && (
+            <div style={{ marginBottom: 16, display: "flex", gap: "10px", flexWrap: "wrap", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px" }}>
+              <button
+                type="button"
+                onClick={() => setEmailFilter("all")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "20px",
+                  border: "1px solid #C8102E",
+                  background: emailFilter === "all" ? "#C8102E" : "white",
+                  color: emailFilter === "all" ? "white" : "#C8102E",
+                  cursor: "pointer",
+                  fontWeight: "500"
+                }}
+              >
+                Tous ({usersList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmailFilter("HP")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "20px",
+                  border: "1px solid #C8102E",
+                  background: emailFilter === "HP" ? "#C8102E" : "white",
+                  color: emailFilter === "HP" ? "white" : "#C8102E",
+                  cursor: "pointer",
+                  fontWeight: "500"
+                }}
+              >
+                HP ({usersList.filter(u => u.role === "HP").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmailFilter("SGL")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "20px",
+                  border: "1px solid #C8102E",
+                  background: emailFilter === "SGL" ? "#C8102E" : "white",
+                  color: emailFilter === "SGL" ? "white" : "#C8102E",
+                  cursor: "pointer",
+                  fontWeight: "500"
+                }}
+              >
+                SGL ({usersList.filter(u => u.role === "SGL").length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmailFilter("QM_PLANT")}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "20px",
+                  border: "1px solid #C8102E",
+                  background: emailFilter === "QM_PLANT" ? "#C8102E" : "white",
+                  color: emailFilter === "QM_PLANT" ? "white" : "#C8102E",
+                  cursor: "pointer",
+                  fontWeight: "500"
+                }}
+              >
+                QM_PLANT ({usersList.filter(u => u.role === "QM_PLANT").length})
+              </button>
+            </div>
+          )}
+
+          <div style={{ marginBottom: 20, border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
+            <div style={{ 
+              padding: "12px", 
+              background: "#f8f9fa", 
+              borderBottom: "1px solid #e2e8f0",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px"
+            }}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAllEmails}
+                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+              />
+              <strong style={{ flex: 1 }}>Sélectionner tous les {filteredUsers.length} utilisateur(s)</strong>
+              <span style={{ fontSize: "12px", color: "#666" }}>
+                {selectedEmails.length} sélectionné(s)
+              </span>
+            </div>
+            <div style={{ maxHeight: "300px", overflow: "auto" }}>
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: "12px",
+                      borderBottom: "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      background: selectedEmails.includes(user.email) ? "#f0f9ff" : "white",
+                      cursor: "pointer"
+                    }}
+                    onClick={() => toggleEmailSelection(user.email)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedEmails.includes(user.email)}
+                      onChange={() => toggleEmailSelection(user.email)}
+                      style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 500, color: "#1a202c" }}>{user.email}</div>
+                      <div style={{ fontSize: "12px", color: "#718096" }}>
+                        {user.nomUtilisateur || user.email.split('@')[0]} • Rôle: <strong>{user.role || "Utilisateur"}</strong>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ padding: "40px", textAlign: "center", color: "#999" }}>
+                  Aucun utilisateur trouvé avec le rôle sélectionné
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="leoni-form-group">
-            <label>Message (optionnel)</label>
+            <label>Message personnalisé (optionnel)</label>
             <textarea
               className="leoni-textarea"
               rows="4"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ajoutez un message personnalisé..."
+              placeholder="Ajoutez un message personnalisé qui sera inclus dans l'email..."
+              style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ddd" }}
             />
           </div>
         </div>
 
-        <div className="leoni-modal-footer">
-          <button type="button" className="leoni-btn leoni-btn-outline" onClick={onClose}>Annuler</button>
-          <button type="button" className="leoni-btn leoni-btn-primary" onClick={() => onConfirm(selectedEmail, message)} disabled={!selectedEmail}>
-            {action === "suppression" ? "Confirmer la suppression" : "Envoyer"}
+        <div className="leoni-modal-footer" style={{ display: "flex", justifyContent: "flex-end", gap: "10px", padding: "16px", borderTop: "1px solid #e2e8f0" }}>
+          <button type="button" className="leoni-btn leoni-btn-outline" onClick={onClose} style={{ padding: "8px 16px" }}>
+            Annuler
+          </button>
+          <button 
+            type="button" 
+            className="leoni-btn leoni-btn-primary" 
+            onClick={handleConfirm}
+            disabled={selectedEmails.length === 0}
+            style={{
+              background: selectedEmails.length === 0 ? "#ccc" : "#C8102E",
+              color: "white",
+              padding: "8px 16px",
+              border: "none",
+              borderRadius: "6px",
+              cursor: selectedEmails.length === 0 ? "not-allowed" : "pointer"
+            }}
+          >
+            {action === "suppression" ? "Confirmer la suppression" : `📧 Envoyer à ${selectedEmails.length} destinataire(s)`}
           </button>
         </div>
       </div>
@@ -88,10 +274,7 @@ export default function EntretienDeDecision({ niveau = 4 }) {
   const { matricule } = useParams();
   const navigate = useNavigate();
 
-  // Récupérer le rôle de l'utilisateur
   const [userRole, setUserRole] = useState(null);
-  const [userPermissions, setUserPermissions] = useState([]);
-
   const [collaborator, setCollaborator] = useState(null);
   const [resumeN1, setResumeN1] = useState(null);
   const [resumeN2, setResumeN2] = useState(null);
@@ -107,50 +290,73 @@ export default function EntretienDeDecision({ niveau = 4 }) {
   const [defautTypeInput, setDefautTypeInput] = useState("");
   const [typeOptions, setTypeOptions] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [emailsList, setEmailsList] = useState([]);
-  const [loadingEmails, setLoadingEmails] = useState(false);
+  const [usersList, setUsersList] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [modalAction, setModalAction] = useState("création");
+  const [pendingSubmit, setPendingSubmit] = useState(false);
 
   const [formData, setFormData] = useState(buildDefaultForm());
 
-  // Récupérer le rôle de l'utilisateur
   useEffect(() => {
     const userStr = sessionStorage.getItem("user");
     if (userStr) {
       const user = JSON.parse(userStr);
       setUserRole(user.role);
-      setUserPermissions(user.permissions || []);
     }
   }, []);
 
-  const loadEmails = async () => {
+  const loadAllUsersWithEmails = async () => {
     try {
-      setLoadingEmails(true);
-      const response = await userService.getAllEmails();
-      if (response && response.data && Array.isArray(response.data)) {
-        console.log("Emails chargés:", response.data);
-        setEmailsList(response.data);
+      setLoadingUsers(true);
+      console.log("Chargement des utilisateurs...");
+      const response = await userService.getAllUsersWithEmails();
+      console.log("Utilisateurs chargés:", response.data);
+      
+      if (response.data && Array.isArray(response.data)) {
+        const relevantUsers = response.data.filter(user => 
+          user.role === "HP" || user.role === "SGL" || user.role === "QM_PLANT"
+        );
+        setUsersList(relevantUsers);
+        console.log("Utilisateurs filtrés:", relevantUsers);
       } else {
-        setEmailsList([]);
+        setUsersList([]);
       }
     } catch (err) {
-      console.error("Erreur chargement emails:", err);
-      setEmailsList([]);
+      console.error("Erreur chargement utilisateurs:", err);
+      try {
+        const emailResponse = await userService.getAllEmails();
+        const emailList = emailResponse.data.map(email => ({ 
+          email, 
+          nomUtilisateur: email, 
+          role: "UNKNOWN" 
+        }));
+        setUsersList(emailList);
+      } catch (e) {
+        setUsersList([]);
+      }
     } finally {
-      setLoadingEmails(false);
+      setLoadingUsers(false);
     }
   };
 
   useEffect(() => {
     if (!matricule) return;
     loadData();
-    loadDraft();
-    loadResumes();
-    loadFautes();
-    loadAllEntretiens();
-    loadEmails();
   }, [matricule]);
+
+  const loadData = async () => {
+    setLoading(true);
+    await Promise.all([
+      loadFautes(),
+      loadCollaborator(),
+      loadResumes(),
+      loadAllEntretiens(),
+      loadAllUsersWithEmails()
+    ]);
+    loadDraft();
+    setLoading(false);
+  };
 
   const resetForm = () => {
     setFormData(buildDefaultForm());
@@ -160,16 +366,13 @@ export default function EntretienDeDecision({ niveau = 4 }) {
     }
   };
 
-  const loadData = async () => {
+  const loadCollaborator = async () => {
     try {
-      setLoading(true);
       const collab = await collaboratorService.getById(matricule);
       setCollaborator(collab.data);
     } catch (err) {
       console.error(err);
       setError("Impossible de charger les données du collaborateur.");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -251,7 +454,7 @@ export default function EntretienDeDecision({ niveau = 4 }) {
       setShowDefautModal(false);
       setDefautTypeInput("");
       setStatusMessage("Type de faute ajouté avec succès.");
-      showSuccessToast("Faute ajout�e");
+      showSuccessToast("Faute ajoutée");
     } catch { setError("Erreur ajout faute"); showErrorAlert("Ajout impossible", "Erreur lors de l'ajout du type de faute."); }
   };
 
@@ -261,16 +464,16 @@ export default function EntretienDeDecision({ niveau = 4 }) {
       const payload = { ...formData, id: currentEntretienId };
       localStorage.setItem(`entretien-decision-draft-${matricule}`, JSON.stringify(payload));
       setStatusMessage("Brouillon enregistré avec succès.");
-      showSuccessToast("Brouillon enregistr�");
+      showSuccessToast("Brouillon enregistré");
       setTimeout(() => setStatusMessage(""), 3000);
-    } catch { setError("Impossible d'enregistrer le brouillon."); showErrorAlert("Brouillon non enregistr�", "Impossible d'enregistrer le brouillon."); }
+    } catch { setError("Impossible d'enregistrer le brouillon."); showErrorAlert("Brouillon non enregistré", "Impossible d'enregistrer le brouillon."); }
     finally { setSavingDraft(false); }
   };
 
   const handleAjouter = () => {
     resetForm();
     setStatusMessage("Nouveau formulaire prêt.");
-    showInfoToast("Formulaire r�initialis�");
+    showInfoToast("Formulaire réinitialisé");
     setTimeout(() => setStatusMessage(""), 2000);
   };
 
@@ -281,7 +484,7 @@ export default function EntretienDeDecision({ niveau = 4 }) {
     }
     const dernier = entretiensList.sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))[0];
     chargerEntretienDansFormulaire(dernier);
-    showInfoToast("Dernier entretien charg�");
+    showInfoToast("Dernier entretien chargé");
   };
 
   const handleDeleteConfirm = async (destinataireEmail, message) => {
@@ -296,7 +499,7 @@ export default function EntretienDeDecision({ niveau = 4 }) {
       resetForm();
       await loadAllEntretiens();
       setStatusMessage("Entretien de décision supprimé avec succès. Email envoyé.");
-      await showSuccessAlert("Entretien supprim�", "L'entretien de d�cision a bien �t� supprim�.");
+      await showSuccessAlert("Entretien supprimé", "L'entretien de décision a bien été supprimé.");
       setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
     } catch (err) {
       setError("Erreur lors de la suppression : " + (err.response?.data?.message || err.message));
@@ -306,74 +509,140 @@ export default function EntretienDeDecision({ niveau = 4 }) {
     }
   };
 
-  const handleSupprimer = () => {
-    if (!currentEntretienId) {
-      setError("Aucun entretien chargé pour suppression.");
-      return;
-    }
-    setModalAction("suppression");
-    setShowEmailModal(true);
-  };
-
-  // Gestion des différentes actions selon le rôle
-  const handleSubmitConfirm = async (destinataireEmail, message) => {
+  // ✅ CORRECTION: Fonction submitWithEmails corrigée
+  const submitWithEmails = async (emails, message) => {
+    console.log("=== submitWithEmails ===");
+    console.log("Emails sélectionnés:", emails);
+    console.log("Message:", message);
+    console.log("Modal action:", modalAction);
+    console.log("Current entretien ID:", currentEntretienId);
+    
     setShowEmailModal(false);
-    setSaving(true);
-
+    setPendingSubmit(true);
+    
     try {
+      if (!formData.typeFaute) {
+        throw new Error("Le type de faute est obligatoire");
+      }
+      if (!formData.decision) {
+        throw new Error("La décision est obligatoire");
+      }
+      
+      // ✅ Correction: Envoyer la liste d'emails directement (pas de join)
+      // ✅ Correction: Utiliser messageOptionnel au lieu de message
       const payload = { 
-        ...formData, 
-        destinataireEmail
+        typeFaute: formData.typeFaute,
+        dateEntretien: formData.dateEntretien,
+        decision: formData.decision,
+        justification: formData.justification || "",
+        destinatairesEmails: emails,  // Envoyer comme tableau
+        messageOptionnel: message || ""  // Nom correct du champ
       };
-
-      // Cas 1: Validation HP ou SGL (1ère validation)
-      if ((userRole === "HP" || userRole === "SGL") && currentEntretienId) {
-        await entretienDecisionService.valider1(matricule, currentEntretienId, payload);
-        setStatusMessage("Entretien de décision validé avec succès (1ère validation). Email envoyé.");
-        await showSuccessAlert("Validation enregistr�e", "Premi�re validation effectu�e avec succ�s.");
+      
+      console.log("Payload envoyé:", JSON.stringify(payload, null, 2));
+      
+      let response;
+      
+      if (modalAction === "validationSL" && currentEntretienId) {
+        console.log("Appel à validerParSL");
+        response = await entretienDecisionService.validerParSL(matricule, currentEntretienId, payload);
+        setStatusMessage(`Entretien soumis. Emails envoyés à ${emails.length} destinataire(s).`);
+        await showSuccessAlert("Entretien soumis", `${emails.length} email(s) envoyé(s).`);
       } 
-      // Cas 2: Validation QM_Plant (2ème validation)
-      else if (userRole === "QM_PLANT" && currentEntretienId) {
-        await entretienDecisionService.valider2(matricule, currentEntretienId, payload);
-        setStatusMessage("Entretien de décision validé avec succès (2ème validation). Email envoyé.");
-        await showSuccessAlert("Validation enregistr�e", "Deuxi�me validation effectu�e avec succ�s.");
+      else if (modalAction === "modification" && currentEntretienId) {
+        console.log("Appel à updateWithNotification");
+        response = await entretienDecisionService.updateWithNotification(matricule, currentEntretienId, payload);
+        setStatusMessage("Entretien modifié avec succès.");
+        await showSuccessAlert("Entretien modifié", "La modification a été enregistrée.");
       }
-      // Cas 3: Modification (SL seulement)
-      else if (userRole === "SL" && currentEntretienId) {
-        await entretienDecisionService.updateWithNotification(matricule, currentEntretienId, payload);
-        setStatusMessage("Entretien de décision modifié avec succès. Email envoyé.");
-        await showSuccessAlert("Entretien modifi�", "La modification a �t� enregistr�e avec succ�s.");
-      }
-      // Cas 4: Création (SL seulement)
-      else if (userRole === "SL" && !currentEntretienId) {
-        await entretienDecisionService.create(matricule, payload);
-        setStatusMessage("Entretien de décision créé avec succès. Email envoyé.");
-        await showSuccessAlert("Entretien cr��", "L'entretien de d�cision a �t� cr�� avec succ�s.");
-      }
-      // Cas 5: ADMIN peut tout faire
-      else if (userRole === "ADMIN") {
-        if (currentEntretienId) {
-          await entretienDecisionService.updateWithNotification(matricule, currentEntretienId, payload);
-          setStatusMessage("Entretien de décision modifié avec succès. Email envoyé.");
-          await showSuccessAlert("Entretien modifi�", "La modification a �t� enregistr�e avec succ�s.");
-        } else {
-          await entretienDecisionService.create(matricule, payload);
-          setStatusMessage("Entretien de décision créé avec succès. Email envoyé.");
-          await showSuccessAlert("Entretien cr��", "L'entretien de d�cision a �t� cr�� avec succ�s.");
+      else if (modalAction === "création" && !currentEntretienId) {
+        console.log("Appel à create");
+        response = await entretienDecisionService.create(matricule, payload);
+        if (response.data && response.data.id) {
+          setCurrentEntretienId(response.data.id);
         }
+        setStatusMessage("Entretien créé avec succès.");
+        await showSuccessAlert("Entretien créé", "L'entretien de décision a été créé.");
       }
       else {
-        setError(`Action non autorisée pour votre rôle: ${userRole}`);
-        return;
+        throw new Error(`Action non reconnue: ${modalAction}, currentId: ${currentEntretienId}`);
+      }
+      
+      console.log("Réponse backend:", response);
+      
+      localStorage.removeItem(`entretien-decision-draft-${matricule}`);
+      await loadAllEntretiens();
+      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 2000);
+      
+    } catch (err) {
+      console.error("Erreur détaillée:", err);
+      let errorMessage = "Erreur lors de la sauvegarde";
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
+      showErrorAlert("Enregistrement impossible", errorMessage);
+    } finally { 
+      setPendingSubmit(false);
+    }
+  };
+
+  const submitWithoutEmail = async () => {
+    console.log("=== submitWithoutEmail ===");
+    console.log("User role:", userRole);
+    console.log("Current entretien ID:", currentEntretienId);
+    
+    setSaving(true);
+    
+    try {
+      if (!formData.typeFaute) {
+        throw new Error("Le type de faute est obligatoire");
+      }
+      if (!formData.decision) {
+        throw new Error("La décision est obligatoire");
+      }
+      
+      const payload = { 
+        typeFaute: formData.typeFaute,
+        dateEntretien: formData.dateEntretien,
+        decision: formData.decision,
+        justification: formData.justification || "",
+      };
+      
+      console.log("Payload validation sans email:", payload);
+
+      if ((userRole === "HP" || userRole === "SGL") && currentEntretienId) {
+        console.log("Appel à valider1 (HP/SGL)");
+        await entretienDecisionService.valider1(matricule, currentEntretienId, payload);
+        setStatusMessage("Entretien de décision validé (1ère validation).");
+        await showSuccessAlert("Validation enregistrée", "Première validation effectuée.");
+      } 
+      else if (userRole === "QM_PLANT" && currentEntretienId) {
+        console.log("Appel à valider2 (QM_PLANT)");
+        await entretienDecisionService.valider2(matricule, currentEntretienId, payload);
+        setStatusMessage("Entretien de décision validé (2ème validation).");
+        await showSuccessAlert("Validation enregistrée", "L'entretien de décision est validé.");
+      }
+      else {
+        throw new Error(`Action non autorisée pour le rôle: ${userRole}`);
       }
       
       localStorage.removeItem(`entretien-decision-draft-${matricule}`);
       await loadAllEntretiens();
-      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
+      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 2000);
+      
     } catch (err) {
-      console.error(err);
-      setError("Erreur : " + (err.response?.data?.message || err.message));
-      showErrorAlert("Enregistrement impossible", err.response?.data?.message || err.message);
+      console.error("Erreur détaillée:", err);
+      let errorMessage = "Erreur lors de la sauvegarde";
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
+      showErrorAlert("Enregistrement impossible", errorMessage);
     } finally { 
       setSaving(false);
     }
@@ -381,40 +650,88 @@ export default function EntretienDeDecision({ niveau = 4 }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(""); setStatusMessage("");
+    setError(""); 
+    setStatusMessage("");
 
-    if (!formData.typeFaute) return setError("Veuillez sélectionner un type de faute.");
-    if (!formData.decision) return setError("Veuillez saisir une décision.");
+    console.log("=== handleSubmit ===");
+    console.log("User role:", userRole);
+    console.log("Current entretien ID:", currentEntretienId);
+    console.log("Form data:", formData);
 
-    // Déterminer l'action en fonction du rôle
-    if ((userRole === "HP" || userRole === "SGL") && currentEntretienId) {
-      setModalAction("validation1");
-    } else if (userRole === "QM_PLANT" && currentEntretienId) {
-      setModalAction("validation2");
-    } else {
-      setModalAction(currentEntretienId ? "modification" : "création");
+    if (!formData.typeFaute) {
+      setError("Veuillez sélectionner un type de faute.");
+      return;
     }
-    setShowEmailModal(true);
+    if (!formData.decision) {
+      setError("Veuillez saisir une décision.");
+      return;
+    }
+
+    if (userRole === "SL") {
+      if (currentEntretienId) {
+        console.log("SL: ouverture modale pour validation/modification");
+        setModalAction("validationSL");
+        setShowEmailModal(true);
+      } else {
+        console.log("SL: ouverture modale pour création");
+        setModalAction("création");
+        setShowEmailModal(true);
+      }
+    } else if ((userRole === "HP" || userRole === "SGL") && currentEntretienId) {
+      console.log("HP/SGL: validation sans email");
+      await submitWithoutEmail();
+    } else if (userRole === "QM_PLANT" && currentEntretienId) {
+      console.log("QM_PLANT: validation sans email");
+      await submitWithoutEmail();
+    } else {
+      setError(`Action non autorisée pour votre rôle: ${userRole}`);
+    }
   };
 
-  // Permissions selon le rôle
   const canCreate = userRole === "SL" || userRole === "ADMIN";
   const canModify = userRole === "SL" || userRole === "ADMIN";
   const canDelete = userRole === "SL" || userRole === "ADMIN";
   const canValidate1 = (userRole === "HP" || userRole === "SGL") || userRole === "ADMIN";
   const canValidate2 = userRole === "QM_PLANT" || userRole === "ADMIN";
   
-  // Déterminer si les champs sont modifiables
   const isEditable = () => {
     if (userRole === "ADMIN") return true;
     if (userRole === "SL") return true;
     return false;
   };
 
-  // Afficher ou non le bouton Modifier
   const showModifyButton = () => {
     if (userRole === "ADMIN" && currentEntretienId) return true;
     if (userRole === "SL" && currentEntretienId) return true;
+    return false;
+  };
+
+  const estValideParHPSGL = () => entretiensList.some(e => e.statusHpSgl === "VALIDE");
+  const estValideParQMPlant = () => entretiensList.some(e => e.statusQmPlant === "VALIDE");
+
+  const getValiderLabel = () => {
+    if (saving || pendingSubmit) return "Enregistrement...";
+    if (userRole === "SL") {
+      if (currentEntretienId) return "📝 Valider & Convoquer";
+      return "➕ Créer & Convoquer";
+    }
+    if (userRole === "HP" || userRole === "SGL") {
+      return estValideParHPSGL() ? "✅ Déjà validé (1ère)" : "🔵 Valider (1ère validation)";
+    }
+    if (userRole === "QM_PLANT") {
+      return estValideParQMPlant() ? "✅ Déjà validé (2ème)" : "🟢 Valider (2ème validation)";
+    }
+    return "Valider";
+  };
+
+  const isValiderDisabled = () => {
+    if (userRole === "HP" || userRole === "SGL") {
+      if (estValideParHPSGL()) return true;
+    }
+    if (userRole === "QM_PLANT") {
+      if (estValideParQMPlant()) return true;
+      if (!estValideParHPSGL()) return true;
+    }
     return false;
   };
 
@@ -424,7 +741,6 @@ export default function EntretienDeDecision({ niveau = 4 }) {
 
   return (
     <div className="decision-root">
-
       <div className="leoni-header">
         <div className="leoni-header-left">
           <button onClick={() => navigate(`/paq-dossier/${matricule}`)} className="leoni-btn-back">
@@ -441,24 +757,33 @@ export default function EntretienDeDecision({ niveau = 4 }) {
               {collaborator.name} {collaborator.prenom} — {collaborator.matricule}
             </span>
           )}
-          {userRole === "HP" && currentEntretienId && (
-            <span className="leoni-badge-hp">🏷️ Mode validation HP (1ère)</span>
-          )}
-          {userRole === "SGL" && currentEntretienId && (
-            <span className="leoni-badge-sgl">🏷️ Mode validation SGL (1ère)</span>
-          )}
-          {userRole === "QM_PLANT" && currentEntretienId && (
-            <span className="leoni-badge-qm-plant">🏭 Mode validation QM-Plant (2ème)</span>
-          )}
-          {userRole === "SL" && !currentEntretienId && (
-            <span className="leoni-badge-sl">📝 Mode création</span>
-          )}
         </div>
         <div className="leoni-header-actions" />
       </div>
 
-      <div className="decision-page">
+      <div style={{ padding: "0 24px", marginBottom: 16 }}>
+        {userRole === "SL" && (
+          <div className="leoni-alert leoni-alert-info" style={{ background: "#e3f2fd", padding: "12px", borderRadius: "8px", borderLeft: "4px solid #C8102E" }}>
+            📝 <strong>Mode SL</strong> : Vous pouvez créer, modifier et valider l'entretien. 
+            La validation envoie une convocation par email aux destinataires sélectionnés.
+          </div>
+        )}
+        {(userRole === "HP" || userRole === "SGL") && (
+          <div className="leoni-alert leoni-alert-info" style={{ background: "#e3f2fd", padding: "12px", borderRadius: "8px", borderLeft: "4px solid #C8102E" }}>
+            🔵 <strong>Mode {userRole}</strong> : Vous pouvez effectuer la <strong>1ère validation</strong>.
+            {estValideParHPSGL() ? " Cet entretien a déjà été validé." : " Aucun email n'est envoyé."}
+          </div>
+        )}
+        {userRole === "QM_PLANT" && (
+          <div className="leoni-alert leoni-alert-info" style={{ background: "#e3f2fd", padding: "12px", borderRadius: "8px", borderLeft: "4px solid #C8102E" }}>
+            🟢 <strong>Mode QM_PLANT</strong> : Vous pouvez effectuer la <strong>2ème validation</strong>.
+            {!estValideParHPSGL() && " (La validation HP/SGL est requise d'abord)"}
+            {estValideParQMPlant() && " Cet entretien a déjà été validé."}
+          </div>
+        )}
+      </div>
 
+      <div className="decision-page">
         <aside className="decision-sidebar">
           <div className="sd-card">
             <div className="sd-card-hd">
@@ -493,10 +818,35 @@ export default function EntretienDeDecision({ niveau = 4 }) {
               </div>
             </div>
           </div>
+
+          {currentEntretienId && (
+            <div className="sd-card">
+              <div className="sd-card-hd">Statut des validations</div>
+              <div className="sd-card-bd">
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">SL</span>
+                  <span className={`sd-info-value`}>
+                    {currentEntretienId ? "✅ Soumis" : "⏳ En attente"}
+                  </span>
+                </div>
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">HP/SGL (1ère)</span>
+                  <span className={`sd-info-value ${estValideParHPSGL() ? 'text-success' : 'text-warning'}`}>
+                    {estValideParHPSGL() ? "✅ Validé" : "⏳ En attente"}
+                  </span>
+                </div>
+                <div className="sd-info-cell">
+                  <span className="sd-info-label">QM_PLANT (2ème)</span>
+                  <span className={`sd-info-value ${estValideParQMPlant() ? 'text-success' : 'text-warning'}`}>
+                    {estValideParQMPlant() ? "✅ Validé" : estValideParHPSGL() ? "⏳ En attente" : "🔒 Bloqué"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </aside>
 
         <div className="decision-main">
-
           <div className="resume-row">
             {[
               { title: "Entretien 1 — Explicatif", data: resumeN1, labelKey: "Mesures correctives", valKey: v => v.mesuresCorrectives || "–" },
@@ -634,56 +984,52 @@ export default function EntretienDeDecision({ niveau = 4 }) {
                 </div>
 
                 <div className="fd-actions">
-                  {/* Bouton Brouillon - visible pour SL et ADMIN */}
                   {(canCreate || canModify) && (
                     <button type="button" className="fd-btn fd-btn-draft" onClick={handleEnregistrer} disabled={savingDraft}>
-                      {savingDraft ? "Enregistrement..." : "Enregistrer Brouillon"}
+                      {savingDraft ? "Enregistrement..." : "💾 Enregistrer Brouillon"}
                     </button>
                   )}
                   
-                  {/* Bouton Ajouter/Créer - visible pour SL et ADMIN */}
                   {canCreate && !currentEntretienId && (
                     <button type="button" className="fd-btn fd-btn-ajouter" onClick={handleAjouter}>
-                      Ajouter
+                      ➕ Ajouter
                     </button>
                   )}
                   
-                  {/* Bouton Valider/Modifier/Créer principal */}
-                  {canCreate && (
-                    <button type="submit" className="fd-btn fd-btn-valider" disabled={saving}>
-                      {saving ? "..." : (currentEntretienId ? "valider" : "Créer")}
-                    </button>
-                  )}
-                  
-                  {/* Bouton Validation 1ère - HP ou SGL */}
-                  {canValidate1 && currentEntretienId && (userRole === "HP" || userRole === "SGL") && (
-                    <button type="submit" className="fd-btn fd-btn-valider" disabled={saving}>
-                      {saving ? "..." : "Valider (1ère validation)"}
-                    </button>
-                  )}
-                  
-                  {/* Bouton Validation 2ème - QM_Plant */}
-                  {canValidate2 && currentEntretienId && userRole === "QM_PLANT" && (
-                    <button type="submit" className="fd-btn fd-btn-valider" disabled={saving}>
-                      {saving ? "..." : "Valider (2ème validation)"}
-                    </button>
-                  )}
-                  
-                  {/* Bouton Modifier séparé - UN SEUL pour SL et ADMIN */}
                   {showModifyButton() && (
                     <button type="button" className="fd-btn fd-btn-modifier" onClick={handleModifier} disabled={savingDraft}>
-                      {savingDraft ? "..." : "Modifier"}
+                      📝 Modifier
                     </button>
                   )}
                   
-                  {/* Bouton Supprimer - SL ou ADMIN */}
+                  {(canCreate || canValidate1 || canValidate2) && (
+                    <button 
+                      type="submit" 
+                      className="fd-btn fd-btn-valider" 
+                      disabled={saving || pendingSubmit || isValiderDisabled()}
+                      title={isValiderDisabled() ? "Validation déjà effectuée ou conditions non remplies" : ""}
+                      style={{
+                        background: "#C8102E",
+                        color: "white"
+                      }}
+                    >
+                      {getValiderLabel()}
+                    </button>
+                  )}
+                  
                   {canDelete && currentEntretienId && (
-                    <button type="button" className="fd-btn fd-btn-supprimer" onClick={handleSupprimer}>
-                      Supprimer
+                    <button 
+                      type="button" 
+                      className="fd-btn fd-btn-supprimer" 
+                      onClick={() => {
+                        setModalAction("suppression");
+                        setShowEmailModal(true);
+                      }}
+                    >
+                      🗑️ Supprimer
                     </button>
                   )}
                   
-                  {/* Bouton Annuler toujours visible */}
                   <button type="button" className="fd-btn fd-btn-annuler" onClick={() => navigate(`/paq-dossier/${matricule}`)}>
                     Annuler
                   </button>
@@ -696,10 +1042,13 @@ export default function EntretienDeDecision({ niveau = 4 }) {
 
       <EmailModal
         isOpen={showEmailModal}
-        onClose={() => setShowEmailModal(false)}
-        onConfirm={modalAction === "suppression" ? handleDeleteConfirm : handleSubmitConfirm}
-        emailsList={emailsList}
-        loadingEmails={loadingEmails}
+        onClose={() => {
+          setShowEmailModal(false);
+          setModalAction("création");
+        }}
+        onConfirm={modalAction === "suppression" ? handleDeleteConfirm : submitWithEmails}
+        usersList={usersList}
+        loadingUsers={loadingUsers}
         action={modalAction}
       />
 
@@ -721,4 +1070,3 @@ export default function EntretienDeDecision({ niveau = 4 }) {
     </div>
   );
 }
-

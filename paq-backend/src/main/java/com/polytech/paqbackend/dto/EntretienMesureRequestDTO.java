@@ -10,6 +10,7 @@ public class EntretienMesureRequestDTO {
     private LocalDate dateEntretien;
     private String destinataireEmail;
     private LocalDate dateRequalification;
+    private String message;
 
     public String getTypeFaute() { return typeFaute; }
     public void setTypeFaute(String typeFaute) { this.typeFaute = typeFaute; }
@@ -31,4 +32,12 @@ public class EntretienMesureRequestDTO {
 
     public LocalDate getDateRequalification() { return dateRequalification; }
     public void setDateRequalification(LocalDate dateRequalification) { this.dateRequalification = dateRequalification; }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
 }

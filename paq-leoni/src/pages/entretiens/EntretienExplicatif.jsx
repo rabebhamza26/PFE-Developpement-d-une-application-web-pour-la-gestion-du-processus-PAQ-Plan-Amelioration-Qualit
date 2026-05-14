@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { collaboratorService, entretienService } from "../../services/api";
 import { fauteService } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import { usePermissions } from "../../hooks/usePermissions";
 import { showErrorAlert, showInfoToast, showSuccessAlert, showSuccessToast } from "../../utils/entretienAlerts";
 
 import "../../styles/paq-dossier.css";
@@ -34,7 +35,7 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails, act
 
         <div className="leoni-modal-body">
           <div className="leoni-form-group">
-            <label>Destinataire *</label>
+            <label>Destinataire </label>
             <select 
               className="leoni-input" 
               value={selectedEmail} 
@@ -91,6 +92,7 @@ export default function EntretienExplicatif({ niveau = 1 }) {
   const { matricule } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isSL } = usePermissions();
 
   const [collaborator, setCollaborator] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -116,41 +118,43 @@ export default function EntretienExplicatif({ niveau = 1 }) {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [modalAction, setModalAction] = useState("création");
 
- const loadEmails = async () => {
-  try {
-    setLoadingEmails(true);
-    const token = sessionStorage.getItem("access_token");
-    
-    if (!token) {
-      console.warn("Pas de token, impossible de charger les emails");
-      setEmailsList([]);
-      return;
-    }
-    
-    // Utiliser l'API correcte
-    const response = await fetch('http://localhost:8083/api/users/emails', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+  // Vérifier si l'utilisateur peut modifier (SL uniquement)
+  const canModify = isSL ;
+
+  const loadEmails = async () => {
+    try {
+      setLoadingEmails(true);
+      const token = sessionStorage.getItem("access_token");
+      
+      if (!token) {
+        console.warn("Pas de token, impossible de charger les emails");
+        setEmailsList([]);
+        return;
       }
-    });
-    
-    if (response.ok) {
-      const emails = await response.json();
-      console.log("Emails chargés:", emails);
-      setEmailsList(Array.isArray(emails) ? emails : []);
-    } else {
-      console.error("Erreur API:", response.status, await response.text());
+      
+      const response = await fetch('http://localhost:8083/api/users/emails', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const emails = await response.json();
+        console.log("Emails chargés:", emails);
+        setEmailsList(Array.isArray(emails) ? emails : []);
+      } else {
+        console.error("Erreur API:", response.status);
+        setEmailsList([]);
+      }
+    } catch (err) {
+      console.error("Erreur chargement emails:", err);
       setEmailsList([]);
+    } finally {
+      setLoadingEmails(false);
     }
-  } catch (err) {
-    console.error("Erreur chargement emails:", err);
-    setEmailsList([]);
-  } finally {
-    setLoadingEmails(false);
-  }
-};
+  };
 
   useEffect(() => {
     const q = search.toLowerCase();
@@ -204,7 +208,6 @@ export default function EntretienExplicatif({ niveau = 1 }) {
       const list = Array.isArray(res.data) ? res.data : [];
       setEntretiensList(list);
       
-      // Charger le dernier entretien pour affichage
       if (list.length > 0) {
         const dernier = list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
         chargerEntretienDansFormulaire(dernier);
@@ -234,11 +237,19 @@ export default function EntretienExplicatif({ niveau = 1 }) {
   };
 
   const handleChange = (e) => {
+    if (!canModify) {
+      showErrorAlert("Permission refusée", "Seuls les SL peuvent modifier un entretien.");
+      return;
+    }
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
 
   const addTypeOption = async () => {
+    if (!canModify) {
+      showErrorAlert("Permission refusée", "Seuls les SL peuvent ajouter un type de faute.");
+      return;
+    }
     const value = defautTypeInput.trim();
     if (!value) return;
 
@@ -250,76 +261,44 @@ export default function EntretienExplicatif({ niveau = 1 }) {
       setDefautTypeInput("");
       setShowDefautModal(false);
       setStatusMessage("Type de défaut ajouté avec succès.");
-      showSuccessToast("Faute ajout�e");
+      showSuccessToast("Faute ajoutée");
     } catch (err) {
       setError("Erreur lors de l'ajout du défaut.");
-      showErrorAlert("Ajout impossible", "Erreur lors de l'ajout du d�faut.");
+      showErrorAlert("Ajout impossible", "Erreur lors de l'ajout du défaut.");
     }
   };
 
-  const handleAjouter = () => {
-    resetForm();
-    setStatusMessage("Nouveau formulaire prêt à être rempli.");
-    setError("");
-    showInfoToast("Formulaire r�initialis�");
-  };
-
   const handleModifier = async () => {
+    if (!canModify) {
+      showErrorAlert("Permission refusée", "Seuls les SL peuvent modifier un entretien.");
+      return;
+    }
     if (entretiensList.length === 0) {
       setError("Aucun entretien existant à modifier.");
       return;
     }
-    // Recharger le dernier entretien
     const dernier = entretiensList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
     chargerEntretienDansFormulaire(dernier);
-    showInfoToast("Dernier entretien charg�");
+    showInfoToast("Dernier entretien chargé");
   };
 
   const handleEnregistrer = () => {
+    if (!canModify) {
+      showErrorAlert("Permission refusée", "Seuls les SL peuvent enregistrer un brouillon.");
+      return;
+    }
     setSavingDraft(true);
     try {
       const payload = { ...formData };
       localStorage.setItem(`entretien-explicatif-draft-${matricule}`, JSON.stringify(payload));
       setStatusMessage("Brouillon enregistré avec succès.");
-      showSuccessToast("Brouillon enregistr�");
+      showSuccessToast("Brouillon enregistré");
     } catch (err) {
       setError("Impossible d'enregistrer le brouillon.");
-      showErrorAlert("Brouillon non enregistr�", "Impossible d'enregistrer le brouillon.");
+      showErrorAlert("Brouillon non enregistré", "Impossible d'enregistrer le brouillon.");
     } finally {
       setSavingDraft(false);
     }
-  };
-
-  const handleDeleteConfirm = async (destinataireEmail, message) => {
-    setShowEmailModal(false);
-    setSaving(true);
-
-    try {
-      const nomCollab = collaborator ? `${collaborator.name} ${collaborator.prenom}` : matricule;
-      
-      await entretienService.deleteWithNotification(matricule, currentEntretienId, destinataireEmail, nomCollab);
-      
-      resetForm();
-      await loadAllEntretiens(); // Recharger la liste après suppression
-      setStatusMessage("Entretien supprimé avec succès. Email envoyé.");
-      await showSuccessAlert("Entretien supprim�", "L'entretien explicatif a bien �t� supprim�.");
-      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
-    } catch (err) {
-      setError("Erreur lors de la suppression : " + (err.response?.data?.message || err.message));
-      console.error(err);
-      showErrorAlert("Suppression impossible", err.response?.data?.message || err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSupprimer = () => {
-    if (!currentEntretienId) {
-      setError("Aucun entretien chargé pour suppression.");
-      return;
-    }
-    setModalAction("suppression");
-    setShowEmailModal(true);
   };
 
   const handleSubmitConfirm = async (destinataireEmail, message) => {
@@ -339,15 +318,15 @@ export default function EntretienExplicatif({ niveau = 1 }) {
       if (currentEntretienId) {
         await entretienService.updateWithNotification(matricule, currentEntretienId, entretienData);
         setStatusMessage("Entretien modifié avec succès. Email envoyé.");
-        await showSuccessAlert("Entretien modifi�", "La modification a �t� enregistr�e avec succ�s.");
+        await showSuccessAlert("Entretien modifié", "La modification a été enregistrée avec succès.");
       } else {
         await entretienService.create(matricule, entretienData);
         setStatusMessage("Entretien créé avec succès. Email envoyé.");
-        await showSuccessAlert("Entretien cr��", "L'entretien explicatif a �t� cr�� avec succ�s.");
+        await showSuccessAlert("Entretien créé", "L'entretien explicatif a été créé avec succès.");
       }
 
       localStorage.removeItem(`entretien-explicatif-draft-${matricule}`);
-      await loadAllEntretiens(); // Recharger la liste après création/modification
+      await loadAllEntretiens();
       setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
     } catch (err) {
       setError("Erreur : " + (err.response?.data?.message || err.message));
@@ -362,6 +341,11 @@ export default function EntretienExplicatif({ niveau = 1 }) {
     e.preventDefault();
     setError("");
     setStatusMessage("");
+
+    if (!canModify) {
+      showErrorAlert("Permission refusée", "Seuls les SL peuvent créer ou modifier un entretien.");
+      return;
+    }
 
     setModalAction(currentEntretienId ? "modification" : "création");
     setShowEmailModal(true);
@@ -398,22 +382,24 @@ export default function EntretienExplicatif({ niveau = 1 }) {
         <div className="leoni-header-title">
           <div className="leoni-logo-bar">
             <div className="leoni-logo-accent"></div>
-            <h1>Entretien explicatif</h1>
+            <h1>Etape1: Entretien Explication</h1>
           </div>
           {collaborator && (
             <span className="leoni-header-sub">
-              {(collaborator.name || "").trim()} {(collaborator.prenom || "").trim()} — {collaborator.matricule || matricule}
+              {collaborator.name || ""} {collaborator.prenom || ""} — {collaborator.matricule || matricule}
             </span>
           )}
         </div>
 
-        <div className="leoni-header-actions" />
+        <div className="leoni-header-actions">
+          {!canModify && (
+            <span className="leoni-badge leoni-badge-gray">Mode lecture seule</span>
+          )}
+        </div>
       </div>
 
       {statusMessage && <div className="leoni-alert leoni-alert-success">{statusMessage}</div>}
       {error && <div className="leoni-alert leoni-alert-error">{error}</div>}
-
-     
 
       <div className="leoni-grid-main">
         <div className="leoni-col-left">
@@ -469,9 +455,11 @@ export default function EntretienExplicatif({ niveau = 1 }) {
                 <div className="leoni-form-group">
                   <label>Type de faute</label>
                   <div className="leoni-inline">
-                    <button type="button" onClick={() => setShowDefautModal(true)} className="leoni-btn leoni-btn-warning leoni-btn-sm">
-                      + Ajouter faute
-                    </button>
+                    {canModify && (
+                      <button type="button" onClick={() => setShowDefautModal(true)} className="leoni-btn leoni-btn-warning leoni-btn-sm">
+                        + Ajouter faute
+                      </button>
+                    )}
                     <div className="leoni-dropdown-container" style={{ flex: 1 }}>
                       <input
                         type="text"
@@ -484,6 +472,7 @@ export default function EntretienExplicatif({ niveau = 1 }) {
                         }}
                         onFocus={() => setShowDropdown(true)}
                         className="leoni-input"
+                        disabled={!canModify}
                       />
                       {showDropdown && (
                         <div className="leoni-dropdown">
@@ -508,40 +497,38 @@ export default function EntretienExplicatif({ niveau = 1 }) {
 
                 <div className="leoni-form-group">
                   <label>Date de l'entretien</label>
-                  <input type="date" name="dateFaute" value={formData.dateFaute} onChange={handleChange} className="leoni-input" />
+                  <input type="date" name="dateFaute" value={formData.dateFaute} onChange={handleChange} className="leoni-input" disabled={!canModify} />
                 </div>
 
                 <div className="leoni-form-group">
                   <label>Cause de faute</label>
-                  <textarea name="description" value={formData.description} onChange={handleChange} className="leoni-textarea" rows="3" />
+                  <textarea name="description" value={formData.description} onChange={handleChange} className="leoni-textarea" rows="3" disabled={!canModify} />
                 </div>
 
                 <div className="leoni-form-group">
                   <label>Mesures correctives</label>
-                  <textarea name="mesuresCorrectives" value={formData.mesuresCorrectives} onChange={handleChange} className="leoni-textarea" rows="3" />
+                  <textarea name="mesuresCorrectives" value={formData.mesuresCorrectives} onChange={handleChange} className="leoni-textarea" rows="3" disabled={!canModify} />
                 </div>
 
                 <div className="leoni-form-group">
                   <label>Commentaire</label>
-                  <textarea name="commentaire" value={formData.commentaire} onChange={handleChange} className="leoni-textarea" rows="3" />
+                  <textarea name="commentaire" value={formData.commentaire} onChange={handleChange} className="leoni-textarea" rows="3" disabled={!canModify} />
                 </div>
 
                 <div className="leoni-form-actions">
-                  <button type="button" onClick={handleAjouter} className="leoni-btn leoni-btn-success">
-                    Ajouter
-                  </button>
-                  <button type="button" onClick={handleModifier} className="leoni-btn leoni-btn-primary">
-                    Modifier
-                  </button>
-                  <button type="button" onClick={handleEnregistrer} className="leoni-btn leoni-btn-outline-dark" disabled={savingDraft}>
-                    {savingDraft ? "Enregistrement..." : "Brouillon"}
-                  </button>
-                  <button type="submit" className="leoni-btn leoni-btn-primary" disabled={saving}>
-                    {saving ? "Validation..." : "Valider"}
-                  </button>
-                  <button type="button" onClick={handleSupprimer} className="leoni-btn leoni-btn-danger" disabled={!currentEntretienId}>
-                    Supprimer
-                  </button>
+                  {canModify && (
+                    <>
+                      <button type="button" onClick={handleModifier} className="leoni-btn leoni-btn-primary">
+                        Modifier
+                      </button>
+                      <button type="button" onClick={handleEnregistrer} className="leoni-btn leoni-btn-outline-dark" disabled={savingDraft}>
+                        {savingDraft ? "Enregistrement..." : "Brouillon"}
+                      </button>
+                      <button type="submit" className="leoni-btn leoni-btn-primary" disabled={saving}>
+                        {saving ? "Validation..." : "Valider"}
+                      </button>
+                    </>
+                  )}
                 </div>
               </form>
             </div>
@@ -552,7 +539,7 @@ export default function EntretienExplicatif({ niveau = 1 }) {
       <EmailModal
         isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
-        onConfirm={modalAction === "suppression" ? handleDeleteConfirm : handleSubmitConfirm}
+        onConfirm={handleSubmitConfirm}
         emailsList={emailsList}
         loadingEmails={loadingEmails}
         action={modalAction}
@@ -591,4 +578,3 @@ export default function EntretienExplicatif({ niveau = 1 }) {
     </div>
   );
 }
-

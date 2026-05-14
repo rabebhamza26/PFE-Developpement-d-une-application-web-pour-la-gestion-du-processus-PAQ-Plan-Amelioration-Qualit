@@ -25,14 +25,7 @@ public class EntretienDecision {
     @Column(columnDefinition = "TEXT")
     private String justification;
 
-    @Column(columnDefinition = "LONGTEXT")
-    private String signatureSL;
 
-    @Column(columnDefinition = "LONGTEXT")
-    private String signatureQM;
-
-    @Column(columnDefinition = "LONGTEXT")
-    private String signatureSGL;
 
     private LocalDate dateCreation;
 
@@ -57,14 +50,7 @@ public class EntretienDecision {
     public String getJustification() { return justification; }
     public void setJustification(String justification) { this.justification = justification; }
 
-    public String getSignatureSL() { return signatureSL; }
-    public void setSignatureSL(String signatureSL) { this.signatureSL = signatureSL; }
 
-    public String getSignatureQM() { return signatureQM; }
-    public void setSignatureQM(String signatureQM) { this.signatureQM = signatureQM; }
-
-    public String getSignatureSGL() { return signatureSGL; }
-    public void setSignatureSGL(String signatureSGL) { this.signatureSGL = signatureSGL; }
 
     public LocalDate getDateCreation() { return dateCreation; }
     public void setDateCreation(LocalDate dateCreation) { this.dateCreation = dateCreation; }

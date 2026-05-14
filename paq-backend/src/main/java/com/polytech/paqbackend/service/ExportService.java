@@ -1,7 +1,5 @@
 package com.polytech.paqbackend.service;
 
-
-
 import com.itextpdf.layout.properties.TextAlignment;
 import com.itextpdf.layout.properties.UnitValue;
 import com.polytech.paqbackend.dto.DashboardStatsDTO;
@@ -11,14 +9,13 @@ import com.polytech.paqbackend.dto.CollaborateurDTO;
 
 import org.springframework.stereotype.Service;
 import org.apache.poi.ss.usermodel.*;
-        import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
 import com.itextpdf.layout.element.Paragraph;
 import com.itextpdf.layout.element.Table;
 import com.itextpdf.layout.element.Cell;
-
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -33,7 +30,7 @@ public class ExportService {
         this.dashboardService = dashboardService;
     }
 
-    public byte[] generatePdfReport() throws IOException {
+    public byte[] generatePdfReport(Long siteId, Long plantId) throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         PdfWriter writer = new PdfWriter(outputStream);
         PdfDocument pdfDoc = new PdfDocument(writer);
@@ -45,7 +42,7 @@ public class ExportService {
                 .setTextAlignment(TextAlignment.CENTER));
 
         // Statistiques générales
-        DashboardStatsDTO stats = dashboardService.getStats();
+        DashboardStatsDTO stats = dashboardService.getStats(siteId, plantId);
         document.add(new Paragraph("Statistiques Générales").setFontSize(16));
 
         Table generalTable = new Table(UnitValue.createPercentArray(new float[]{2, 1}))
@@ -54,7 +51,7 @@ public class ExportService {
         generalTable.addCell("Total Collaborateurs");
         generalTable.addCell(String.valueOf(stats.getTotalCollaborateurs()));
         generalTable.addCell("PAQ en Cours");
-        generalTable.addCell(String.valueOf(stats.getTotalPaqs()));
+        generalTable.addCell(String.valueOf(stats.getPaqEnCours()));
         generalTable.addCell("Sans Faute");
         generalTable.addCell(String.valueOf(stats.getSansFaute().size()));
 
@@ -62,7 +59,7 @@ public class ExportService {
 
         // Statistiques par segment
         document.add(new Paragraph("Statistiques par Segment").setFontSize(16));
-        List<SegmentStatsDTO> segmentStats = dashboardService.getSegmentStats();
+        List<SegmentStatsDTO> segmentStats = dashboardService.getSegmentStats(siteId, plantId);
 
         Table segmentTable = new Table(UnitValue.createPercentArray(new float[]{2, 1, 1, 1, 1, 1, 1}))
                 .setWidth(UnitValue.createPercentValue(100));
@@ -86,17 +83,16 @@ public class ExportService {
         }
 
         document.add(segmentTable);
-
         document.close();
         return outputStream.toByteArray();
     }
 
-    public byte[] generateExcelReport() throws IOException {
+    public byte[] generateExcelReport(Long siteId, Long plantId) throws IOException {
         Workbook workbook = new XSSFWorkbook();
 
         // Feuille statistiques générales
         Sheet generalSheet = workbook.createSheet("Statistiques Générales");
-        DashboardStatsDTO stats = dashboardService.getStats();
+        DashboardStatsDTO stats = dashboardService.getStats(siteId, plantId);
 
         Row headerRow = generalSheet.createRow(0);
         headerRow.createCell(0).setCellValue("Métrique");
@@ -108,7 +104,7 @@ public class ExportService {
 
         Row row2 = generalSheet.createRow(2);
         row2.createCell(0).setCellValue("PAQ en Cours");
-        row2.createCell(1).setCellValue(stats.getTotalPaqs());
+        row2.createCell(1).setCellValue(stats.getPaqEnCours());
 
         Row row3 = generalSheet.createRow(3);
         row3.createCell(0).setCellValue("Sans Faute");
@@ -116,7 +112,7 @@ public class ExportService {
 
         // Feuille statistiques par segment
         Sheet segmentSheet = workbook.createSheet("Statistiques par Segment");
-        List<SegmentStatsDTO> segmentStats = dashboardService.getSegmentStats();
+        List<SegmentStatsDTO> segmentStats = dashboardService.getSegmentStats(siteId, plantId);
 
         Row segHeader = segmentSheet.createRow(0);
         segHeader.createCell(0).setCellValue("Segment");
@@ -143,23 +139,23 @@ public class ExportService {
 
         // Feuille historique de performance
         Sheet historySheet = workbook.createSheet("Historique Performance");
-        List<PerformanceHistoryDTO> history = dashboardService.getPerformanceHistory();
+        List<PerformanceHistoryDTO> history = dashboardService.getPerformanceHistory(siteId, plantId);
 
         Row histHeader = historySheet.createRow(0);
-        histHeader.createCell(0).setCellValue("Matricule");
-        histHeader.createCell(1).setCellValue("Nom");
-        histHeader.createCell(2).setCellValue("Période");
-        histHeader.createCell(3).setCellValue("Niveau PAQ");
+        histHeader.createCell(0).setCellValue("Période");
+        histHeader.createCell(1).setCellValue("Matricule");
+        histHeader.createCell(2).setCellValue("Nom");
+        histHeader.createCell(3).setCellValue("Niveau");
         histHeader.createCell(4).setCellValue("Évolution");
 
         rowNum = 1;
         for (PerformanceHistoryDTO h : history) {
             Row row = historySheet.createRow(rowNum++);
-            row.createCell(0).setCellValue(h.getMatricule());
-            row.createCell(1).setCellValue(h.getNom());
-            row.createCell(2).setCellValue(h.getPeriode());
-            row.createCell(3).setCellValue(h.getNiveau());
-            row.createCell(4).setCellValue(h.getEvolution());
+            row.createCell(0).setCellValue(h.getPeriode());      // période
+            row.createCell(1).setCellValue(h.getMatricule());    // matricule
+            row.createCell(2).setCellValue(h.getNom());          // nom
+            row.createCell(3).setCellValue(h.getNiveau());       // niveau
+            row.createCell(4).setCellValue(h.getEvolution());    // évolution
         }
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();

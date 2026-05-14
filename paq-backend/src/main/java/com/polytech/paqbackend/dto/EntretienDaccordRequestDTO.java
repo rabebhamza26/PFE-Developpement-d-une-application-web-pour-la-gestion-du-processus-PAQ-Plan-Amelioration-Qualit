@@ -5,12 +5,11 @@ import java.time.LocalDate;
 public class EntretienDaccordRequestDTO {
 
     private LocalDate date;
-    private String validationMesures;      // "Oui"/"Non"
     private String mesuresProposees;
     private String commentaireQMSegment;
-    private String echanges;
     private String destinataireEmail;
     private String typeFaute;
+    private String causeFaute;
 
     public String getDestinataireEmail() {
         return destinataireEmail;
@@ -23,9 +22,6 @@ public class EntretienDaccordRequestDTO {
     public LocalDate getDate() { return date; }
     public void setDate(LocalDate date) { this.date = date; }
 
-    public String getValidationMesures() { return validationMesures; }
-    public void setValidationMesures(String validationMesures) { this.validationMesures = validationMesures; }
-
     public String getMesuresProposees() { return mesuresProposees; }
     public void setMesuresProposees(String mesuresProposees) { this.mesuresProposees = mesuresProposees; }
 
@@ -37,14 +33,19 @@ public class EntretienDaccordRequestDTO {
         this.commentaireQMSegment = commentaireQMSegment;
     }
 
-    public String getEchanges() { return echanges; }
-    public void setEchanges(String echanges) { this.echanges = echanges; }
-
     public String getTypeFaute() {
         return typeFaute;
     }
 
     public void setTypeFaute(String typeFaute) {
         this.typeFaute = typeFaute;
+    }
+
+    public String getCauseFaute() {
+        return causeFaute;
+    }
+
+    public void setCauseFaute(String causeFaute) {
+        this.causeFaute = causeFaute;
     }
 }

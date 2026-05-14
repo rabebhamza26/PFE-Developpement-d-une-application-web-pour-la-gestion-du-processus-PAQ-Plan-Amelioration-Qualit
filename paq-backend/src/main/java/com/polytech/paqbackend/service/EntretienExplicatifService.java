@@ -310,6 +310,35 @@ public class EntretienExplicatifService {
         }
     }
 
+    /**
+     * Valider un entretien explicatif (uniquement pour SL)
+     */
+    @Transactional
+    public void validate(Long id, String expediteurEmail) {
+        EntretienExplicatif entretien = entretienRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
+
+        // Mettre à jour le PAQ si nécessaire
+        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(entretien.getMatricule());
+
+        if (paqOpt.isPresent()) {
+            PaqDossier paq = paqOpt.get();
+
+            String historique = addHistorique(
+                    paq.getHistorique(),
+                    new PaqController.HistoriqueEvent(
+                            LocalDate.now(),
+                            " VALIDATION ENTRETIEN EXPLICATIF",
+                            String.format("Entretien explicatif validé le %s par %s", LocalDate.now(), expediteurEmail)
+                    )
+            );
+            paq.setHistorique(historique);
+            paqRepository.save(paq);
+
+            log.info("Entretien explicatif {} validé par {}", id, expediteurEmail);
+        }
+    }
+
     private String buildEmailContent(String nomCollab, String typeEntretien,
                                      String matricule, EntretienExplicatifDTO dto, String action) {
         return String.format("""

@@ -26,6 +26,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u.email FROM User u WHERE u.email IS NOT NULL AND u.email != ''")
     List<String> findAllEmails();
 
+
+
     @Query("SELECT u.email FROM User u WHERE u.active = true AND u.email IS NOT NULL AND u.email != ''")
     List<String> findAllActiveUserEmails();
 
@@ -43,6 +45,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "LEFT JOIN FETCH u.segments")
     List<User> findAllWithAllRelations();
 
+
+
     @Query("SELECT new com.polytech.paqbackend.dto.SiteUserDistributionDTO(s.id, s.name, COUNT(u)) " +
             "FROM User u JOIN u.sites s GROUP BY s.id, s.name ORDER BY COUNT(u) DESC")
     List<SiteUserDistributionDTO> findUserCountBySite();
@@ -55,5 +59,25 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE u.role = 'ADMIN'")
     List<User> findAllAdmins();
+
+
+    @Query("SELECT DISTINCT u FROM User u " +
+            "LEFT JOIN FETCH u.segments " +
+            "LEFT JOIN FETCH u.plants " +
+            "LEFT JOIN FETCH u.sites " +
+            "WHERE u.email = :username OR u.login = :username")
+    User findByEmailOrLoginWithPerimeter(@Param("username") String username);
+
+
+    @Query("SELECT u FROM User u WHERE u.email = :username OR u.login = :username")
+    User findByEmailOrLogin(@Param("username") String username);
+
+
+    @Query("SELECT u FROM User u WHERE u.role = :role")
+    List<User> findByRole(@Param("role") String role);
+    @Query("SELECT u FROM User u WHERE u.role = 'SL'")
+    List<User> findAllSL();
+
+
 
 }

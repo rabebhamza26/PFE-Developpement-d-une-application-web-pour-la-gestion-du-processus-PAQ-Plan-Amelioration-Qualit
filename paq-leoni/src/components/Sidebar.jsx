@@ -1,13 +1,13 @@
 import React from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useI18n } from "../context/I18nContext";
 import "../styles/sidebar.css";
 
 function Sidebar() {
   const navigate = useNavigate();
   const { user } = useAuth();
-
-  
+  const { t } = useI18n();
 
   // Vérifier si l'utilisateur a le rôle SL
   const isSL = user?.role === "SL";
@@ -17,15 +17,15 @@ function Sidebar() {
       <div className="sidebar-header">
       </div>
       <ul className="sidebar-menu">
-        <li><NavLink to="/dashboard">Dashboard</NavLink></li>
-        <li><NavLink to="/collaborateurs">Collaborateurs</NavLink></li>
-        <li><NavLink to="/paq-dossier">Dossier PAQ</NavLink></li>
+        <li><NavLink to="/dashboard">{t("dashboard")}</NavLink></li>
+        <li><NavLink to="/collaborateurs">{t("collaborators")}</NavLink></li>
+        <li><NavLink to="/paq-dossier">{t("paq_dossier")}</NavLink></li>
         
         {/* Entretien positif - visible uniquement pour les SL */}
         {isSL && (
             <li>
                 <NavLink to="/entretien-positif">
-                  Entretien Positif
+                  {t("positif")} {t("entretien")}
                 </NavLink>
               </li>
         )}
@@ -33,11 +33,11 @@ function Sidebar() {
         {/* ✅ Notifications - visible pour tous les utilisateurs connectés */}
         <li>
           <NavLink to="/notifications">
-            Notifications
+            {t("notifications")}
           </NavLink>
         </li>
         
-        <li><NavLink to="/archive">Archive</NavLink></li>
+        <li><NavLink to="/archive">{t("archive")}</NavLink></li>
       </ul>
     </aside>
   );

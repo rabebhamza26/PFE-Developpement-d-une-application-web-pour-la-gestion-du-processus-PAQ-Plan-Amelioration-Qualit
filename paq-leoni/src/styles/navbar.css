@@ -117,6 +117,40 @@
   box-shadow: 0 2px 8px rgba(232, 160, 32, 0.3);
 }
 
+.navbar-lang {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(232, 160, 32, 0.25);
+}
+
+.navbar-lang-label {
+  color: #e8a020;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.navbar-lang-select {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  min-width: 52px;
+}
+
+.navbar-lang-select option {
+  color: #1a1a2e;
+  background: #fff;
+}
+
 .navbar-user-meta {
   display: flex;
   flex-direction: column;

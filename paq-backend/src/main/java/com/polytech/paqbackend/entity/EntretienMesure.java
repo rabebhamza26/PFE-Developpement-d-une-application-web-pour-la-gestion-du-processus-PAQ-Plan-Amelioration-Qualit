@@ -28,7 +28,47 @@ public class EntretienMesure {
     private LocalDate dateCreation;
     private boolean alerteEnvoyee = false;
 
+
+    private boolean valideParQM = false;
+    private boolean valideParSGL = false;
+    private LocalDate dateValidationQM;
+    private LocalDate dateValidationSGL;
+
     // Getters et Setters
+
+
+    public boolean isValideParSGL() {
+        return valideParSGL;
+    }
+
+    public void setValideParSGL(boolean valideParSGL) {
+        this.valideParSGL = valideParSGL;
+    }
+
+    public boolean isValideParQM() {
+        return valideParQM;
+    }
+
+    public void setValideParQM(boolean valideParQM) {
+        this.valideParQM = valideParQM;
+    }
+
+    public LocalDate getDateValidationQM() {
+        return dateValidationQM;
+    }
+
+    public void setDateValidationQM(LocalDate dateValidationQM) {
+        this.dateValidationQM = dateValidationQM;
+    }
+
+    public LocalDate getDateValidationSGL() {
+        return dateValidationSGL;
+    }
+
+    public void setDateValidationSGL(LocalDate dateValidationSGL) {
+        this.dateValidationSGL = dateValidationSGL;
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 

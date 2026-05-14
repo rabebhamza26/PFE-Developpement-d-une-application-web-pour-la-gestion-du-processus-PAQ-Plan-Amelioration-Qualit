@@ -1,9 +1,8 @@
 ﻿import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { collaboratorService, paqService, fauteService } from "../../services/api";
+import { collaboratorService, paqService } from "../../services/api";
 import "../../styles/paq-dossier.css";
 
-import DefautGraveModal from "../../components/defaut/DefautGraveModal";
 import { usePermissions } from "../../hooks/usePermissions";
 import { showConfirmAlert, showErrorAlert, showSuccessAlert } from "../../utils/entretienAlerts";
 
@@ -17,13 +16,7 @@ export default function PaqDossier() {
   const [loading,       setLoading]       = useState(true);
   const [error,         setError]         = useState("");
   const [actionMessage, setActionMessage] = useState("");
-  const [showFauteModal, setShowFauteModal] = useState(false);
-  const [fauteDetail,   setFauteDetail]   = useState("");
-  const [fautesList,    setFautesList]    = useState([]);
-  const [fautesLoading, setFautesLoading] = useState(false);
-  const [showDefautGraveModal, setShowDefautGraveModal] = useState(false);
-const { canNotifyDefautGrave } = usePermissions();
-
+  const { canNotifyDefautGrave } = usePermissions();
 
   useEffect(() => { loadData(); }, [matricule]);
 
@@ -48,7 +41,10 @@ const { canNotifyDefautGrave } = usePermissions();
 
         // Historique du PAQ actif uniquement
         if (active?.historique) {
-          try { setHistorique(JSON.parse(active.historique)); }
+          try { 
+            const parsedHist = JSON.parse(active.historique);
+            setHistorique(parsedHist);
+          }
           catch { setHistorique([]); }
         } else {
           setHistorique([]);
@@ -67,25 +63,6 @@ const { canNotifyDefautGrave } = usePermissions();
     }
   };
 
-  // ── Chargement liste de fautes ────────────────────────────────────────────
-  const loadFautes = async () => {
-    try {
-      setFautesLoading(true);
-      const res = await fauteService.getAll();
-      setFautesList(res.data || []);
-    } catch {
-      setFautesList([]);
-    } finally {
-      setFautesLoading(false);
-    }
-  };
-
-  const openFauteModal = () => {
-    setFauteDetail("");
-    setShowFauteModal(true);
-    loadFautes();
-  };
-
   // ── Créer PAQ ─────────────────────────────────────────────────────────────
   const createPaq = async () => {
     try {
@@ -95,38 +72,9 @@ const { canNotifyDefautGrave } = usePermissions();
         setCurrentPaq(res.data);
         if (res.data.historique) setHistorique(JSON.parse(res.data.historique));
         showSuccess("Dossier PAQ créé avec succès !");
-       
       }
     } catch (err) {
       showError(err.response?.data?.message || "Erreur lors de la création");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Enregistrer faute ──────────────────────────────────────────────────────
-  const enregistrerFaute = async () => {
-    if (!fauteDetail) {
-      showError("Veuillez sélectionner un type de faute.");
-      return;
-    }
-    try {
-      setLoading(true);
-      const res = await paqService.enregistrerFaute(matricule, {
-        detail: fauteDetail,
-        type:   "STANDARD",
-      });
-      if (res.data) {
-        const updatedPaq = res.data.paq || res.data;
-        setCurrentPaq(updatedPaq);
-        if (updatedPaq?.historique) setHistorique(JSON.parse(updatedPaq.historique));
-        setShowFauteModal(false);
-        setFauteDetail("");
-        showSuccess(res.data.message || "Faute enregistrée avec succès");
-       
-      }
-    } catch (err) {
-      showError(err.response?.data?.message || "Erreur lors de l'enregistrement de la faute");
     } finally {
       setLoading(false);
     }
@@ -175,37 +123,26 @@ const { canNotifyDefautGrave } = usePermissions();
   const isPaqExpire = () =>
     !!currentPaq?.dateFin && new Date(currentPaq.dateFin) <= new Date();
 
-  /** true si une faute a été déclarée */
-  const aUneFaute = () => !!currentPaq?.derniereFaute;
-
   /**
    * RÈGLE PRINCIPALE :
-   * "Déclarer Faute" s'affiche UNIQUEMENT si niveau === 0 ET aucune faute.
-   * Dès qu'une faute est déclarée, ce bouton disparaît et les boutons
-   * d'entretien apparaissent.
-   */
-  const peutDeclarerFaute = () =>
-    !!currentPaq && !isBlocked && currentPaq.niveau === 0 && !aUneFaute();
-
-  /**
-   * Les boutons d'entretien ne s'affichent QUE si une faute a été déclarée
-   * (ou si le niveau > 0, ce qui signifie qu'un entretien a déjà eu lieu).
+   * Le bouton "Déclarer Faute" a été SUPPRIMÉ.
+   * Le processus commence directement par l'entretien explicatif.
    */
   const peutVoirEntretiens = () =>
-    !!currentPaq && !isBlocked && (aUneFaute() || currentPaq.niveau > 0);
+    !!currentPaq && !isBlocked;
 
   /** Prochain entretien selon le niveau actuel */
-  const getProchainEntretien = () => {
-    if (!peutVoirEntretiens()) return null;
-    const map = {
-      0: { nom: "Entretien Explicatif",  route: `/entretien-explicatif/${matricule}` },
-      1: { nom: "Entretien d'Accord",    route: `/entretien-daccord/${matricule}` },
-      2: { nom: "Entretien de Mesure",   route: `/entretien-de-mesure/${matricule}` },
-      3: { nom: "Entretien de Décision", route: `/entretien-de-decision/${matricule}` },
-      4: { nom: "Entretien Final",       route: `/entretien-final/${matricule}` },
-    };
-    return map[currentPaq.niveau] || null;
+const getProchainEntretien = () => {
+  if (!peutVoirEntretiens()) return null;
+  const map = {
+    0: { nom: "Etape1: Entretien Explication",  route: `/entretien-explicatif/${matricule}` },
+    1: { nom: "Etape2: Entretien d'Accord",     route: `/entretien-daccord/${matricule}` },
+    2: { nom: "Etape3: Entretien de Mesure",    route: `/entretien-de-mesure/${matricule}` },
+    3: { nom: "Etape4: Entretien de Décision",  route: `/entretien-de-decision/${matricule}` },
+    4: { nom: "Etape5: Entretien Décision Final",        route: `/entretien-final/${matricule}` },
   };
+  return map[currentPaq.niveau] || null;
+};
 
   /** Peut créer un PAQ ? (pas de PAQ actif + ancienneté OK) */
   const peutCreerPaq = () => {
@@ -214,6 +151,27 @@ const { canNotifyDefautGrave } = usePermissions();
     const limit = new Date(collaborator.hireDate);
     limit.setMonth(limit.getMonth() + 6);
     return new Date() >= limit;
+  };
+
+  // Vérifier si le collaborateur a eu un entretien positif dans l'historique
+  const aEuEntretienPositif = () => {
+    return historique.some(h => {
+      const action = (h.action || "").toLowerCase();
+      return action.includes("entretien positif") || action.includes("positif");
+    });
+  };
+
+  // Vérifier si le collaborateur est éligible à l'entretien positif (6 mois sans faute)
+  const estEligibleEntretienPositif = () => {
+    if (!currentPaq) return false;
+    // Vérifier si une faute a été enregistrée dans ce PAQ
+    const aDesFautes = historique.some(h => {
+      const action = (h.action || "").toLowerCase();
+      return action.includes("faute enregistrée");
+    });
+    // Si pas de faute et pas déjà d'entretien positif, et que le PAQ a plus de 6 mois
+    return !aDesFautes && !aEuEntretienPositif() && currentPaq.dateCreation && 
+           new Date(currentPaq.dateCreation) <= new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
   };
 
   // ── Progression période ───────────────────────────────────────────────────
@@ -254,11 +212,12 @@ const { canNotifyDefautGrave } = usePermissions();
     if (a.includes("faute"))      return "leoni-badge leoni-badge-red";
     if (a.includes("création"))   return "leoni-badge leoni-badge-green";
     if (a.includes("archiv"))     return "leoni-badge leoni-badge-gray";
+    if (a.includes("positif"))    return "leoni-badge leoni-badge-success";
     return "leoni-badge leoni-badge-gray";
   };
 
   const handleHistoriqueClick = (action) => {
-   if (!action) return;
+    if (!action) return;
     const a = action.toLowerCase();
 
     // Chaque action ouvre la page de l'entretien correspondant
@@ -267,6 +226,7 @@ const { canNotifyDefautGrave } = usePermissions();
     else if (a.includes("mesure"))                              navigate(`/entretien-de-mesure/${matricule}`);
     else if (a.includes("décision") || a.includes("decision")) navigate(`/entretien-de-decision/${matricule}`);
     else if (a.includes("final"))                               navigate(`/entretien-final/${matricule}`);
+    else if (a.includes("positif"))                             navigate(`/entretien-positif/${matricule}`);
   };
 
   // ── Rendu ─────────────────────────────────────────────────────────────────
@@ -324,29 +284,7 @@ const { canNotifyDefautGrave } = usePermissions();
 
           {currentPaq && !isBlocked && (
             <>
-              {/* ── ÉTAPE 1 : Déclarer la faute (niveau 0, pas encore de faute) ── */}
-              {peutDeclarerFaute() && (
-                <button onClick={openFauteModal} className="leoni-btn leoni-btn-warning">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Déclarer Faute
-                </button>
-              )}
-
-              {currentPaq && !isBlocked && canNotifyDefautGrave && (
-  <button onClick={() => setShowDefautGraveModal(true)}
-    className="leoni-btn leoni-btn-danger">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-      <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-        stroke="currentColor" strokeWidth="2"/>
-    </svg>
-    🚨 Défaut Grave
-  </button>
-)}
-
-              {/* ── ÉTAPE 2 : Passer à l'entretien (après faute déclarée) ── */}
+              {/* ── ÉTAPE : Passer à l'entretien (après création du PAQ) ── */}
               {prochainEntretien && (
                 <button
                   onClick={() => navigate(prochainEntretien.route)}
@@ -408,18 +346,23 @@ const { canNotifyDefautGrave } = usePermissions();
         </div>
       )}
 
-      {showDefautGraveModal && (
-  <DefautGraveModal
-    matricule={matricule}
-    nomCollab={collaborator ? `${collaborator.name} ${collaborator.prenom}` : matricule}
-    onClose={() => setShowDefautGraveModal(false)}
-    onSuccess={() => {
-      setShowDefautGraveModal(false);
-      showSuccess("Défaut grave déclaré. Les SGL ont été notifiés.");
-    }}
-  />
-)}
+      {estEligibleEntretienPositif() && (
+        <div className="leoni-alert leoni-alert-success">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5"/>
+          </svg>
+          ✨ Félicitations ! Aucune faute depuis 6 mois. Un entretien positif peut être réalisé.
+          <button 
+            onClick={() => navigate(`/entretien-positif/${matricule}`)}
+            className="leoni-btn leoni-btn-success ms-2"
+            style={{ marginLeft: "12px" }}
+          >
+            Réaliser l'entretien positif
+          </button>
+        </div>
+      )}
 
+     
       {/* ── CONTENU PRINCIPAL ──────────────────────────────────────────────── */}
       <div className="leoni-grid-main">
 
@@ -428,6 +371,7 @@ const { canNotifyDefautGrave } = usePermissions();
 
           {/* Fiche collaborateur */}
           {collaborator && (
+          
             <div className="leoni-card">
               <div className="leoni-card-header">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -509,17 +453,16 @@ const { canNotifyDefautGrave } = usePermissions();
 
                 {/* Description état */}
                 <div className="leoni-niveau-desc">
-                  {currentPaq.niveau === 0 && !aUneFaute() && (
-                    <span>⏳ En attente de la déclaration de faute</span>
-                  )}
-                  {currentPaq.niveau === 0 && aUneFaute() && (
-                    <span>⚠️ Faute déclarée — Lancer l'entretien explicatif</span>
+                  {currentPaq.niveau === 0 && (
+                    <span>📋 En attente de la réalisation de l'entretien explicatif</span>
                   )}
                   {currentPaq.niveau === 1 && "Entretien explicatif réalisé"}
                   {currentPaq.niveau === 2 && "Entretien d'accord réalisé"}
                   {currentPaq.niveau === 3 && "Entretien de mesure réalisé"}
                   {currentPaq.niveau === 4 && "Entretien de décision réalisé"}
-                  {currentPaq.niveau === 5 && "✅ Dossier clôturé avec succès"}
+                  {currentPaq.niveau === 5 && "Entretien Final réalisé"}
+                  {aEuEntretienPositif() && "✨ Entretien positif réalisé - Félicitations !"}
+                  {estEligibleEntretienPositif() && !aEuEntretienPositif() && "🏆 Éligible à l'entretien positif !"}
                 </div>
 
                 {/* Barre de progression période */}
@@ -533,17 +476,6 @@ const { canNotifyDefautGrave } = usePermissions();
                   </div>
                   <div className="leoni-periode-pct">{getPaqProgress()}% de la période écoulée</div>
                 </div>
-
-                {/* Dernière faute */}
-                {currentPaq.derniereFaute && (
-                  <div className="leoni-last-faute">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-                        stroke="currentColor" strokeWidth="2"/>
-                    </svg>
-                    Dernière faute : {formatDate(currentPaq.derniereFaute)}
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -574,11 +506,7 @@ const { canNotifyDefautGrave } = usePermissions();
         {/* ── COLONNE DROITE ─────────────────────────────────────────────────── */}
         <div className="leoni-col-right">
 
-          {/*
-           * HISTORIQUE DU PAQ ACTIF (6 mois en cours) UNIQUEMENT
-           * Les dossiers précédents ne s'affichent plus ici :
-           * ils sont consultables via la page Archivage.
-           */}
+          {/* ── HISTORIQUE CHRONOLOGIQUE ── */}
           <div className="leoni-card">
             <div className="leoni-card-header">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -614,139 +542,92 @@ const { canNotifyDefautGrave } = usePermissions();
                     <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                   </svg>
                   <p>Aucun événement enregistré</p>
-                  {peutDeclarerFaute() && (
-                    <small style={{ color: "#94a3b8" }}>
-                      Commencez par déclarer une faute pour démarrer le processus.
-                    </small>
-                  )}
+                  <small style={{ color: "#94a3b8" }}>
+                    Commencez par lancer l'entretien explicatif.
+                  </small>
                 </div>
               ) : (
-                <div className="leoni-table-wrap">
-                  <table className="leoni-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Action</th>
-                        <th>Détail</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                     {historique
-  .filter(h => {
-    const action = (h.action || "").toLowerCase();
-    return (
-      !action.includes("creation suite entretien positif") &&
-      !action.includes("augmentation")
-    );
-  })
-  .map((h, i) => {
-    const isEntretien = (h.action || "").toLowerCase().includes("entretien");
-    return (
-      <tr key={i}>
-        <td className="leoni-mono leoni-td-date">{formatDate(h.date)}</td>
-        <td>
-          {isEntretien ? (
-            // ✅ Cliquable → ouvre l'entretien spécifique
-            <button
-              onClick={() => handleHistoriqueClick(h.action)}
-              className={`${getBadgeClass(h.action)} leoni-action-link`}
-              style={{ cursor: "pointer" }}
-            >
-              {h.action}
-            </button>
-          ) : (
-            // Non cliquable (création dossier, faute)
-            <span className={getBadgeClass(h.action)}>
-              {h.action}
-            </span>
-          )}
-        </td>
-        <td className="leoni-td-detail">
-          {formatHistoriqueDetail(h.detail, h.date)}
-        </td>
-      </tr>
-    );
-  })}
-                    </tbody>
-                  </table>
+                <div className="leoni-timeline">
+                  {[...historique]
+                    .filter(h => {
+                      const action = (h.action || "").toLowerCase();
+                      return !action.includes("creation suite entretien positif");
+                    })
+                    .sort((a, b) => new Date(a.date) - new Date(b.date))
+                    .map((h, index, array) => {
+                      const isEntretien = (h.action || "").toLowerCase().includes("entretien");
+                      const isPositif = (h.action || "").toLowerCase().includes("positif");
+                      const isFaute = (h.action || "").toLowerCase().includes("faute");
+                      const isCreation = (h.action || "").toLowerCase().includes("création");
+                      
+                      let icon = null;
+                      if (isEntretien || isPositif) {
+                        icon = (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 8v4l3 3M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" stroke="currentColor" strokeWidth="2"/>
+                          </svg>
+                        );
+                      } else if (isFaute) {
+                        icon = (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" strokeWidth="2"/>
+                          </svg>
+                        );
+                      } else if (isCreation) {
+                        icon = (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <polyline points="21 8 21 21 3 21 3 8" stroke="currentColor" strokeWidth="2"/>
+                            <rect x="1" y="3" width="22" height="5" rx="1" stroke="currentColor" strokeWidth="2"/>
+                          </svg>
+                        );
+                      } else {
+                        icon = (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                            <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2"/>
+                          </svg>
+                        );
+                      }
+
+                      return (
+                        <div key={index} className="leoni-timeline-item">
+                          {index < array.length - 1 && <div className="leoni-timeline-line"></div>}
+                          
+                          <div className={`leoni-timeline-dot ${isEntretien ? 'entretien' : isPositif ? 'positif' : isFaute ? 'faute' : 'default'}`}>
+                            {icon}
+                          </div>
+                          
+                          <div className="leoni-timeline-content">
+                            <div className="leoni-timeline-header">
+                              <span className="leoni-timeline-date leoni-mono">
+                                {formatDate(h.date)}
+                              </span>
+                              {(isEntretien || isPositif) ? (
+                                <button
+                                  onClick={() => handleHistoriqueClick(h.action)}
+                                  className={`leoni-timeline-badge ${getBadgeClass(h.action)}`}
+                                >
+                                  {h.action}
+                                </button>
+                              ) : (
+                                <span className={`leoni-timeline-badge ${getBadgeClass(h.action)}`}>
+                                  {h.action}
+                                </span>
+                              )}
+                            </div>
+                            <div className="leoni-timeline-detail">
+                              {formatHistoriqueDetail(h.detail, h.date)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </div>
           </div>
         </div>
       </div>
-
-      {/* ── MODAL DÉCLARER FAUTE ────────────────────────────────────────────── */}
-      {showFauteModal && (
-        <div className="leoni-modal-overlay" onClick={() => setShowFauteModal(false)}>
-          <div className="leoni-modal" onClick={e => e.stopPropagation()}>
-
-            <div className="leoni-modal-header">
-              <div className="leoni-modal-icon leoni-modal-icon-warning">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-                    stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <div>
-                <h3>Déclarer une Faute</h3>
-                <p>Sélectionnez le type de faute à enregistrer</p>
-              </div>
-              <button className="leoni-modal-close" onClick={() => setShowFauteModal(false)}>✕</button>
-            </div>
-
-            <div className="leoni-modal-body">
-              <div className="leoni-form-group">
-                <label>Type de faute <span className="leoni-required">*</span></label>
-                {fautesLoading ? (
-                  <div className="leoni-select-loading">
-                    <div className="leoni-spinner leoni-spinner-sm"></div>
-                    Chargement des fautes...
-                  </div>
-                ) : (
-                  <select
-                    className="leoni-select"
-                    value={fauteDetail}
-                    onChange={(e) => setFauteDetail(e.target.value)}
-                  >
-                    <option value="">— Sélectionner une faute —</option>
-                    {fautesList.map((f, i) => (
-                      <option key={i} value={f.nom || f.name || f}>
-                        {f.nom || f.name || f}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div className="leoni-modal-notice leoni-modal-notice-warning">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-                    stroke="currentColor" strokeWidth="2"/>
-                </svg>
-                Après validation, le bouton <strong>"Entretien Explicatif"</strong> s'affichera automatiquement.
-              </div>
-            </div>
-
-            <div className="leoni-modal-footer">
-              <button
-                onClick={() => { setShowFauteModal(false); setFauteDetail(""); }}
-                className="leoni-btn leoni-btn-outline"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={enregistrerFaute}
-                className="leoni-btn leoni-btn-warning"
-                disabled={!fauteDetail}
-              >
-                Valider la faute
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
     </div>
   );
 }

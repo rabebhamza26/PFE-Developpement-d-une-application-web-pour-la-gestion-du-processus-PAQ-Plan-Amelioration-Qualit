@@ -178,4 +178,10 @@ public class UserService {
                 .segmentNames(user.getSegments().stream().map(Segment::getNomSegment).collect(Collectors.toList()))
                 .build();
     }
+
+    public List<String> getEmailsByRole(String role) {
+        return userRepository.findByRole(role).stream()
+                .map(User::getEmail)
+                .collect(Collectors.toList());
+    }
 }

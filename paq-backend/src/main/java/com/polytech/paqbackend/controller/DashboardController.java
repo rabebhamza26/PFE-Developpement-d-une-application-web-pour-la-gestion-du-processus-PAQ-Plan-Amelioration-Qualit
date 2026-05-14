@@ -26,33 +26,42 @@ public class DashboardController {
     }
 
     @GetMapping("/stats")
-    public DashboardStatsDTO getStats() {
-        return dashboardService.getStats();
+    public DashboardStatsDTO getStats(
+            @RequestParam(required = false) Long siteId,
+            @RequestParam(required = false) Long plantId) {
+        return dashboardService.getStats(siteId, plantId);
     }
 
     @GetMapping("/segment-stats")
-    public List<SegmentStatsDTO> getSegmentStats() {
-        return dashboardService.getSegmentStats();
+    public List<SegmentStatsDTO> getSegmentStats(
+            @RequestParam(required = false) Long siteId,
+            @RequestParam(required = false) Long plantId) {
+        return dashboardService.getSegmentStats(siteId, plantId);
     }
 
     @GetMapping("/performance-history")
-    public List<PerformanceHistoryDTO> getPerformanceHistory() {
-        return dashboardService.getPerformanceHistory();
+    public List<PerformanceHistoryDTO> getPerformanceHistory(
+            @RequestParam(required = false) Long siteId,
+            @RequestParam(required = false) Long plantId) {
+        return dashboardService.getPerformanceHistory(siteId, plantId);
     }
 
     @GetMapping("/export/{format}")
-    public ResponseEntity<byte[]> exportReport(@PathVariable String format) {
+    public ResponseEntity<byte[]> exportReport(
+            @PathVariable String format,
+            @RequestParam(required = false) Long siteId,
+            @RequestParam(required = false) Long plantId) {
         try {
             byte[] reportData;
             String filename;
             String contentType;
 
             if ("pdf".equalsIgnoreCase(format)) {
-                reportData = exportService.generatePdfReport();
+                reportData = exportService.generatePdfReport(siteId, plantId);
                 filename = "rapport-semestriel.pdf";
                 contentType = MediaType.APPLICATION_PDF_VALUE;
             } else if ("excel".equalsIgnoreCase(format)) {
-                reportData = exportService.generateExcelReport();
+                reportData = exportService.generateExcelReport(siteId, plantId);
                 filename = "rapport-semestriel.xlsx";
                 contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
             } else {

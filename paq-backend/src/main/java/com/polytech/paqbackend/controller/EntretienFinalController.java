@@ -1,3 +1,4 @@
+// EntretienFinalController.java (corrigé - seulement RH)
 package com.polytech.paqbackend.controller;
 
 import com.polytech.paqbackend.dto.EntretienFinalDTO;
@@ -12,97 +13,49 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Entretien Final (niveau 5)
- *
- * Règles métier :
- *  - RH : Créer / Modifier / Supprimer / Valider / Consulter
- *  - Tous les autres rôles : Consulter uniquement
- */
 @RestController
 @RequestMapping("/api/entretien-final")
 public class EntretienFinalController {
 
-    private final EntretienFinalService entretienFinalService;
+    private final EntretienFinalService service;
 
-    public EntretienFinalController(EntretienFinalService entretienFinalService) {
-        this.entretienFinalService = entretienFinalService;
+    public EntretienFinalController(EntretienFinalService service) {
+        this.service = service;
     }
 
+    // RH peut créer
     @PostMapping("/{matricule}")
-    @PreAuthorize("hasAuthority('final:create')")
-    public ResponseEntity<?> createEntretienFinal(
-            @PathVariable String matricule,
-            @RequestBody EntretienFinalDTO dto,
-            Authentication authentication) {
-        try {
-            String expediteurEmail = authentication.getName();
-            EntretienFinal saved = entretienFinalService.createAvecNotification(matricule, dto, expediteurEmail);
-            return ResponseEntity.ok(saved);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
+    @PreAuthorize("hasAuthority('final:create') and hasRole('RH')")
+    public ResponseEntity<?> create(@PathVariable String matricule, @RequestBody EntretienFinalDTO dto, Authentication authentication) {
+        return ResponseEntity.ok(service.createAvecNotification(matricule, dto, authentication.getName()));
     }
 
+    // RH peut modifier
     @PutMapping("/{matricule}/{id}")
-    @PreAuthorize("hasAuthority('final:update')")
-    public ResponseEntity<?> updateEntretienFinal(
-            @PathVariable String matricule,
-            @PathVariable Long id,
-            @RequestBody EntretienFinalDTO dto,
-            Authentication authentication) {
-        try {
-            String expediteurEmail = authentication.getName();
-            EntretienFinal updated = entretienFinalService.updateAvecNotification(id, matricule, dto, expediteurEmail);
-            return ResponseEntity.ok(updated);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
+    @PreAuthorize("hasAuthority('final:update') and hasRole('RH')")
+    public ResponseEntity<?> update(@PathVariable String matricule, @PathVariable Long id, @RequestBody EntretienFinalDTO dto, Authentication authentication) {
+        return ResponseEntity.ok(service.updateAvecNotification(id, matricule, dto, authentication.getName()));
     }
 
-    @GetMapping("/{matricule}")
-    @PreAuthorize("hasAuthority('final:read')")
-    public ResponseEntity<?> getByMatricule(@PathVariable String matricule) {
-        try {
-            return ResponseEntity.ok(entretienFinalService.getByMatricule(matricule));
-        } catch (Exception e) {
-            return ResponseEntity.ok(new ArrayList<>());
-        }
-    }
-
+    // RH peut supprimer
     @DeleteMapping("/{matricule}/{id}")
-    @PreAuthorize("hasAuthority('final:delete')")
-    public ResponseEntity<?> delete(
-            @PathVariable String matricule,
-            @PathVariable Long id,
-            @RequestBody(required = false) Map<String, String> body,
-            Authentication authentication) {
-        try {
-            String expediteurEmail   = authentication.getName();
-            String destinataireEmail = body != null ? body.get("destinataireEmail") : null;
-            String nomCollab         = body != null ? body.get("nomCollab") : matricule;
-
-            entretienFinalService.deleteAvecNotification(id, matricule, expediteurEmail, destinataireEmail, nomCollab);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
+    @PreAuthorize("hasAuthority('final:delete') and hasRole('RH')")
+    public ResponseEntity<?> delete(@PathVariable String matricule, @PathVariable Long id, @RequestBody(required = false) Map<String, String> body, Authentication authentication) {
+        service.deleteAvecNotification(id, matricule, authentication.getName(), body != null ? body.get("destinataireEmail") : null, matricule);
+        return ResponseEntity.noContent().build();
     }
 
-    /** Valider — RH uniquement */
+    // RH peut valider
     @PostMapping("/{matricule}/{id}/valider")
-    @PreAuthorize("hasAuthority('final:validate')")
-    public ResponseEntity<?> valider(
-            @PathVariable String matricule,
-            @PathVariable Long id,
-            @RequestBody EntretienFinalDTO dto,
-            Authentication authentication) {
-        try {
-            String expediteurEmail = authentication.getName();
-            EntretienFinal updated = entretienFinalService.updateAvecNotification(id, matricule, dto, expediteurEmail);
-            return ResponseEntity.ok(updated);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
+    @PreAuthorize("hasAuthority('final:validate') and hasRole('RH')")
+    public ResponseEntity<?> valider(@PathVariable String matricule, @PathVariable Long id, @RequestBody EntretienFinalDTO dto, Authentication authentication) {
+        return ResponseEntity.ok(service.updateAvecNotification(id, matricule, dto, authentication.getName()));
+    }
+
+    // Lecture accessible à tous
+    @GetMapping("/{matricule}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> getByMatricule(@PathVariable String matricule) {
+        return ResponseEntity.ok(service.getByMatricule(matricule));
     }
 }

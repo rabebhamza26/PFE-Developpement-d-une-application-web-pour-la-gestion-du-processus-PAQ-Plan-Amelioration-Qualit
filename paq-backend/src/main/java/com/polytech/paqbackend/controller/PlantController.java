@@ -23,12 +23,11 @@ public class PlantController {
         this.plantService = plantService;
     }
 
-    // ✅ PUBLIC — utilisé AVANT la connexion (page PlantSelection)
     @GetMapping
     public ResponseEntity<List<PlantDTO>> getAllPlants() {
         List<PlantDTO> plants = plantService.getAll()
                 .stream()
-                .map(this::toDTO)
+                .map(plantService::toDTOWithSegments)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(plants);
     }
@@ -36,24 +35,23 @@ public class PlantController {
     @GetMapping("/{id}")
     public ResponseEntity<PlantDTO> getPlantById(@PathVariable Long id) {
         Plant plant = plantService.getById(id);
-        return ResponseEntity.ok(toDTO(plant));
+        return ResponseEntity.ok(plantService.toDTOWithSegments(plant));
     }
 
     @GetMapping("/site/{siteId}")
     public ResponseEntity<List<PlantDTO>> getPlantsBySite(@PathVariable Long siteId) {
         List<PlantDTO> plants = plantService.getBySite(siteId)
                 .stream()
-                .map(this::toDTO)
+                .map(plantService::toDTOWithSegments)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(plants);
     }
 
-    // 🔒 ADMIN seulement
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PlantDTO> createPlant(@RequestBody PlantDTO plantDTO) {
         Plant savedPlant = plantService.createFromDTO(plantDTO);
-        return ResponseEntity.ok(toDTO(savedPlant));
+        return ResponseEntity.ok(plantService.toDTOWithSegments(savedPlant));
     }
 
     @PutMapping("/{id}")
@@ -67,7 +65,7 @@ public class PlantController {
             plant.setSite(site);
         }
         Plant updatedPlant = plantService.update(id, plant);
-        return ResponseEntity.ok(toDTO(updatedPlant));
+        return ResponseEntity.ok(plantService.toDTOWithSegments(updatedPlant));
     }
 
     @DeleteMapping("/{id}")
@@ -75,14 +73,5 @@ public class PlantController {
     public ResponseEntity<Void> deletePlant(@PathVariable Long id) {
         plantService.delete(id);
         return ResponseEntity.noContent().build();
-    }
-
-    private PlantDTO toDTO(Plant plant) {
-        return new PlantDTO(
-                plant.getId(),
-                plant.getName(),
-                plant.getSite() != null ? plant.getSite().getId() : null,
-                plant.getSite() != null ? plant.getSite().getName() : null
-        );
     }
 }

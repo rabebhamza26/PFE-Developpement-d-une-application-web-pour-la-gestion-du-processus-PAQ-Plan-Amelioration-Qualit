@@ -1,4 +1,3 @@
-// Segment.java - Version avec relation Many-to-Many
 package com.polytech.paqbackend.entity;
 
 import jakarta.persistence.*;
@@ -8,7 +7,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "segments")
+@Table(name = "segments",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"nomSegment", "plant_id"})
+        })
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
@@ -19,13 +21,16 @@ public class Segment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long idSegment;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String nomSegment;
 
     @ManyToMany(mappedBy = "segments")
     private Set<User> users = new HashSet<>();
 
-    // Getter explicite pour l'ID
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "plant_id")
+    private Plant plant;
+
     public Long getId() {
         return idSegment;
     }

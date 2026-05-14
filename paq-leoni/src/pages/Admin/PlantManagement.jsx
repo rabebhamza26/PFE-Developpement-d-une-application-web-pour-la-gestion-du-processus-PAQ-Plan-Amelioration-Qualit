@@ -407,7 +407,7 @@ const handleSubmit = async (e) => {
               <form onSubmit={handleSubmit}>
                 <div className="pm-field">
                   <label>
-                    Site <span className="pm-required">*</span>
+                    Site <span className="pm-required"></span>
                   </label>
                   <select
                     className="pm-input"
@@ -426,7 +426,7 @@ const handleSubmit = async (e) => {
 
                 <div className="pm-field">
                   <label>
-                    Nom du plant <span className="pm-required">*</span>
+                    Nom du plant <span className="pm-required"></span>
                   </label>
                   <input
                     className="pm-input"

@@ -18,8 +18,8 @@ public class EntretienDaccord {
     private String matricule;
     private LocalDate date;
 
-    @Column(columnDefinition = "VARCHAR(10)")
-    private String validationMesures; // "Oui" ou "Non"
+    @Column(columnDefinition = "TEXT")
+    private String causeFaute;
 
     @Column(columnDefinition = "TEXT")
     private String mesuresProposees;
@@ -27,12 +27,21 @@ public class EntretienDaccord {
     @Column(columnDefinition = "TEXT")
     private String commentaireQMSegment;
 
-    @Column(columnDefinition = "TEXT")
-    private String echanges;
-
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    private Boolean valide = false;
+
+
     // Getters et Setters
+
+    public Boolean getValide() {
+        return valide;
+    }
+
+    public void setValide(Boolean valide) {
+        this.valide = valide;
+    }
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -45,17 +54,14 @@ public class EntretienDaccord {
     public String getTypeFaute() { return typeFaute; }
     public void setTypeFaute(String typeFaute) { this.typeFaute = typeFaute; }
 
-    public String getValidationMesures() { return validationMesures; }
-    public void setValidationMesures(String validationMesures) { this.validationMesures = validationMesures; }
+    public String getCauseFaute() { return causeFaute; }
+    public void setCauseFaute(String causeFaute) { this.causeFaute = causeFaute; }
 
     public String getMesuresProposees() { return mesuresProposees; }
     public void setMesuresProposees(String mesuresProposees) { this.mesuresProposees = mesuresProposees; }
 
     public String getCommentaireQMSegment() { return commentaireQMSegment; }
     public void setCommentaireQMSegment(String commentaireQM) { this.commentaireQMSegment = commentaireQM; }
-
-    public String getEchanges() { return echanges; }
-    public void setEchanges(String echanges) { this.echanges = echanges; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

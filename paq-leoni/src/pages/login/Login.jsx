@@ -51,11 +51,11 @@ export default function Login() {
       const msg = err.response?.data?.message;
       
       if (errorCode === "WRONG_SITE") {
-        setError(`⚠️ Ce compte n'appartient pas au site "${siteName}". Veuillez choisir le bon site.`);
+        setError(t("wrong_site_message", { siteName }));
       } else if (errorCode === "WRONG_PLANT") {
-        setError(`⚠️ Ce compte n'appartient pas au plant "${plantName}". Veuillez choisir le bon plant.`);
+        setError(t("wrong_plant_message", { plantName }));
       } else {
-        setError(msg || "Identifiants incorrects");
+        setError(msg || t("invalid_credentials"));
       }
     } finally {
       setLoading(false);
@@ -68,10 +68,7 @@ export default function Login() {
 
       <div className="lc-card">
         <div className="lc-logo-block">
-          <svg className="lc-logo-svg" viewBox="0 0 120 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <text x="0" y="28" fontFamily="'Segoe UI', Arial, sans-serif" fontWeight="800"
-                  fontSize="35" fill="#1e63b5" letterSpacing="1">Login</text>
-          </svg>
+          <h1 className="lc-title">{t("login_title")}</h1>
         </div>
 
         {siteName && plantName && (
@@ -95,7 +92,7 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="lc-form">
           <div className="lc-field">
-            <label htmlFor="lc-login">Username</label>
+            <label htmlFor="lc-login">{t("username")}</label>
             <div className="lc-input-wrap">
               <svg className="lc-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"
@@ -107,7 +104,7 @@ export default function Login() {
                 type="text"
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
-                placeholder="ex: abc123 ou nom@leoni.com"
+                placeholder={t("username_placeholder")}
                 required
                 disabled={loading}
                 autoComplete="username"
@@ -116,7 +113,7 @@ export default function Login() {
           </div>
 
           <div className="lc-field">
-            <label htmlFor="lc-password">Mot de passe</label>
+            <label htmlFor="lc-password">{t("password")}</label>
             <div className="lc-input-wrap">
               <svg className="lc-field-icon" width="16" height="16" viewBox="0 0 24 24" fill="none">
                 <rect x="3" y="11" width="18" height="11" rx="2" stroke="#9aabbb" strokeWidth="1.5"/>
@@ -127,7 +124,7 @@ export default function Login() {
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder={t("password_placeholder")}
                 required
                 disabled={loading}
                 autoComplete="current-password"
@@ -137,7 +134,7 @@ export default function Login() {
                 className="lc-eye"
                 tabIndex={-1}
                 onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? "Masquer" : "Afficher"}
+                aria-label={showPassword ? t("hide_password") : t("show_password")}
               >
                 {showPassword ? (
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -166,7 +163,7 @@ export default function Login() {
                 <span className="lc-dot"></span>
               </span>
             ) : (
-              "Se Connecter"
+              t("login")
             )}
           </button>
         </form>
@@ -177,7 +174,7 @@ export default function Login() {
             className="lc-forgot-link"
             onClick={() => setShowForgotPassword(true)}
           >
-            Mot de passe oublié ?
+            {t("forgot_password")}
           </button>
         </div>
 

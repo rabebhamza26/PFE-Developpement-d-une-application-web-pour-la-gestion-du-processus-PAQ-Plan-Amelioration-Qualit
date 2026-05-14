@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { collaboratorService, paqService } from "../../services/api";
+import { showConfirmAlert, showErrorAlert } from "../../utils/entretienAlerts";
 import "../../styles/collaborator.css";
+import { useSelection } from "../../context/SelectionContext";
 
 export default function CollaboratorManagement() {
   const [collaborators, setCollaborators] = useState([]);
@@ -12,7 +14,31 @@ export default function CollaboratorManagement() {
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  useEffect(() => { loadCollaborators(); }, []);
+  // ── Sélection courante du user (site / plant) ──────────────
+  const { selectedSite, selectedPlant } = useSelection();
+
+  // ── Rôle du user connecté ──────────────────────────────────
+  const [userRole, setUserRole] = useState('');
+  const [userPermissions, setUserPermissions] = useState({ sites: [], plants: [], segments: [] });
+
+  useEffect(() => {
+    const userStr = sessionStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      setUserRole(user.role || '');
+      setUserPermissions({
+        sites: user.sites || [],
+        plants: user.plants || [],
+        segments: user.segments || []
+      });
+    }
+  }, []);
+
+  // ── Rechargement quand le site/plant sélectionné change ────
+  useEffect(() => {
+    loadCollaborators();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSite, selectedPlant]);
 
   const getSortableTimestamp = (collab) => {
     const raw = collab?.createdAt || collab?.updatedAt || collab?.hireDate;
@@ -42,11 +68,22 @@ export default function CollaboratorManagement() {
     return sorted;
   };
 
+  // ── Chargement des collaborateurs ─────────────────────────
+  // On passe siteId / plantId au service pour que le backend
+  // filtre correctement selon la sélection courante ET le
+  // périmètre du user connecté.
   const loadCollaborators = async () => {
     try {
       setLoading(true);
       setError("");
-      const response = await collaboratorService.getAll();
+
+      // Paramètres de filtre envoyés au backend
+      const filterParams = {
+        siteId: selectedSite?.id || null,
+        plantId: selectedPlant?.id || null,
+      };
+
+      const response = await collaboratorService.getAll(filterParams);
       let data = Array.isArray(response.data) ? response.data : response.data?.data || [];
 
       const newCollab = location.state?.newCollaborator;
@@ -67,16 +104,21 @@ export default function CollaboratorManagement() {
   };
 
   const deleteCollaborator = async (matricule, fullName) => {
-    if (!window.confirm(`Êtes-vous sûr de vouloir supprimer ${fullName} ?`)) return;
+    const result = await showConfirmAlert({
+      title: "Supprimer le collaborateur ?",
+      text: `Êtes-vous sûr de vouloir supprimer ${fullName} ?`,
+      confirmButtonText: "Oui, supprimer",
+      cancelButtonText: "Annuler",
+    });
+    if (!result.isConfirmed) return;
     try {
       await collaboratorService.delete(matricule);
       setCollaborators(prev => prev.filter(c => c.matricule !== matricule));
     } catch {
-      alert("Erreur lors de la suppression du collaborateur");
+      showErrorAlert("Erreur", "Erreur lors de la suppression du collaborateur");
     }
   };
 
-  /** true si 6 mois d'ancienneté sont atteints */
   const hasSixMonthsPassed = (collab) => {
     if (!collab?.hireDate) return false;
     const limit = new Date(collab.hireDate);
@@ -84,9 +126,7 @@ export default function CollaboratorManagement() {
     return new Date() >= limit;
   };
 
-  /** Vérifie si un PAQ actif existe pour ce collaborateur */
   const hasActivePaq = (collab) => {
-    // Si le collaborateur a un niveau > 0 ou un statut différent de POSITIF, il a un PAQ
     const s = (collab.statut || "").toUpperCase();
     return s !== "POSITIF" && s !== "N/A" && collab.niveau !== undefined && collab.niveau !== null;
   };
@@ -109,7 +149,8 @@ export default function CollaboratorManagement() {
 
   const filteredCollaborators = useMemo(() => {
     const s = search.toLowerCase().trim();
-    const latestMatricule = location.state?.newCollaborator?.matricule || sessionStorage.getItem("latest_collaborator_matricule");
+    const latestMatricule = location.state?.newCollaborator?.matricule
+      || sessionStorage.getItem("latest_collaborator_matricule");
 
     const filtered = collaborators.filter((c) => {
       if (!s) return true;
@@ -124,11 +165,24 @@ export default function CollaboratorManagement() {
     return sortCollaborators(filtered, latestMatricule, sortMode);
   }, [collaborators, search, sortMode, location.state]);
 
+  // ── Label pour le contexte affiché ────────────────────────
+  const contextLabel = selectedPlant
+    ? `Plant : ${selectedPlant.name || selectedPlant.id}`
+    : selectedSite
+    ? `Site : ${selectedSite.name || selectedSite.id}`
+    : "Tous les sites / plants";
+
   return (
     <div className="container py-4 collab-page">
 
       <div className="collab-topbar">
-        <div className="collab-title">Gestion Collaborateurs</div>
+        <div>
+          <div className="collab-title">Gestion Collaborateurs</div>
+          {/* Affiche le périmètre actif pour que l'utilisateur sache ce qu'il voit */}
+          <small className="text-muted">
+            <i className="fas fa-filter me-1"></i>{contextLabel}
+          </small>
+        </div>
         <button
           type="button"
           onClick={() => navigate("/add-collaborator")}
@@ -198,7 +252,6 @@ export default function CollaboratorManagement() {
                 <th>SEGMENT</th>
                 <th>DATE EMBAUCHE</th>
                 <th>NIVEAU PAQ</th>
-                <th>DERNIÈRE FAUTE</th>
                 <th>STATUT</th>
                 <th>ACTIONS</th>
               </tr>
@@ -207,8 +260,7 @@ export default function CollaboratorManagement() {
               {filteredCollaborators.map((c) => {
                 const sixMonthsPassed = hasSixMonthsPassed(c);
                 const hasPaq = hasActivePaq(c);
-                
-                // Déterminer l'affichage du bouton PAQ
+
                 let paqButton = null;
                 if (hasPaq) {
                   paqButton = (
@@ -258,11 +310,7 @@ export default function CollaboratorManagement() {
                         ))}
                       </div>
                     </td>
-                    <td className="faute-cell">
-                      {c.derniereFaute
-                        ? <span className="text-danger">{formatDate(c.derniereFaute)}</span>
-                        : <span className="text-muted">Aucune</span>}
-                    </td>
+                   
                     <td className="statut-cell">
                       <span className={`badge-custom ${getStatusBadgeClass(c.statut, c.niveau)}`}>
                         {c.statut || "N/A"}
@@ -270,10 +318,7 @@ export default function CollaboratorManagement() {
                     </td>
                     <td className="actions-cell">
                       <div className="actions-group">
-                        {/* Bouton PAQ (Créer ou Voir selon situation) */}
                         {paqButton}
-
-                        {/* Bouton Modifier */}
                         <button
                           className="action-btn btn-edit"
                           onClick={() =>
@@ -285,8 +330,6 @@ export default function CollaboratorManagement() {
                         >
                           Modifier
                         </button>
-
-                        {/* Bouton Supprimer */}
                         <button
                           className="action-btn btn-delete"
                           onClick={() => deleteCollaborator(c.matricule, `${c.nom} ${c.prenom}`)}

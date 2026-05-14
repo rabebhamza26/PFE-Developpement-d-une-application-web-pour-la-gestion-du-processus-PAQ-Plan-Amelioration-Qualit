@@ -45,10 +45,14 @@ API.interceptors.response.use(
 
 // ------------------ dashboard Service ------------------
 export const dashboardService = {
-  getStats: () => API.get("/api/dashboard/stats"),
-  getSegmentStats: () => API.get("/api/dashboard/segment-stats"),
-  getPerformanceHistory: () => API.get("/api/dashboard/performance-history"),
-  exportReport: (format) => API.get(`/api/dashboard/export/${format}`, { responseType: "blob" }),
+ getStats: (params = {}) =>
+    API.get("/api/dashboard/stats", { params }),
+  getSegmentStats: (params = {}) =>
+    API.get("/api/dashboard/segment-stats", { params }),
+  getPerformanceHistory: (params = {}) =>
+    API.get("/api/dashboard/performance-history", { params }),
+  exportReport: (format, params = {}) =>
+    API.get(`/api/dashboard/export/${format}`, { responseType: "blob", params }),
 };
 
 // ------------------ Auth Service ------------------
@@ -102,15 +106,38 @@ export const createSegment = (segment) => API.post("/api/segments", segment);
 export const updateSegment = (id, segment) => API.put(`/api/segments/${id}`, segment);
 export const deleteSegment = (id) => API.delete(`/api/segments/${id}`);
 
+export const getSegmentsBySite = (siteId) => {
+    return API.get(`/segments/site/${siteId}`);
+};
+
+export const getSegmentsByPlant = (plantId) => {
+    return API.get(`/segments/plant/${plantId}`);
+};
+
+export const getSegmentsBySiteAndPlant = (siteId, plantId) => {
+    return API.get(`/segments/site/${siteId}/plant/${plantId}`);
+};
+
 // ------------------ Collaborateur Service ------------------
 export const collaboratorService = {
-  getAll: async () => {
+  /**
+   * Récupère tous les collaborateurs visibles par le user connecté.
+   * @param {Object} options  - { siteId, plantId } optionnels (sélection courante)
+   */
+  getAll: async ({ siteId, plantId } = {}) => {
     try {
-      return await API.get("/api/collaborators/view");
+      // Construction des query params
+      const params = {};
+      if (plantId) params.plantId = plantId;
+      else if (siteId) params.siteId = siteId;
+ 
+      return await API.get("/api/collaborators/view", { params });
     } catch (err) {
-      return await API.get("/api/collaborators");
+      console.warn("Erreur /api/collaborators/view :", err);
+      return { data: [] };
     }
   },
+ 
   getById: async (matricule) => {
     try {
       return await API.get(`/api/collaborators/${matricule}`);
@@ -120,13 +147,15 @@ export const collaboratorService = {
       } catch (err2) {
         const listRes = await API.get("/api/collaborators/view");
         const list = Array.isArray(listRes.data) ? listRes.data : listRes.data?.data || [];
-        const found = list.find((c) => String(c.matricule) === String(matricule)) ||
-                      list.find((c) => String(c.id ?? c._id) === String(matricule));
+        const found =
+          list.find((c) => String(c.matricule) === String(matricule)) ||
+          list.find((c) => String(c.id ?? c._id) === String(matricule));
         if (found) return { data: found };
         throw err2;
       }
     }
   },
+ 
   create: (data) => API.post("/api/collaborators", data),
   update: (matricule, data) => API.put(`/api/collaborators/${matricule}`, data),
   delete: (matricule) => API.delete(`/api/collaborators/${matricule}`),
@@ -151,14 +180,23 @@ export const paqService = {
 
 // ------------------ Entretien Decision Service ------------------
 export const entretienDecisionService = {
- create: (matricule, data) => API.post(`/api/entretiens-decision/${matricule}`, data),
+  create: (matricule, data) => API.post(`/api/entretiens-decision/${matricule}`, data),
   update: (matricule, id, data) => API.put(`/api/entretiens-decision/${matricule}/${id}`, data),
   updateWithNotification: (matricule, id, data) =>
     API.put(`/api/entretiens-decision/${matricule}/${id}`, data),
+
+  // ✅ SL valide (envoi email à HP, SGL et QM_PLANT)
+  validerParSL: (matricule, id, data) =>
+    API.post(`/api/entretiens-decision/${matricule}/${id}/valider-sl`, data),
+
+  // ✅ HP/SGL valident (1ère validation)
   valider1: (matricule, id, data) =>
     API.post(`/api/entretiens-decision/${matricule}/${id}/valider1`, data),
+
+  // ✅ QM_PLANT valide (2ème validation)
   valider2: (matricule, id, data) =>
     API.post(`/api/entretiens-decision/${matricule}/${id}/valider2`, data),
+
   getByMatricule: (matricule) => API.get(`/api/entretiens-decision/matricule/${matricule}`),
   getById: (id) => API.get(`/api/entretiens-decision/${id}`),
   delete: (id) => API.delete(`/api/entretiens-decision/${id}`),
@@ -170,19 +208,30 @@ export const entretienDecisionService = {
 
 // ------------------ Entretien D'accord Service ------------------
 export const entretienDaccordService = {
-   create: (matricule, data) => API.post(`/api/entretiens-daccord/${matricule}`, data),
-  update: (matricule, id, data) => API.put(`/api/entretiens-daccord/${matricule}/${id}`, data),
+  create: (matricule, data) =>
+    API.post(`/api/entretiens-daccord/${matricule}`, data),
+ 
+  update: (matricule, id, data) =>
+    API.put(`/api/entretiens-daccord/${matricule}/${id}`, data),
+ 
   updateWithNotification: (matricule, id, data) =>
     API.put(`/api/entretiens-daccord/${matricule}/${id}`, data),
+ 
+  // ✅ SL soumet pour validation → email à QM_SEGMENT
+  validerPremiere: (matricule, id, data) =>
+    API.post(`/api/entretiens-daccord/${matricule}/${id}/valider-premiere`, data),
+ 
+  // ✅ QM_SEGMENT valide finalement → email à SL
   valider: (matricule, id, data) =>
     API.post(`/api/entretiens-daccord/${matricule}/${id}/valider`, data),
-  getByMatricule: (matricule) => API.get(`/api/entretiens-daccord/matricule/${matricule}`),
-  getById: (id) => API.get(`/api/entretiens-daccord/${id}`),
-  delete: (id) => API.delete(`/api/entretiens-daccord/${id}`),
-  deleteWithNotification: (matricule, id, destinataireEmail, nomCollab) =>
-    API.delete(`/api/entretiens-daccord/${matricule}/${id}`, {
-      data: { destinataireEmail, nomCollab },
-    }),
+ 
+  getByMatricule: (matricule) =>
+    API.get(`/api/entretiens-daccord/matricule/${matricule}`),
+ 
+  getById: (id) =>
+    API.get(`/api/entretiens-daccord/${id}`),
+ 
+ 
 };
 
 // ------------------ Entretien Explicatif Service ------------------
@@ -195,11 +244,9 @@ export const entretienService = {
     API.put(`/api/entretiens/${matricule}/${id}?niveau=1`, data),
   getByMatricule: (matricule) => API.get(`/api/entretiens/matricule/${matricule}`),
   getById: (id) => API.get(`/api/entretiens/${id}`),
-  delete: (id) => API.delete(`/api/entretiens/${id}`),
-  deleteWithNotification: (matricule, id, destinataireEmail, nomCollab) =>
-    API.delete(`/api/entretiens/${matricule}/${id}`, {
-      data: { destinataireEmail, nomCollab },
-    }),
+  
+
+  
 };
 
 // ------------------ Entretien Final Service ------------------
@@ -216,20 +263,46 @@ export const entretienFinalService = {
 
 // ------------------ Entretien Mesure Service ------------------
 export const entretienMesureService = {
-   create: (matricule, data) => API.post(`/api/entretiens-mesures/${matricule}`, data),
+   // Création (SL uniquement)
+  create: (matricule, data) => API.post(`/api/entretiens-mesures/${matricule}`, data),
+  
+  // Mise à jour (SL uniquement) - utilise l'ID de l'entretien
   update: (matricule, id, data) => API.put(`/api/entretiens-mesures/${matricule}/${id}`, data),
-  updateWithNotification: (matricule, id, data) =>
-    API.put(`/api/entretiens-mesures/${matricule}/${id}`, data),
+  
+  // Validation QM_SEGMENT (1ère validation)
   valider1: (matricule, id, data) =>
     API.post(`/api/entretiens-mesures/${matricule}/${id}/valider1`, data),
+  
+  // Validation SGL (2ème validation)
   valider2: (matricule, id, data) =>
     API.post(`/api/entretiens-mesures/${matricule}/${id}/valider2`, data),
+  
+  // Récupération de tous les entretiens
   getByMatricule: (matricule) => API.get(`/api/entretiens-mesures/${matricule}`),
-  delete: (id) => API.delete(`/api/entretiens-mesures/${id}`),
+
+   
+ 
+  getById: (id) =>
+    API.get(`/api/entretiens-mesures/${id}`),
+ 
+  
+  // Suppression avec notification
   deleteWithNotification: (matricule, id, destinataireEmail, nomCollab) =>
     API.delete(`/api/entretiens-mesures/${matricule}/${id}`, {
-      data: { destinataireEmail, nomCollab },
+      data: { destinataireEmail, nomCollab }
     }),
+
+     createWithNotification: (matricule, data, expediteurEmail) => {
+    return API.post(`/api/entretiens-mesures/${matricule}/with-notification`, data, {
+      params: { expediteurEmail }
+    });
+  },
+  
+  updateWithNotification: (matricule, id, data, expediteurEmail) => {
+    return API.put(`/api/entretiens-mesures/${matricule}/${id}/with-notification`, data, {
+      params: { expediteurEmail }
+    });
+  },
 };
 
 // ------------------ Entretien Positif Service ------------------
@@ -271,10 +344,7 @@ export const fauteService = {
   create: (data) => API.post("/api/fautes", data),
 };
 
-// ------------------ Défaut Grave Service ------------------
-export const defautGraveService = {
-  notifier: (data) => API.post("/api/defaut-grave/notifier", data),
-};
+
 
 // ✅ Export par défaut - utilisez 'API' (majuscules)
 export default API;

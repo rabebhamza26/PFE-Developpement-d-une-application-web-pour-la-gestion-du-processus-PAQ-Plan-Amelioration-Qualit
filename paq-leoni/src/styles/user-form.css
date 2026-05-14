@@ -1,0 +1,428 @@
+/* =========================
+   🎨 VARIABLES LEONI
+========================= */
+:root {
+  --leoni-blue: #002857;
+  --leoni-blue-strong: #1f4bb6;
+  --leoni-blue-dark: #001f3f;
+  --leoni-accent: #00b2ff;
+  --leoni-accent-soft: #e6f7ff;
+  --leoni-gray-bg: #f4f6f9;
+  --leoni-white: #ffffff;
+  --leoni-border: #e5e7eb;
+  --leoni-danger: #ef4444;
+  --leoni-danger-hover: #dc2626;
+  --leoni-success: #16a34a;
+  --leoni-warning: #f59e0b;
+}
+
+/* =========================
+   PAGE CONTAINER
+========================= */
+.user-form-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f4f7fb 0%, #eef2f8 100%);
+  padding: 40px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-form-wrapper {
+  width: 100%;
+  max-width: 580px;
+}
+
+.user-form-card {
+  background: #ffffff;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+  animation: fadeInScale 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* =========================
+   CARD HEADER
+========================= */
+.user-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #002857 0%, #1f4bb6 100%);
+  color: white;
+}
+
+.user-form-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  letter-spacing: -0.3px;
+}
+
+.user-form-header i {
+  font-size: 24px;
+}
+
+/* =========================
+   CARD BODY
+========================= */
+.user-form-body {
+  padding: 32px;
+}
+
+.user-form-body.with-error {
+  padding-top: 20px;
+}
+
+/* =========================
+   ERROR ALERT
+========================= */
+.user-form-error {
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  color: #991b1b;
+  border: 1px solid #fecaca;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.user-form-error button {
+  background: rgba(153, 27, 27, 0.1);
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  color: #991b1b;
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-form-error button:hover {
+  background: rgba(153, 27, 27, 0.2);
+  transform: scale(1.05);
+}
+
+/* =========================
+   FORM STRUCTURE
+========================= */
+.user-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.form-row.full {
+  grid-template-columns: 1fr;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* =========================
+   FORM LABELS
+========================= */
+.form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.form-label .required {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+/* =========================
+   FORM INPUTS
+========================= */
+.form-control,
+.form-select,
+select {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 14px;
+  border: 2px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 14px;
+  color: #0f172a;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.form-control:focus,
+.form-select:focus,
+select:focus {
+  outline: none;
+  border-color: #00b2ff;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(0, 178, 255, 0.1);
+}
+
+.form-control:hover,
+.form-select:hover,
+select:hover {
+  border-color: #94a3b8;
+}
+
+.form-control::placeholder {
+  color: #94a3b8;
+}
+
+/* =========================
+   MULTI-SELECT
+========================= */
+select[multiple] {
+  min-height: 100px;
+  padding: 12px;
+}
+
+select[multiple] option {
+  padding: 8px 12px;
+  background: white;
+  color: #0f172a;
+}
+
+select[multiple] option:checked {
+  background: linear-gradient(135deg, #002857 0%, #1f4bb6 100%);
+  color: white;
+}
+
+/* =========================
+   FORM HINT/HELPER TEXT
+========================= */
+.form-text {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.form-text.info {
+  color: #0284c7;
+}
+
+.form-text.warning {
+  color: #f59e0b;
+}
+
+.form-text.error {
+  color: #ef4444;
+}
+
+/* =========================
+   BUTTONS SECTION
+========================= */
+.user-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.btn {
+  padding: 12px 28px;
+  border-radius: 12px;
+  border: none;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  filter: grayscale(30%);
+}
+
+/* PRIMARY BUTTON */
+.btn-primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: white;
+  box-shadow: 0 8px 16px rgba(37, 99, 235, 0.2);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.3);
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* SECONDARY BUTTON */
+.btn-secondary {
+  background: white;
+  color: #475569;
+  border: 2px solid #e2e8f0;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+.btn-secondary:active:not(:disabled) {
+  background: #f1f5f9;
+}
+
+/* WARNING BUTTON */
+.btn-warning {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  box-shadow: 0 8px 16px rgba(245, 158, 11, 0.2);
+}
+
+.btn-warning:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(245, 158, 11, 0.3);
+  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+}
+
+.btn-warning:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* LOADING STATE */
+.spinner-border {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #ffffff;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================
+   RESPONSIVE DESIGN
+========================= */
+@media (max-width: 640px) {
+  .user-form-page {
+    padding: 20px 12px;
+  }
+
+  .user-form-card {
+    border-radius: 20px;
+  }
+
+  .user-form-header {
+    padding: 20px 20px;
+  }
+
+  .user-form-header h1 {
+    font-size: 18px;
+  }
+
+  .user-form-body {
+    padding: 24px;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .user-form-actions {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 14px 20px;
+    font-size: 13px;
+  }
+
+  select[multiple] {
+    min-height: 80px;
+  }
+}
+
+@media (max-width: 480px) {
+  .user-form-page {
+    padding: 16px 10px;
+  }
+
+  .user-form-header h1 {
+    font-size: 16px;
+  }
+
+  .user-form-body {
+    padding: 20px;
+  }
+
+  .form-label {
+    font-size: 13px;
+  }
+
+  .form-control,
+  .form-select,
+  select {
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+
+  .user-form-actions {
+    margin-top: 24px;
+  }
+}

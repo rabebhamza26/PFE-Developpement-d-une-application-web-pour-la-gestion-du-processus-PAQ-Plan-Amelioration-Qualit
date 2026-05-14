@@ -1037,3 +1037,173 @@
   transform: scale(1.05);
   filter: brightness(1.1);
 }
+
+/* Timeline chronologique */
+.leoni-timeline {
+  padding: 20px 24px;
+  position: relative;
+}
+
+.leoni-timeline-item {
+  display: flex;
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.leoni-timeline-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Ligne de connexion */
+.leoni-timeline-line {
+  position: absolute;
+  left: 15px;
+  top: 32px;
+  bottom: -24px;
+  width: 2px;
+  background: linear-gradient(to bottom, #e2e8f0, #cbd5e1);
+}
+
+/* Cercle chronologique */
+.leoni-timeline-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 16px;
+  z-index: 2;
+  transition: transform 0.2s ease;
+}
+
+.leoni-timeline-dot.entretien {
+  background: #dbeafe;
+  color: #2563eb;
+  border: 2px solid #2563eb;
+}
+
+.leoni-timeline-dot.faute {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 2px solid #dc2626;
+}
+
+.leoni-timeline-dot.default {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 2px solid #cbd5e1;
+}
+
+.leoni-timeline-dot:hover {
+  transform: scale(1.05);
+}
+
+/* Contenu de l'événement */
+.leoni-timeline-content {
+  flex: 1;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 14px 18px;
+  transition: all 0.2s ease;
+  border: 1px solid #eef2ff;
+}
+
+.leoni-timeline-content:hover {
+  background: #ffffff;
+  border-color: #dbeafe;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.leoni-timeline-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.leoni-timeline-date {
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.leoni-timeline-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.leoni-timeline-badge.leoni-badge-blue {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.leoni-timeline-badge.leoni-badge-red {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.leoni-timeline-badge.leoni-badge-green {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.leoni-timeline-badge.leoni-badge-gray {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.leoni-timeline-badge:hover {
+  transform: translateY(-1px);
+  filter: brightness(0.95);
+}
+
+.leoni-timeline-detail {
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .leoni-timeline {
+    padding: 16px;
+  }
+  
+  .leoni-timeline-item {
+    margin-bottom: 20px;
+  }
+  
+  .leoni-timeline-content {
+    padding: 12px 14px;
+  }
+  
+  .leoni-timeline-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .leoni-timeline-dot {
+    width: 28px;
+    height: 28px;
+    margin-right: 12px;
+  }
+  
+  .leoni-timeline-line {
+    left: 13px;
+  }
+}

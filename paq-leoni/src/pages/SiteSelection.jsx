@@ -1,16 +1,27 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { siteService } from "../services/api";
+import { useI18n } from "../context/I18nContext";
+import { useSelection } from "../context/SelectionContext";
 import "../styles/site-selection.css";
 import logo from "../assets/logo.jpg"; 
 
 export default function SiteSelection() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { setSelectedSite, setSelectedPlant } = useSelection(); 
+
 
   useEffect(() => { loadSites(); }, []);
+
+   const handleSiteSelect = (site) => {
+    setSelectedSite(site); // Stocker le site sélectionné
+    setSelectedPlant(null); // Réinitialiser le plant
+    navigate(`/plants/${site.id}`);
+  };
 
   const loadSites = async () => {
      try {
@@ -24,7 +35,7 @@ export default function SiteSelection() {
       console.error("Erreur détaillée:", err);
       console.error("Status:", err.response?.status);
       console.error("Message:", err.response?.data);
-      setError("Impossible de charger les sites.");
+      setError(t("site_load_error"));
     } finally {
       setLoading(false);
     }
@@ -47,7 +58,7 @@ export default function SiteSelection() {
         <path d="M10 2a4 4 0 014 4v2h-8V6a4 4 0 014-4z" stroke="currentColor" strokeWidth="1.5"/>
         <rect x="3" y="8" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="1.5"/>
       </svg>
-      Admin Login
+      {t("admin_login")}
     </button>
   </div>
   </div>
@@ -59,14 +70,14 @@ export default function SiteSelection() {
         {/* Header */}
         <header className="ss-hero">
         
-          <h1 className="ss-hero-title">PAQ Web System</h1>
-          <p className="ss-hero-sub">Processus d'Amélioration Qualité </p>
+          <h1 className="ss-hero-title">{t("app_name")}</h1>
+          <p className="ss-hero-sub">{t("app_tagline")}</p>
         </header>
 
         {/* Section title */}
         <div className="ss-section-header">
           <div className="ss-section-line" />
-          <h2 className="ss-section-title">Choisissez votre site</h2>
+          <h2 className="ss-section-title">{t("choose_site")}</h2>
           <div className="ss-section-line" />
         </div>
 
@@ -96,7 +107,7 @@ export default function SiteSelection() {
                     </svg>
                   </div>
                   <div className="ss-card-body">
-                    <span className="ss-card-label">Site</span>
+                    <span className="ss-card-label">{t("site")}</span>
                     <h3 className="ss-card-name">{site.name}</h3>
                   </div>
                   <div className="ss-card-arrow">
@@ -110,7 +121,7 @@ export default function SiteSelection() {
         </section>
 
         {!loading && sites.length === 0 && !error && (
-          <div className="ss-empty">Aucun site configuré.</div>
+          <div className="ss-empty">{t("no_site_configured")}</div>
         )}
       </div>
     </div>

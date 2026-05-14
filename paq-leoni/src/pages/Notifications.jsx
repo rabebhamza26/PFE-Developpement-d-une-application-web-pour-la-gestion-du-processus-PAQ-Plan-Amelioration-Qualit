@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";  // ✅ Ajout de l'import manquant
 import { notificationService } from "../services/api";
+import { useI18n } from "../context/I18nContext";
 import "../styles/notifications.css";
 
 export default function Notifications({ matricule: propMatricule }) {
@@ -9,6 +10,7 @@ export default function Notifications({ matricule: propMatricule }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all"); // all, unread
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   useEffect(() => {
     loadNotifications();
@@ -98,25 +100,25 @@ export default function Notifications({ matricule: propMatricule }) {
   return (
     <div className="notifications-page">
       <div className="notifications-header">
-        <h1>Notifications</h1>
+        <h1>{t("notifications")}</h1>
         <div className="notifications-actions">
           <div className="filter-buttons">
             <button 
               className={`filter-btn ${filter === "all" ? "active" : ""}`}
               onClick={() => setFilter("all")}
             >
-              Toutes ({notifications.length})
+              {t("all_notifications", { count: notifications.length })}
             </button>
             <button 
               className={`filter-btn ${filter === "unread" ? "active" : ""}`}
               onClick={() => setFilter("unread")}
             >
-              Non lues ({unreadCount})
+              {t("unread_notifications", { count: unreadCount })}
             </button>
           </div>
           {unreadCount > 0 && (
             <button className="mark-all-btn" onClick={handleMarkAllRead}>
-              Tout marquer comme lu
+              {t("mark_all_read")}
             </button>
           )}
         </div>
@@ -125,7 +127,7 @@ export default function Notifications({ matricule: propMatricule }) {
       {loading ? (
         <div className="notifications-loading">
           <div className="spinner"></div>
-          <p>Chargement des notifications...</p>
+          <p>{t("loading_notifications")}</p>
         </div>
       ) : notifications.length === 0 ? (
         <div className="notifications-empty">

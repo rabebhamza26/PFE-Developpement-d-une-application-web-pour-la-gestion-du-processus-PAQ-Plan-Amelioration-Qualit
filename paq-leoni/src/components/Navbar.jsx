@@ -1,6 +1,7 @@
 // src/components/Navbar.jsx
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useAuth } from "../context/AuthContext";
+import { useI18n } from "../context/I18nContext";
 import NotificationBell from "./NotificationBell";
 import API from "../services/api";
 import "../styles/navbar.css";
@@ -8,27 +9,8 @@ import "../styles/navbar.css";
 
 
 function Navbar() {
-  const { user, logout, loading } = useAuth(); 
-  const [currentDate, setCurrentDate] = useState("");
-
-  useEffect(() => {
-    updateDate();
-    const interval = setInterval(updateDate, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const updateDate = () => {
-    const now = new Date();
-    const options = { 
-      weekday: 'short', 
-      day: '2-digit', 
-      month: 'short', 
-      year: 'numeric' 
-    };
-    const formattedDate = now.toLocaleDateString('fr-FR', options);
-    const finalDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
-    setCurrentDate(finalDate);
-  };
+  const { user, logout, loading } = useAuth();
+  const { lang, setLang, t } = useI18n();
 
   const handleLogout = async () => {
     try {
@@ -40,6 +22,16 @@ function Navbar() {
       window.location.href = "/";
     }
   };
+
+  const handleLanguageChange = (event) => {
+    setLang(event.target.value);
+  };
+
+  const languageOptions = [
+    { code: "fr", label: "FR" },
+    { code: "en", label: "EN" },
+    { code: "ar", label: "AR" },
+  ];
 
   const getFormattedDate = () => {
     const now = new Date();
@@ -61,8 +53,8 @@ function Navbar() {
         <div className="navbar-left">
           <div className="navbar-logo">
             <div className="navbar-title">
-              <h2>PAQ System</h2>
-              <span>Processus d'amélioration qualité</span>
+              <h2>{t("app_name")}</h2>
+              <span>{t("app_tagline")}</span>
             </div>
           </div>
         </div>
@@ -86,8 +78,8 @@ function Navbar() {
       <div className="navbar-left">
         <div className="navbar-logo">
           <div className="navbar-title">
-            <h2>PAQ System</h2>
-            <span>Processus d'amélioration qualité</span>
+            <h2>{t("app_name")}</h2>
+            <span>{t("app_tagline")}</span>
           </div>
         </div>
       </div>
@@ -105,6 +97,14 @@ function Navbar() {
       </div>
 
       <div className="navbar-right">
+        <div className="navbar-lang" title={t("change_language")}>
+          <label htmlFor="lang-select" className="navbar-lang-label">{lang.toUpperCase()}</label>
+          <select id="lang-select" value={lang} onChange={handleLanguageChange} className="navbar-lang-select">
+            {languageOptions.map(({ code, label }) => (
+              <option key={code} value={code}>{label}</option>
+            ))}
+          </select>
+        </div>
         {user && (
           <>
             <NotificationBell />
@@ -114,20 +114,20 @@ function Navbar() {
               </div>
               <div className="navbar-user-meta">
                 <span className="navbar-user-name">
-                  {user.fullName || user.login || "Utilisateur"}
+                  {user.fullName || user.login || t("username")}
                 </span>
                 <span className="navbar-user-role">
                   {user.role || "ROLE"}
                 </span>
               </div>
             </div>
-            <button onClick={handleLogout} className="navbar-logout" title="Se déconnecter">
+            <button onClick={handleLogout} className="navbar-logout" title={t("logout")}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <polyline points="16 17 21 12 16 7" />
                 <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
-              <span>Déconnexion</span>
+              <span>{t("logout")}</span>
             </button>
           </>
         )}

@@ -36,5 +36,15 @@ public interface PaqRepository extends JpaRepository<PaqDossier, Long> {
     Optional<PaqDossier> findByCollaboratorMatricule(String matricule);
 
 
+    @Query("SELECT p FROM PaqDossier p WHERE p.archived = false")
+    List<PaqDossier> findByArchivedFalse();
+
+    // Alternative si la méthode ci-dessus ne fonctionne pas
+    default List<PaqDossier> findAllNonArchived() {
+        return findAll().stream()
+                .filter(p -> !p.isArchived())
+                .collect(java.util.stream.Collectors.toList());
+    }
+
 }
 

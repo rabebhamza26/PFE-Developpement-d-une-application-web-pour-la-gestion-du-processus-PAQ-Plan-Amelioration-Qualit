@@ -1,9 +1,10 @@
-// AddUser.jsx - Version avec selects multiples natifs
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { userService, siteService, plantService, getSegments } from "../../services/api";
+import { useI18n } from "../../context/I18nContext";
 
 export default function AddUser() {
+  const { t } = useI18n();
   const initialForm = {
     nomUtilisateur: "",
     login: "",
@@ -19,16 +20,39 @@ export default function AddUser() {
   const [form, setForm] = useState(initialForm);
   const [sites, setSites] = useState([]);
   const [allPlants, setAllPlants] = useState([]);
-  const [segments, setSegments] = useState([]);
+  const [allSegments, setAllSegments] = useState([]);
   const [filteredPlants, setFilteredPlants] = useState([]);
+  const [filteredSegments, setFilteredSegments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
+  const roles = [
+    { value: "ADMIN", label: t("admin") },
+    { value: "SL", label: t("sl") },
+    { value: "QM_SEGMENT", label: t("qm_segment") },
+    { value: "QM_PLANT", label: t("qm_plant") },
+    { value: "SGL", label: t("sgl") },
+    { value: "HP", label: t("hp") },
+    { value: "RH", label: t("rh") }
+  ];
+
   useEffect(() => {
     loadData();
   }, []);
+
+  // Met à jour les segments quand les plants sélectionnés changent
+  useEffect(() => {
+    if (form.plantIds && form.plantIds.length > 0) {
+      const segmentsForPlants = allSegments.filter(segment => 
+        form.plantIds.includes(segment.plantId)
+      );
+      setFilteredSegments(segmentsForPlants);
+    } else {
+      setFilteredSegments([]);
+    }
+  }, [form.plantIds, allSegments]);
 
   const loadData = async () => {
     try {
@@ -40,7 +64,7 @@ export default function AddUser() {
       ]);
       setSites(sitesRes.data || []);
       setAllPlants(plantsRes.data || []);
-      setSegments(segmentsRes.data || []);
+      setAllSegments(segmentsRes.data || []);
     } catch (err) {
       console.error("Erreur chargement données:", err);
       setError("Erreur lors du chargement des données");
@@ -63,7 +87,8 @@ export default function AddUser() {
     setForm({
       ...form,
       siteIds: siteIds,
-      plantIds: [] // Reset plants when sites change
+      plantIds: [], 
+      segmentIds: [] 
     });
     
     // Filter plants based on selected sites
@@ -73,6 +98,8 @@ export default function AddUser() {
     } else {
       setFilteredPlants([]);
     }
+    // Reset filtered segments
+    setFilteredSegments([]);
   };
 
   const handlePlantChange = (e) => {
@@ -80,8 +107,19 @@ export default function AddUser() {
     const plantIds = selectedOptions.map(opt => parseInt(opt.value));
     setForm({
       ...form,
-      plantIds: plantIds
+      plantIds: plantIds,
+      segmentIds: [] // Reset segments when plants change
     });
+    
+    // Filter segments based on selected plants
+    if (plantIds.length > 0) {
+      const segmentsForPlants = allSegments.filter(segment => 
+        plantIds.includes(segment.plantId)
+      );
+      setFilteredSegments(segmentsForPlants);
+    } else {
+      setFilteredSegments([]);
+    }
   };
 
   const handleSegmentChange = (e) => {
@@ -94,46 +132,45 @@ export default function AddUser() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError("");
-  setLoading(true);
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
-  try {
-    const payload = { 
-      nomUtilisateur: form.nomUtilisateur,
-      login: form.login,
-      email: form.email,
-      password: form.password,
-      role: form.role,
-      active: true,
-      siteIds: form.siteIds,
-      plantIds: form.plantIds,
-      segmentIds: form.segmentIds
-    };
+    try {
+      const payload = { 
+        nomUtilisateur: form.nomUtilisateur,
+        login: form.login,
+        email: form.email,
+        password: form.password,
+        role: form.role,
+        active: true,
+        siteIds: form.siteIds,
+        plantIds: form.plantIds,
+        segmentIds: form.segmentIds
+      };
 
-    const res = await userService.createUser(payload);
+      const res = await userService.createUser(payload);
 
-    // ✅ REDIRECTION AVEC PASSWORD
-    navigate("/admin/users", {
-      state: {
-        newUserPassword: form.password,
-        userId: res.data.id
-      }
-    });
+      navigate("/admin/users", {
+        state: {
+          newUserPassword: form.password,
+          userId: res.data.id
+        }
+      });
 
-  } catch (err) {
-    setError("Erreur lors de l'ajout: " + (err.response?.data?.message || err.message));
-  } finally {
-    setLoading(false);
-  }
-};
+    } catch (err) {
+      setError(t("error_saving_data") + ": " + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loadingData) {
     return (
       <div className="container-fluid mt-4">
         <div className="text-center py-4">
           <div className="spinner-border text-primary" role="status">
-            <span className="visually-hidden">Chargement...</span>
+            <span className="visually-hidden">{t("loading")}...</span>
           </div>
         </div>
       </div>
@@ -148,7 +185,7 @@ export default function AddUser() {
             <div className="card-header bg-primary text-white">
               <h4 className="card-title mb-0">
                 <i className="fas fa-user-plus me-2"></i>
-                Ajouter un utilisateur
+                {t("add_user")}
               </h4>
             </div>
             <div className="card-body">
@@ -162,14 +199,14 @@ export default function AddUser() {
                 <div className="row">
                   <div className="col-md-6 mb-3">
                     <label htmlFor="nomUtilisateur" className="form-label">
-                      <i className="fas fa-user me-2"></i>Nom complet 
+                      {t("full_name")}
                     </label>
                     <input
                       type="text"
                       className="form-control"
                       id="nomUtilisateur"
                       name="nomUtilisateur"
-                      placeholder="Entrez le nom complet"
+                      placeholder={t("enter_full_name")}
                       value={form.nomUtilisateur}
                       onChange={handleChange}
                       required
@@ -178,14 +215,14 @@ export default function AddUser() {
 
                   <div className="col-md-6 mb-3">
                     <label htmlFor="login" className="form-label">
-                      <i className="fas fa-sign-in-alt me-2"></i>Login 
+                      {t("login")}
                     </label>
                     <input
                       type="text"
                       className="form-control"
                       id="login"
                       name="login"
-                      placeholder="Entrez le login"
+                      placeholder={t("enter_login")}
                       value={form.login}
                       onChange={handleChange}
                       required
@@ -196,14 +233,14 @@ export default function AddUser() {
                 <div className="row">
                   <div className="col-md-6 mb-3">
                     <label htmlFor="email" className="form-label">
-                      <i className="fas fa-envelope me-2"></i>Email 
+                      {t("email")}
                     </label>
                     <input
                       type="email"
                       className="form-control"
                       id="email"
                       name="email"
-                      placeholder="Entrez l'email"
+                      placeholder={t("enter_email")}
                       value={form.email}
                       onChange={handleChange}
                       required
@@ -212,14 +249,14 @@ export default function AddUser() {
 
                   <div className="col-md-6 mb-3">
                     <label htmlFor="password" className="form-label">
-                      <i className="fas fa-lock me-2"></i>Mot de passe 
+                      {t("password")}
                     </label>
                     <input
                       type="password"
                       className="form-control"
                       id="password"
                       name="password"
-                      placeholder="Entrez le mot de passe"
+                      placeholder={t("enter_password")}
                       value={form.password}
                       onChange={handleChange}
                       required
@@ -229,31 +266,28 @@ export default function AddUser() {
 
                 <div className="mb-3">
                   <label htmlFor="role" className="form-label">
-                    <i className="fas fa-user-tag me-2"></i>Rôle 
+                    {t("role")}
                   </label>
-                  <select 
-                    name="role" 
-                    value={form.role} 
-                    onChange={handleChange} 
+                  <select
+                    name="role"
+                    value={form.role}
+                    onChange={handleChange}
                     className="form-select"
                   >
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="SL">SL</option>
-                    <option value="QM_SEGMENT">QM Segment</option>
-                    <option value="QM_PLANT">QM Plant</option>
-                    <option value="SGL">SGL</option>
-                    <option value="HP">HP</option>
-                    <option value="RH">RH</option>
+                    {roles.map(role => (
+                      <option key={role.value} value={role.value}>{role.label}</option>
+                    ))}
                   </select>
                 </div>
 
                 <div className="mb-3">
                   <label className="form-label">
-                    <i className="fas fa-building me-2"></i>Sites 
+                    <i className="fas fa-building me-2"></i>{t("sites")}
                   </label>
                   <select 
                     multiple 
                     className="form-select" 
+                    value={form.siteIds.map(id => id.toString())}
                     onChange={handleSiteChange}
                     style={{ minHeight: '120px' }}
                   >
@@ -267,41 +301,61 @@ export default function AddUser() {
 
                 <div className="mb-3">
                   <label className="form-label">
-                    <i className="fas fa-industry me-2"></i>Plants 
+                    <i className="fas fa-industry me-2"></i>{t("plants")}
                   </label>
                   <select 
                     multiple 
                     className="form-select" 
+                    value={form.plantIds.map(id => id.toString())}
                     onChange={handlePlantChange}
                     disabled={form.siteIds.length === 0}
                     style={{ minHeight: '120px' }}
                   >
-                    {filteredPlants.map(plant => (
-                      <option key={plant.id} value={plant.id}>
-                        {plant.name}
-                      </option>
-                    ))}
+                    {filteredPlants.length > 0 ? (
+                      filteredPlants.map(plant => (
+                        <option key={plant.id} value={plant.id}>
+                          {plant.name}
+                        </option>
+                      ))
+                    ) : (
+                      <option disabled>Sélectionnez d'abord un site</option>
+                    )}
                   </select>
-                  
-                
+                 
+                  {form.siteIds.length > 0 && (
+                    <small className="text-muted">Maintenez Ctrl (Cmd) pour sélectionner plusieurs plants</small>
+                  )}
                 </div>
 
                 <div className="mb-4">
                   <label className="form-label">
-                    <i className="fas fa-tag me-2"></i>Segments 
+                    <i className="fas fa-tag me-2"></i>{t("segments")}
                   </label>
                   <select 
                     multiple 
                     className="form-select" 
+                    value={form.segmentIds.map(id => id.toString())}
                     onChange={handleSegmentChange}
+                    disabled={form.plantIds.length === 0}
                     style={{ minHeight: '120px' }}
                   >
-                    {segments.map(segment => (
-                      <option key={segment.id} value={segment.id}>
-                        {segment.nomSegment}
-                      </option>
-                    ))}
+                    {filteredSegments.length > 0 ? (
+                      filteredSegments.map(segment => (
+                        <option key={segment.id} value={segment.id}>
+                          {segment.nomSegment}
+                        </option>
+                      ))
+                    ) : (
+                      <option disabled>Sélectionnez d'abord un plant</option>
+                    )}
                   </select>
+                  {form.plantIds.length === 0 && form.siteIds.length > 0 && (
+                    <small className="text-muted" style={{ color: "#f59e0b" }}>
+                    </small>
+                  )}
+                  {form.plantIds.length > 0 && (
+                    <small className="text-muted"></small>
+                  )}
                 </div>
 
                 <div className="d-flex gap-2 justify-content-end">
@@ -312,7 +366,7 @@ export default function AddUser() {
                     disabled={loading}
                   >
                     <i className="fas fa-times me-2"></i>
-                    Annuler
+                    {t("cancel")}
                   </button>
                   <button
                     type="submit"
@@ -322,12 +376,12 @@ export default function AddUser() {
                     {loading ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Ajout en cours...
+                        {t("loading")}...
                       </>
                     ) : (
                       <>
                         <i className="fas fa-save me-2"></i>
-                        Ajouter l'utilisateur
+                        {t("add_user")}
                       </>
                     )}
                   </button>
