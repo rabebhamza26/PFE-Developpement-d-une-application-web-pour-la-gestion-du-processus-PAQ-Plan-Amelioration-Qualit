@@ -209,7 +209,7 @@ public class EntretienPositifService {
     /**
      * Envoi automatique toutes les minutes pour test
      */
-    @Scheduled(fixedDelay = 60000)
+   // @Scheduled(fixedDelay = 60000)
     @Transactional
     public void envoyerAutomatiquementAuxSL() {
         System.out.println("=== [TEST] Envoi automatique des entretiens positifs aux SL ===");

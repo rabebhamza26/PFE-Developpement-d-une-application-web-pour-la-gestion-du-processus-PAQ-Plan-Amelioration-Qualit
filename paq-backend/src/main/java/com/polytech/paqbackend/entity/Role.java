@@ -14,8 +14,8 @@ public enum Role {
 
     /**
      * SL — Chef de ligne
-     * Explicatif : Créer / Modifier / Supprimer / Valider
-     * Accord     : Créer / Modifier / Supprimer / Valider
+     * Explicatif : Créer / Modifier  / Valider
+     * Accord     : Créer / Modifier  / Valider
      * Mesure     : Créer
      * Décision   : Créer / Modifier
      * Positif    : Tout
@@ -26,7 +26,7 @@ public enum Role {
             PAQ_READ, PAQ_CREATE,
             COLLABORATEUR_READ, COLLABORATEUR_CREATE, COLLABORATEUR_UPDATE, COLLABORATEUR_DELETE,
             EXPLICATIF_CREATE, EXPLICATIF_UPDATE,  EXPLICATIF_VALIDATE, EXPLICATIF_READ,
-            ACCORD_CREATE, ACCORD_UPDATE, ACCORD_DELETE, ACCORD_VALIDATE, ACCORD_READ,
+            ACCORD_CREATE, ACCORD_UPDATE,  ACCORD_VALIDATE, ACCORD_READ,
             MESURE_CREATE, MESURE_READ,
             DECISION_CREATE, DECISION_UPDATE, DECISION_READ,
             POSITIF_READ, POSITIF_SEND, POSITIF_ARCHIVE,
@@ -46,7 +46,7 @@ public enum Role {
             COLLABORATEUR_READ,
            EXPLICATIF_READ,
             ACCORD_READ,
-            MESURE_UPDATE, MESURE_DELETE, MESURE_VALIDATE_2, MESURE_READ,
+            MESURE_UPDATE, MESURE_VALIDATE_2, MESURE_READ,
             DECISION_VALIDATE_1, DECISION_READ,
             ARCHIVE_READ,
             NOTIFICATION_READ
@@ -95,7 +95,7 @@ public enum Role {
     RH(Set.of(
             USER_READ, PAQ_READ, COLLABORATEUR_READ,
             EXPLICATIF_READ, ACCORD_READ, MESURE_READ, DECISION_READ,
-            FINAL_CREATE, FINAL_UPDATE, FINAL_DELETE, FINAL_VALIDATE, FINAL_READ,
+            FINAL_CREATE, FINAL_UPDATE, FINAL_VALIDATE, FINAL_READ,
             ARCHIVE_READ, NOTIFICATION_READ
     )),
 

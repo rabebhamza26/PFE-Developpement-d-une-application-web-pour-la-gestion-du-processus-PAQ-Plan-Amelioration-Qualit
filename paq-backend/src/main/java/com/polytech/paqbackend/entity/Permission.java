@@ -20,21 +20,18 @@ public enum Permission {
     // ── Entretien Explicatif ─────────────────────────────
     EXPLICATIF_CREATE("explicatif:create"),
     EXPLICATIF_UPDATE("explicatif:update"),
-    EXPLICATIF_DELETE("explicatif:delete"),
     EXPLICATIF_VALIDATE("explicatif:validate"),
     EXPLICATIF_READ("explicatif:read"),
 
     // ── Entretien d'Accord ───────────────────────────────
     ACCORD_CREATE("accord:create"),
     ACCORD_UPDATE("accord:update"),
-    ACCORD_DELETE("accord:delete"),
     ACCORD_VALIDATE("accord:validate"),
     ACCORD_READ("accord:read"),
 
     // ── Entretien de Mesure ──────────────────────────────
     MESURE_CREATE("mesure:create"),
     MESURE_UPDATE("mesure:update"),
-    MESURE_DELETE("mesure:delete"),
     MESURE_VALIDATE_1("mesure:validate1"),   // QMSegment
     MESURE_VALIDATE_2("mesure:validate2"),   // SGL
     MESURE_READ("mesure:read"),
@@ -42,7 +39,6 @@ public enum Permission {
     // ── Entretien de Décision ────────────────────────────
     DECISION_CREATE("decision:create"),
     DECISION_UPDATE("decision:update"),
-    DECISION_DELETE("decision:delete"),
     DECISION_VALIDATE_1("decision:validate1"),  // HP / SGL
     DECISION_VALIDATE_2("decision:validate2"),  // QMPlant
     DECISION_READ("decision:read"),
@@ -50,7 +46,6 @@ public enum Permission {
     // ── Entretien Final ──────────────────────────────────
     FINAL_CREATE("final:create"),
     FINAL_UPDATE("final:update"),
-    FINAL_DELETE("final:delete"),
     FINAL_VALIDATE("final:validate"),
     FINAL_READ("final:read"),
 

@@ -28,47 +28,17 @@ public class EntretienMesure {
     private LocalDate dateCreation;
     private boolean alerteEnvoyee = false;
 
+    // ⭐ Avec @Column pour correspondre aux noms des colonnes dans la base
+    @Column(name = "valide_sl")
+    private boolean valideSL = false;
 
-    private boolean valideParQM = false;
-    private boolean valideParSGL = false;
-    private LocalDate dateValidationQM;
-    private LocalDate dateValidationSGL;
+    @Column(name = "valide_parqm")
+    private boolean valideQM = false;
+
+    @Column(name = "valide_sgl")
+    private boolean valideSGL = false;
 
     // Getters et Setters
-
-
-    public boolean isValideParSGL() {
-        return valideParSGL;
-    }
-
-    public void setValideParSGL(boolean valideParSGL) {
-        this.valideParSGL = valideParSGL;
-    }
-
-    public boolean isValideParQM() {
-        return valideParQM;
-    }
-
-    public void setValideParQM(boolean valideParQM) {
-        this.valideParQM = valideParQM;
-    }
-
-    public LocalDate getDateValidationQM() {
-        return dateValidationQM;
-    }
-
-    public void setDateValidationQM(LocalDate dateValidationQM) {
-        this.dateValidationQM = dateValidationQM;
-    }
-
-    public LocalDate getDateValidationSGL() {
-        return dateValidationSGL;
-    }
-
-    public void setDateValidationSGL(LocalDate dateValidationSGL) {
-        this.dateValidationSGL = dateValidationSGL;
-    }
-
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -98,4 +68,13 @@ public class EntretienMesure {
 
     public boolean isAlerteEnvoyee() { return alerteEnvoyee; }
     public void setAlerteEnvoyee(boolean alerteEnvoyee) { this.alerteEnvoyee = alerteEnvoyee; }
+
+    public boolean isValideSL() { return valideSL; }
+    public void setValideSL(boolean valideSL) { this.valideSL = valideSL; }
+
+    public boolean isValideQM() { return valideQM; }
+    public void setValideQM(boolean valideQM) { this.valideQM = valideQM; }
+
+    public boolean isValideSGL() { return valideSGL; }
+    public void setValideSGL(boolean valideSGL) { this.valideSGL = valideSGL; }
 }

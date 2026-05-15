@@ -1,8 +1,6 @@
 package com.polytech.paqbackend.entity;
 
-
 import jakarta.persistence.*;
-
 import java.time.LocalDate;
 
 @Entity
@@ -17,19 +15,25 @@ public class EntretienDecision {
     private String typeFaute;
     private LocalDate dateEntretien;
 
-
-
     @Column(columnDefinition = "TEXT")
     private String decision;
 
     @Column(columnDefinition = "TEXT")
     private String justification;
 
-
-
     private LocalDate dateCreation;
 
-    // GETTERS & SETTERS
+    // ⭐ Trois statuts distincts (comme entretien de mesure)
+    @Column(name = "valide_sl")
+    private boolean valideSL = false;      // SL a soumis
+
+    @Column(name = "valide_hp_sgl")
+    private boolean valideHPSGL = false;   // HP/SGL a validé (1ère)
+
+    @Column(name = "valide_qm_plant")
+    private boolean valideQMPlant = false; // QM_PLANT a validé (2ème)
+
+    // Getters et Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -42,16 +46,21 @@ public class EntretienDecision {
     public LocalDate getDateEntretien() { return dateEntretien; }
     public void setDateEntretien(LocalDate dateEntretien) { this.dateEntretien = dateEntretien; }
 
-
-
     public String getDecision() { return decision; }
     public void setDecision(String decision) { this.decision = decision; }
 
     public String getJustification() { return justification; }
     public void setJustification(String justification) { this.justification = justification; }
 
-
-
     public LocalDate getDateCreation() { return dateCreation; }
     public void setDateCreation(LocalDate dateCreation) { this.dateCreation = dateCreation; }
+
+    public boolean isValideSL() { return valideSL; }
+    public void setValideSL(boolean valideSL) { this.valideSL = valideSL; }
+
+    public boolean isValideHPSGL() { return valideHPSGL; }
+    public void setValideHPSGL(boolean valideHPSGL) { this.valideHPSGL = valideHPSGL; }
+
+    public boolean isValideQMPlant() { return valideQMPlant; }
+    public void setValideQMPlant(boolean valideQMPlant) { this.valideQMPlant = valideQMPlant; }
 }

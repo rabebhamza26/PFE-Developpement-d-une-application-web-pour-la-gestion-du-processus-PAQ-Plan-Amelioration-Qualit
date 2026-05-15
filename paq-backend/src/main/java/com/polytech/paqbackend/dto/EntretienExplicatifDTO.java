@@ -8,7 +8,6 @@ public class EntretienExplicatifDTO {
     private String description;
     private String mesuresCorrectives;
     private String notes;
-    private String destinataireEmail; // Nouveau champ pour l'email saisi par l'utilisateur
 
     // Getters et Setters
     public String getTypeFaute() { return typeFaute; }
@@ -25,11 +24,4 @@ public class EntretienExplicatifDTO {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
-
-
-
-
-
-    public String getDestinataireEmail() { return destinataireEmail; }
-    public void setDestinataireEmail(String destinataireEmail) { this.destinataireEmail = destinataireEmail; }
 }

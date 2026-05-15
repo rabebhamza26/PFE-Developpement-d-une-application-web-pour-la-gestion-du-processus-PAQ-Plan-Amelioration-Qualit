@@ -24,23 +24,24 @@ public class EntretienDaccord {
     @Column(columnDefinition = "TEXT")
     private String mesuresProposees;
 
-    @Column(columnDefinition = "TEXT")
-    private String commentaireQMSegment;
-
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    // true = SL a soumis pour validation (email envoyé au QM)
     private Boolean valide = false;
+
+    // true = QM_SEGMENT a validé définitivement (enregistré dans le dossier PAQ)
+    private Boolean valideQM = false;
+
+
 
 
     // Getters et Setters
 
-    public Boolean getValide() {
-        return valide;
-    }
+    public Boolean getValide() { return valide; }
+    public void setValide(Boolean valide) { this.valide = valide; }
 
-    public void setValide(Boolean valide) {
-        this.valide = valide;
-    }
+    public Boolean getValideQM() { return valideQM; }
+    public void setValideQM(Boolean valideQM) { this.valideQM = valideQM; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -59,9 +60,6 @@ public class EntretienDaccord {
 
     public String getMesuresProposees() { return mesuresProposees; }
     public void setMesuresProposees(String mesuresProposees) { this.mesuresProposees = mesuresProposees; }
-
-    public String getCommentaireQMSegment() { return commentaireQMSegment; }
-    public void setCommentaireQMSegment(String commentaireQM) { this.commentaireQMSegment = commentaireQM; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

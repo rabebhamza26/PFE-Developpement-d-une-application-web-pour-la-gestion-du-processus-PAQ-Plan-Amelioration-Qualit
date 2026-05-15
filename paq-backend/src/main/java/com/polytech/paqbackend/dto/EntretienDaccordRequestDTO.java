@@ -6,7 +6,6 @@ public class EntretienDaccordRequestDTO {
 
     private LocalDate date;
     private String mesuresProposees;
-    private String commentaireQMSegment;
     private String destinataireEmail;
     private String typeFaute;
     private String causeFaute;
@@ -25,13 +24,8 @@ public class EntretienDaccordRequestDTO {
     public String getMesuresProposees() { return mesuresProposees; }
     public void setMesuresProposees(String mesuresProposees) { this.mesuresProposees = mesuresProposees; }
 
-    public String getCommentaireQMSegment() {
-        return commentaireQMSegment;
-    }
 
-    public void setCommentaireQMSegment(String commentaireQMSegment) {
-        this.commentaireQMSegment = commentaireQMSegment;
-    }
+
 
     public String getTypeFaute() {
         return typeFaute;

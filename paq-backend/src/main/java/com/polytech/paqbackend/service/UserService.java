@@ -4,6 +4,8 @@ import com.polytech.paqbackend.dto.*;
 import com.polytech.paqbackend.entity.*;
 import com.polytech.paqbackend.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -179,9 +181,48 @@ public class UserService {
                 .build();
     }
 
-    public List<String> getEmailsByRole(String role) {
-        return userRepository.findByRole(role).stream()
-                .map(User::getEmail)
-                .collect(Collectors.toList());
+
+
+
+
+    public List<String> getAllActiveUserEmails() {
+        return userRepository.findAllActiveUserEmails();
     }
+
+    // ⭐ NOUVEAU: Récupérer les emails par Site ET Plant
+    public List<String> getEmailsBySiteAndPlant(Long siteId, Long plantId) {
+        return userRepository.findEmailsBySiteAndPlant(siteId, plantId);
+    }
+
+    // Récupérer les emails par Site uniquement
+    public List<String> getEmailsBySite(Long siteId) {
+        return userRepository.findEmailsBySite(siteId);
+    }
+
+    // Récupérer les emails par Plant uniquement
+    public List<String> getEmailsByPlant(Long plantId) {
+        return userRepository.findEmailsByPlant(plantId);
+    }
+
+    // Récupérer les emails par plusieurs Sites et Plants
+    public List<String> getEmailsBySitesAndPlants(List<Long> siteIds, List<Long> plantIds) {
+        Set<String> allEmails = new HashSet<>();
+
+        if (siteIds != null && !siteIds.isEmpty()) {
+            for (Long siteId : siteIds) {
+                allEmails.addAll(userRepository.findEmailsBySite(siteId));
+            }
+        }
+
+        if (plantIds != null && !plantIds.isEmpty()) {
+            for (Long plantId : plantIds) {
+                allEmails.addAll(userRepository.findEmailsByPlant(plantId));
+            }
+        }
+
+        return new ArrayList<>(allEmails);
+    }
+
+
 }
+

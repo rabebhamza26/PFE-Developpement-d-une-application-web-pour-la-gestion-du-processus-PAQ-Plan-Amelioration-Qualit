@@ -76,10 +76,10 @@ public class EntretienDecisionService {
         }
     }
 
-    // ✅ Envoi d'emails aux destinataires (comme dans EntretienDaccordService)
+    // ✅ Envoi d'emails aux destinataires
     private void envoyerEmailsSL(List<String> destinataires, String messageOptionnel, String matricule, String typeAction) {
         if (destinataires == null || destinataires.isEmpty()) {
-            log.warn("Aucun destinataire spécifié pour l'envoi d'email");
+            log.warn("Aucun destinataire spécifié");
             return;
         }
 
@@ -89,28 +89,17 @@ public class EntretienDecisionService {
         for (String destinataire : destinataires) {
             if (destinataire != null && !destinataire.isEmpty()) {
                 try {
-                    String sujet = String.format("[PAQ] Entretien de décision - %s - %s", typeAction, nomCollab);
+                    String sujet = String.format("[PAQ] Entretien de décision - %s - %s", nomCollab);
                     String htmlContent = buildEmailContent(nomCollab, matricule, typeAction, messageOptionnel);
-
-                    // ✅ Même appel que dans EntretienDaccordService: (expediteur, destinataire, sujet, htmlContent)
                     emailService.sendEmail(expediteur, destinataire, sujet, htmlContent);
                     log.info("Email envoyé à: {}", destinataire);
-
-                    // Notification interne
-                    notificationService.envoyerNotification(
-                            expediteur,
-                            "📧 Email envoyé",
-                            "Un email concernant " + typeAction + " de l'entretien de décision de " + nomCollab + " a été envoyé à " + destinataire,
-                            "SUCCESS", matricule, "DECISION"
-                    );
                 } catch (Exception e) {
-                    log.error("Erreur lors de l'envoi de l'email à {}: {}", destinataire, e.getMessage());
+                    log.error("Erreur envoi email à {}: {}", destinataire, e.getMessage());
                 }
             }
         }
     }
 
-    // ✅ Construction de l'email HTML (comme dans EntretienDaccordService)
     private String buildEmailContent(String nomCollab, String matricule, String typeAction, String messageOptionnel) {
         return String.format("""
         <!DOCTYPE html>
@@ -119,214 +108,50 @@ public class EntretienDecisionService {
         <body style="font-family: Arial, sans-serif;">
           <div style="max-width:600px;margin:auto;background:white;border-radius:8px;padding:20px;">
             <div style="background:#C8102E;padding:15px;border-radius:8px 8px 0 0;margin:-20px -20px 0 -20px;">
-              <h2 style="color:white;margin:0;">🏭 PAQ - Entretien de décision</h2>
+              <h2 style="color:white;margin:0;">PAQ - Entretien de décision</h2>
             </div>
             <div style="padding:20px 0;">
               <p>Bonjour,</p>
               <p><strong>Merci d'assister à l'entretien de décision</strong></p>
               <p>Un entretien de décision a été <strong>%s</strong> pour le collaborateur :</p>
               <table style="width:100%%;border-collapse:collapse;margin:20px 0;">
-                <tr>
-                  <td style="padding:8px;border:1px solid #ddd;"><strong>Collaborateur</strong></td>
-                  <td style="padding:8px;border:1px solid #ddd;">%s</td>
+                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Collaborateur</strong></td>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
                 </tr>
-                <tr>
-                  <td style="padding:8px;border:1px solid #ddd;"><strong>Matricule</strong></td>
-                  <td style="padding:8px;border:1px solid #ddd;">%s</td>
+                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Matricule</strong></td>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
                 </tr>
-                <tr>
-                  <td style="padding:8px;border:1px solid #ddd;"><strong>Action</strong></td>
-                  <td style="padding:8px;border:1px solid #ddd;">%s</td>
+                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Action</strong></td>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
                 </tr>
-                <tr>
-                  <td style="padding:8px;border:1px solid #ddd;"><strong>Date</strong></td>
-                  <td style="padding:8px;border:1px solid #ddd;">%s</td>
+                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Date</strong></td>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
                 </tr>
                 %s
               </table>
               <p>Veuillez vous connecter au système PAQ pour valider cet entretien.</p>
             </div>
-            <div style="margin-top:20px;padding-top:20px;border-top:1px solid #ddd;font-size:12px;color:#999;">
-              <p>Ceci est un message automatique, merci de ne pas y répondre.</p>
-            </div>
           </div>
         </body>
         </html>
         """,
-                typeAction.equals("CRÉATION") ? "créé" :
-                        typeAction.equals("MODIFICATION") ? "modifié" :
-                                typeAction.equals("VALIDATION SL") ? "soumis pour validation" : typeAction.toLowerCase(),
-                nomCollab,
-                matricule,
-                typeAction,
-                LocalDate.now(),
+                typeAction.equals("CRÉATION") ? "créé" : typeAction.equals("MODIFICATION") ? "modifié" : "soumis pour validation",
+                nomCollab, matricule, typeAction, LocalDate.now(),
                 (messageOptionnel != null && !messageOptionnel.isEmpty()) ?
-                        String.format("<tr><td style=\"padding:8px;border:1px solid #ddd;\"><strong>Message</strong></td><td style=\"padding:8px;border:1px solid #ddd;\">%s</td></tr>", messageOptionnel) : ""
-        );
+                        String.format("<tr><td style=\"padding:8px;border:1px solid #ddd;\"><strong>Message</strong></td><td style=\"padding:8px;border:1px solid #ddd;\">%s</td></tr>", messageOptionnel) : "");
     }
 
-    public EntretienDecision createAvecNotification(String matricule,
-                                                    EntretienDecisionRequestDTO dto,
-                                                    String expediteurEmail) {
-        EntretienDecision result = create(matricule, dto, expediteurEmail);
-
-        // Envoyer email aux destinataires
-        if (dto.getDestinatairesEmails() != null && !dto.getDestinatairesEmails().isEmpty()) {
-            envoyerEmailsSL(dto.getDestinatairesEmails(), dto.getMessageOptionnel(), matricule, "CRÉATION");
-        }
-
-        return result;
-    }
-
-    public EntretienDecision updateAvecNotification(Long id,
-                                                    String matricule,
-                                                    EntretienDecisionRequestDTO dto,
-                                                    String expediteurEmail) {
-        EntretienDecision result = updateWithPaqUpdate(id, matricule, dto);
-
-        // Envoyer email aux destinataires
-        if (dto.getDestinatairesEmails() != null && !dto.getDestinatairesEmails().isEmpty()) {
-            envoyerEmailsSL(dto.getDestinatairesEmails(), dto.getMessageOptionnel(), matricule, "MODIFICATION");
-        }
-
-        return result;
-    }
-
-    // ✅ SL valide - Avec envoi d'emails
-    public EntretienDecision validerParSL(Long id,
-                                          String matricule,
-                                          EntretienDecisionRequestDTO dto,
-                                          String expediteurEmail) {
-        log.info("validerParSL - Début pour ID: {}, Matricule: {}", id, matricule);
-
-        // 1. Mettre à jour l'entretien
-        EntretienDecision updated = updateWithPaqUpdate(id, matricule, dto);
-        log.info("Entretien mis à jour: {}", updated.getId());
-
-        // 2. Envoyer emails aux destinataires
-        if (dto.getDestinatairesEmails() != null && !dto.getDestinatairesEmails().isEmpty()) {
-            envoyerEmailsSL(dto.getDestinatairesEmails(), dto.getMessageOptionnel(), matricule, "VALIDATION SL");
-        } else {
-            log.warn("Aucun destinataire spécifié pour la validation SL");
-        }
-
-        // 3. Ajouter dans l'historique du PAQ (MAIS NE PAS CHANGER LE NIVEAU)
-        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
-        if (paqOpt.isPresent()) {
-            PaqDossier paq = paqOpt.get();
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
-                            "SOUMISSION ENTRETIEN DE DÉCISION",
-                            String.format("Entretien de décision soumis par SL le %s - En attente de validation", LocalDate.now())
-                    )
-            );
-            paq.setHistorique(historique);
-            paqRepository.save(paq);
-            log.info("Historique PAQ mis à jour - Niveau inchangé: {}", paq.getNiveau());
-        } else {
-            log.warn("PAQ non trouvé pour le matricule: {}", matricule);
-        }
-
-        return updated;
-    }
-
-    // ✅ HP ou SGL valident - PAS D'EMAIL ET PAS DE CHANGEMENT DE NIVEAU
-    public EntretienDecision validerParHPSGL(Long id,
-                                             String matricule,
-                                             EntretienDecisionRequestDTO dto,
-                                             String expediteurEmail) {
-        log.info("validerParHPSGL - Début pour ID: {}, Matricule: {}", id, matricule);
-
-        EntretienDecision updated = updateWithPaqUpdate(id, matricule, dto);
-        log.info("Entretien mis à jour: {}", updated.getId());
-
-        // NE PAS ENVOYER D'EMAIL
-        // NE PAS CHANGER LE NIVEAU AUTOMATIQUEMENT
-
-        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
-        if (paqOpt.isPresent()) {
-            PaqDossier paq = paqOpt.get();
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
-                            "PREMIÈRE VALIDATION ENTRETIEN DE DÉCISION",
-                            String.format("Entretien de décision validé par %s le %s - En attente de validation QM_PLANT", expediteurEmail, LocalDate.now())
-                    )
-            );
-            paq.setHistorique(historique);
-            paqRepository.save(paq);
-            log.info("Historique PAQ mis à jour - Niveau inchangé: {}", paq.getNiveau());
-        }
-
-        return updated;
-    }
-
-    // ✅ QM_PLANT valide - PAS D'EMAIL ET PAS DE CHANGEMENT DE NIVEAU AUTOMATIQUE
-    public EntretienDecision validerParQMPlant(Long id,
-                                               String matricule,
-                                               EntretienDecisionRequestDTO dto,
-                                               String expediteurEmail) {
-        log.info("validerParQMPlant - Début pour ID: {}, Matricule: {}", id, matricule);
-
-        EntretienDecision updated = updateWithPaqUpdate(id, matricule, dto);
-        log.info("Entretien mis à jour: {}", updated.getId());
-
-        // NE PAS ENVOYER D'EMAIL
-        // NE PAS CHANGER LE NIVEAU AUTOMATIQUEMENT
-
-        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
-        if (paqOpt.isPresent()) {
-            PaqDossier paq = paqOpt.get();
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
-                            "DEUXIÈME VALIDATION ENTRETIEN DE DÉCISION",
-                            String.format("Entretien de décision validé par QM_PLANT le %s - En attente de finalisation dans le dossier PAQ", LocalDate.now())
-                    )
-            );
-            paq.setHistorique(historique);
-            paqRepository.save(paq);
-            log.info("Historique PAQ mis à jour - Niveau inchangé: {}", paq.getNiveau());
-        }
-
-        return updated;
-    }
-
-    public void deleteAvecNotification(Long id, String matricule, String expediteurEmail, String destinataireEmail, String nomCollab) {
-        repo.deleteById(id);
-
-        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
-        if (paqOpt.isPresent()) {
-            PaqDossier paq = paqOpt.get();
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
-                            "SUPPRESSION ENTRETIEN DE DÉCISION",
-                            String.format("Entretien de décision supprimé le %s", LocalDate.now())
-                    )
-            );
-            paq.setHistorique(historique);
-            paqRepository.save(paq);
-        }
-        log.info("Entretien de décision {} supprimé", id);
-    }
-
+    // ─── CRÉATION (SL) ─────────────────────────────────────────────────────────
     public EntretienDecision create(String matricule, EntretienDecisionRequestDTO dto, String expediteurEmail) {
         Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
-
         if (paqOpt.isEmpty()) {
             throw new RuntimeException("Aucun dossier PAQ actif trouvé pour le matricule : " + matricule);
         }
 
         PaqDossier paq = paqOpt.get();
 
-        if (paq.getNiveau() < 3 || paq.getNiveau() > 4) {
-            throw new RuntimeException("Le niveau actuel (" + paq.getNiveau() + ") ne permet pas l'entretien de décision");
+        if (paq.getNiveau() != 3) {
+            throw new RuntimeException("Le niveau actuel (" + paq.getNiveau() + ") ne permet pas l'entretien de décision (niveau 3 requis)");
         }
 
         EntretienDecision entretien = new EntretienDecision();
@@ -336,19 +161,21 @@ public class EntretienDecisionService {
         entretien.setDecision(dto.getDecision());
         entretien.setJustification(dto.getJustification());
         entretien.setDateCreation(LocalDate.now());
+        entretien.setValideSL(false);
+        entretien.setValideHPSGL(false);
+        entretien.setValideQMPlant(false);
 
         EntretienDecision saved = repo.save(entretien);
+        log.info("Entretien décision créé avec ID: {}", saved.getId());
 
-        // NE PAS CHANGER LE NIVEAU AUTOMATIQUEMENT
+        paq.setDateQuatriemeEntretien(entretien.getDateEntretien());
         paq.setQuatriemeEntretienNotes(dto.getDecision());
 
         String historique = addHistorique(paq.getHistorique(),
-                new PaqController.HistoriqueEvent(
-                        entretien.getDateEntretien(),
+                new PaqController.HistoriqueEvent(entretien.getDateEntretien(),
                         "ENTRETIEN DE DÉCISION",
                         String.format("Entretien de décision créé le %s — Décision : %s",
-                                entretien.getDateEntretien(), dto.getDecision())
-                )
+                                entretien.getDateEntretien(), dto.getDecision()))
         );
         paq.setHistorique(historique);
         paqRepository.save(paq);
@@ -356,7 +183,24 @@ public class EntretienDecisionService {
         return saved;
     }
 
-    public EntretienDecision updateWithPaqUpdate(Long id, String matricule, EntretienDecisionRequestDTO dto) {
+    public EntretienDecision createAvecNotification(String matricule, EntretienDecisionRequestDTO dto, String expediteurEmail) {
+        EntretienDecision saved = create(matricule, dto, expediteurEmail);
+        if (dto.getDestinatairesEmails() != null && !dto.getDestinatairesEmails().isEmpty()) {
+            envoyerEmailsSL(dto.getDestinatairesEmails(), dto.getMessageOptionnel(), matricule, "CRÉATION");
+        }
+        return saved;
+    }
+
+    // ─── MODIFICATION (SL) ──────────────────────────────────────────────────────
+    public EntretienDecision updateAvecNotification(Long id, String matricule, EntretienDecisionRequestDTO dto, String expediteurEmail) {
+        EntretienDecision updated = updateWithPaqUpdate(id, matricule, dto);
+        if (dto.getDestinatairesEmails() != null && !dto.getDestinatairesEmails().isEmpty()) {
+            envoyerEmailsSL(dto.getDestinatairesEmails(), dto.getMessageOptionnel(), matricule, "MODIFICATION");
+        }
+        return updated;
+    }
+
+    private EntretienDecision updateWithPaqUpdate(Long id, String matricule, EntretienDecisionRequestDTO dto) {
         EntretienDecision existing = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
 
@@ -371,14 +215,10 @@ public class EntretienDecisionService {
         if (paqOpt.isPresent()) {
             PaqDossier paq = paqOpt.get();
             paq.setQuatriemeEntretienNotes(dto.getDecision());
-
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
+            String historique = addHistorique(paq.getHistorique(),
+                    new PaqController.HistoriqueEvent(LocalDate.now(),
                             "MODIFICATION ENTRETIEN DE DÉCISION",
-                            String.format("Entretien de décision modifié le %s", LocalDate.now())
-                    )
+                            String.format("Entretien de décision modifié le %s", LocalDate.now()))
             );
             paq.setHistorique(historique);
             paqRepository.save(paq);
@@ -387,15 +227,131 @@ public class EntretienDecisionService {
         return updated;
     }
 
-    public EntretienDecision findById(Long id) {
-        return repo.findById(id).orElseThrow(() -> new RuntimeException("Entretien introuvable id=" + id));
+    // ✅ VALIDATION SL (avec envoi d'emails)
+    public EntretienDecision validerParSL(Long id, String matricule, EntretienDecisionRequestDTO dto, String expediteurEmail) {
+        log.info("=== validerParSL START ===");
+
+        EntretienDecision existing = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
+
+        // Mettre à jour les données
+        if (dto.getTypeFaute() != null) existing.setTypeFaute(dto.getTypeFaute());
+        if (dto.getDateEntretien() != null) existing.setDateEntretien(dto.getDateEntretien());
+        if (dto.getDecision() != null) existing.setDecision(dto.getDecision());
+        if (dto.getJustification() != null) existing.setJustification(dto.getJustification());
+
+        // ✅ Marquer comme validé par SL
+        existing.setValideSL(true);
+        EntretienDecision updated = repo.save(existing);
+        log.info("Entretien mis à jour - valideSL = {}", updated.isValideSL());
+
+        // Mise à jour historique PAQ
+        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
+        if (paqOpt.isPresent()) {
+            PaqDossier paq = paqOpt.get();
+            String historique = addHistorique(paq.getHistorique(),
+                    new PaqController.HistoriqueEvent(LocalDate.now(),
+                            "VALIDATION SL ENTRETIEN DE DÉCISION",
+                            String.format("Entretien de décision validé par SL le %s ", LocalDate.now()))
+            );
+            paq.setHistorique(historique);
+            paqRepository.save(paq);
+        }
+
+        // ✅ Envoi des emails aux destinataires sélectionnés
+        List<String> destinatairesSelectionnes = dto.getDestinatairesEmails();
+        if (destinatairesSelectionnes != null && !destinatairesSelectionnes.isEmpty()) {
+            envoyerEmailsSL(destinatairesSelectionnes, dto.getMessageOptionnel(), matricule, "VALIDATION SL");
+        }
+
+        return updated;
+    }
+
+    // ✅ VALIDATION HP/SGL (1ère validation) - sans email
+    public EntretienDecision validerParHPSGL(Long id, String matricule, EntretienDecisionRequestDTO dto, String expediteurEmail) {
+        log.info("=== validerParHPSGL START ===");
+
+        EntretienDecision existing = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
+
+        if (dto.getTypeFaute() != null) existing.setTypeFaute(dto.getTypeFaute());
+        if (dto.getDateEntretien() != null) existing.setDateEntretien(dto.getDateEntretien());
+        if (dto.getDecision() != null) existing.setDecision(dto.getDecision());
+        if (dto.getJustification() != null) existing.setJustification(dto.getJustification());
+
+        existing.setValideHPSGL(true);
+        EntretienDecision updated = repo.save(existing);
+        log.info("Entretien mis à jour - valideHPSGL = {}", updated.isValideHPSGL());
+
+        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
+        if (paqOpt.isPresent()) {
+            PaqDossier paq = paqOpt.get();
+            String historique = addHistorique(paq.getHistorique(),
+                    new PaqController.HistoriqueEvent(LocalDate.now(),
+                            "PREMIÈRE VALIDATION ENTRETIEN DE DÉCISION",
+                            String.format("Entretien de décision validé par %s le %s ", expediteurEmail, LocalDate.now()))
+            );
+            paq.setHistorique(historique);
+            paqRepository.save(paq);
+        }
+
+        return updated;
+    }
+
+    // ✅ VALIDATION QM_PLANT (2ème validation) - sans email
+    public EntretienDecision validerParQMPlant(Long id, String matricule, EntretienDecisionRequestDTO dto, String expediteurEmail) {
+        log.info("=== validerParQMPlant START ===");
+
+        EntretienDecision existing = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
+
+        if (!existing.isValideHPSGL()) {
+            throw new RuntimeException("La validation HP/SGL est requise avant la validation QM_PLANT");
+        }
+
+        if (dto.getTypeFaute() != null) existing.setTypeFaute(dto.getTypeFaute());
+        if (dto.getDateEntretien() != null) existing.setDateEntretien(dto.getDateEntretien());
+        if (dto.getDecision() != null) existing.setDecision(dto.getDecision());
+        if (dto.getJustification() != null) existing.setJustification(dto.getJustification());
+
+        existing.setValideQMPlant(true);
+        EntretienDecision updated = repo.save(existing);
+        log.info("Entretien mis à jour - valideQMPlant = {}", updated.isValideQMPlant());
+
+        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
+        if (paqOpt.isPresent()) {
+            PaqDossier paq = paqOpt.get();
+
+            // ✅ Passage au niveau 4 (Entretien Final)
+            if (paq.getNiveau() == 3) {
+                paq.setNiveau(4);
+                paq.setDateCinquiemeEntretien(LocalDate.now());
+
+                String historique = addHistorique(paq.getHistorique(),
+                        new PaqController.HistoriqueEvent(LocalDate.now(),
+                                "DEUXIÈME VALIDATION ENTRETIEN DE DÉCISION",
+                                String.format("Entretien de décision validé par QM_PLANT le %s ", LocalDate.now()))
+                );
+                paq.setHistorique(historique);
+                paqRepository.save(paq);
+
+                log.info("PAQ niveau 3 → 4 après validation QM_PLANT pour {}", matricule);
+            }
+        }
+
+        return updated;
+    }
+
+    public void deleteAvecNotification(Long id, String matricule, String expediteurEmail, String destinataireEmail, String nomCollab) {
+        repo.deleteById(id);
+        log.info("Entretien de décision {} supprimé", id);
     }
 
     public List<EntretienDecision> findByMatricule(String matricule) {
         return repo.findByMatricule(matricule);
     }
 
-    public void delete(Long id) {
-        repo.deleteById(id);
+    public EntretienDecision findById(Long id) {
+        return repo.findById(id).orElseThrow(() -> new RuntimeException("Entretien introuvable id=" + id));
     }
 }

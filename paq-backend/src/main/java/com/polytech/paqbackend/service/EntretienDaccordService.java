@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -23,27 +24,22 @@ import java.util.*;
 public class EntretienDaccordService {
 
     private static final Logger log = LoggerFactory.getLogger(EntretienDaccordService.class);
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final EntretienDaccordRepository repo;
     private final PaqRepository paqRepository;
-    private final NotificationService notificationService;
-    private final EmailService emailService;
     private final CollaboratorRepository collaboratorRepository;
-    private final UserService userService;
+    private final EmailService emailService;
     private final ObjectMapper objectMapper;
 
     public EntretienDaccordService(EntretienDaccordRepository repo,
                                    PaqRepository paqRepository,
-                                   NotificationService notificationService,
-                                   EmailService emailService,
                                    CollaboratorRepository collaboratorRepository,
-                                   UserService userService) {
+                                   EmailService emailService) {
         this.repo = repo;
         this.paqRepository = paqRepository;
-        this.notificationService = notificationService;
-        this.emailService = emailService;
         this.collaboratorRepository = collaboratorRepository;
-        this.userService = userService;
+        this.emailService = emailService;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
     }
@@ -61,155 +57,21 @@ public class EntretienDaccordService {
             list.sort(Comparator.comparing(PaqController.HistoriqueEvent::getDate));
             return objectMapper.writeValueAsString(list);
         } catch (Exception e) {
+            log.error("Erreur mise à jour historique", e);
             return String.format("[{\"date\":\"%s\",\"action\":\"%s\",\"detail\":\"%s\"}]",
                     event.getDate(), event.getAction(), event.getDetail());
         }
     }
 
-    public EntretienDaccord createAvecNotification(String matricule,
-                                                   EntretienDaccordRequestDTO dto,
-                                                   String expediteurEmail) {
-        EntretienDaccord saved = create(matricule, dto);
+    // ─── CRÉATION ────────────────────────────────────────────────────────────────
+    // SL crée l'entretien → PAQ passe au niveau 2 (niveau Entretien d'Accord)
 
-        String nomCollab = getCollaborateurNom(matricule);
-        String destinataireEmail = dto.getDestinataireEmail();
-
-        if (destinataireEmail != null && !destinataireEmail.isBlank()) {
-            envoyerEmailCreation(expediteurEmail, destinataireEmail, nomCollab, matricule, dto);
-            notificationService.envoyerNotification(
-                    expediteurEmail,
-                    "📧 Email envoyé",
-                    "Un email concernant la création de l'entretien d'accord de " + nomCollab + " a été envoyé à " + destinataireEmail,
-                    "SUCCESS", matricule, "ACCORD"
-            );
-        }
-
-        return saved;
-    }
-
-    public EntretienDaccord updateAvecNotification(Long id,
-                                                   String matricule,
-                                                   EntretienDaccordRequestDTO dto,
-                                                   String expediteurEmail) {
-        EntretienDaccord updated = updateWithPaqUpdate(id, matricule, dto);
-
-        String nomCollab = getCollaborateurNom(matricule);
-        String destinataireEmail = dto.getDestinataireEmail();
-
-        if (destinataireEmail != null && !destinataireEmail.isBlank()) {
-            envoyerEmailModification(expediteurEmail, destinataireEmail, nomCollab, matricule, dto);
-            notificationService.envoyerNotification(
-                    expediteurEmail,
-                    "📧 Email envoyé",
-                    "Un email concernant la modification de l'entretien d'accord de " + nomCollab + " a été envoyé à " + destinataireEmail,
-                    "SUCCESS", matricule, "ACCORD"
-            );
-        }
-
-        return updated;
-    }
-
-    // ✅ SL soumet pour validation (envoi email au QM_SEGMENT sélectionné)
-    public EntretienDaccord validerPremiere(Long id,
-                                            String matricule,
-                                            EntretienDaccordRequestDTO dto,
-                                            String expediteurEmail) {
-        EntretienDaccord updated = updateWithPaqUpdate(id, matricule, dto);
-
-        String nomCollab = getCollaborateurNom(matricule);
-        String destinataireEmail = dto.getDestinataireEmail();
-
-        // ✅ Envoi de l'email uniquement au QM_SEGMENT sélectionné
-        if (destinataireEmail != null && !destinataireEmail.isBlank()) {
-            envoyerEmailPremiereValidation(expediteurEmail, destinataireEmail, nomCollab, matricule, dto);
-            notificationService.envoyerNotification(
-                    expediteurEmail,
-                    "📧 Email envoyé au QM-Segment",
-                    "L'entretien d'accord de " + nomCollab + " a été soumis pour validation à " + destinataireEmail,
-                    "SUCCESS", matricule, "ACCORD"
-            );
-        } else {
-            log.warn("Aucun email QM_SEGMENT fourni pour la validation de l'entretien d'accord de {}", matricule);
-        }
-
-        return updated;
-    }
-
-    // ✅ QM_SEGMENT valide finalement (PAS d'email, uniquement mise à jour PAQ)
-    public EntretienDaccord validerFinale(Long id,
-                                          String matricule,
-                                          EntretienDaccordRequestDTO dto,
-                                          String expediteurEmail) {
-        EntretienDaccord updated = updateWithPaqUpdate(id, matricule, dto);
-
-        // Marquer comme validé
-        updated.setValide(true);
-        updated = repo.save(updated);
-
-        String nomCollab = getCollaborateurNom(matricule);
-
-        // ✅ PAS D'EMAIL - uniquement mise à jour de l'historique du PAQ
-        notificationService.envoyerNotification(
-                expediteurEmail,
-                "✅ Entretien d'accord validé",
-                "L'entretien d'accord de " + nomCollab + " a été validé par QM-Segment. Le dossier PAQ a été mis à jour.",
-                "SUCCESS", matricule, "ACCORD"
-        );
-
-        // ✅ Ajout dans l'historique du PAQ
+    public EntretienDaccord create(String matricule, EntretienDaccordRequestDTO dto, String expediteurEmail) {
         Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
-        if (paqOpt.isPresent()) {
-            PaqDossier paq = paqOpt.get();
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
-                            " VALIDATION ENTRETIEN D'ACCORD",
-                            String.format("Entretien d'accord validé par QM-Segment le %s", LocalDate.now())
-                    )
-            );
-            paq.setHistorique(historique);
-            paqRepository.save(paq);
-        }
-
-        return updated;
-    }
-
-    public void deleteAvecNotification(Long id, String matricule, String expediteurEmail, String destinataireEmail, String nomCollab) {
-        EntretienDaccord entretien = repo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
-
-        repo.deleteById(id);
-
-        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
-        if (paqOpt.isPresent()) {
-            PaqDossier paq = paqOpt.get();
-
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
-                            " SUPPRESSION ENTRETIEN D'ACCORD",
-                            String.format("Entretien d'accord supprimé le %s", LocalDate.now())
-                    )
-            );
-            paq.setHistorique(historique);
-            paqRepository.save(paq);
-        }
-
-        if (destinataireEmail != null && !destinataireEmail.isBlank()) {
-            envoyerEmailSuppression(expediteurEmail, destinataireEmail, nomCollab, matricule);
-        }
-
-        log.info("Entretien d'accord {} supprimé pour {}", id, matricule);
-    }
-
-    public EntretienDaccord create(String matricule, EntretienDaccordRequestDTO dto) {
-        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
-
         if (paqOpt.isEmpty()) {
             throw new RuntimeException("Aucun dossier PAQ actif trouvé pour le matricule : " + matricule);
         }
+
 
         PaqDossier paq = paqOpt.get();
 
@@ -223,7 +85,6 @@ public class EntretienDaccordService {
         e.setTypeFaute(dto.getTypeFaute());
         e.setCauseFaute(dto.getCauseFaute());
         e.setMesuresProposees(dto.getMesuresProposees() != null ? dto.getMesuresProposees() : "");
-        e.setCommentaireQMSegment(dto.getCommentaireQMSegment() != null ? dto.getCommentaireQMSegment() : "");
         e.setValide(false);
 
         EntretienDaccord saved = repo.save(e);
@@ -232,19 +93,28 @@ public class EntretienDaccordService {
         paq.setDateDeuxiemeEntretien(e.getDate());
         paq.setDeuxiemeEntretienNotes(dto.getMesuresProposees());
 
+        String dateFormatted = e.getDate().format(DATE_FORMATTER);
         String historique = addHistorique(paq.getHistorique(),
                 new PaqController.HistoriqueEvent(e.getDate(),
-                        " ENTRETIEN D'ACCORD",
+                        "ENTRETIEN D'ACCORD",
                         String.format("Entretien d'accord créé le %s — Faute : %s",
-                                e.getDate(), dto.getTypeFaute()))
+                                dateFormatted, dto.getTypeFaute()))
         );
         paq.setHistorique(historique);
         paqRepository.save(paq);
 
+        log.info("Historique mis à jour avec ENTRETIEN D'ACCORD pour le matricule {}", matricule);
+
         return saved;
     }
 
-    public EntretienDaccord updateWithPaqUpdate(Long id, String matricule, EntretienDaccordRequestDTO dto) {
+    public EntretienDaccord createAvecNotification(String matricule, EntretienDaccordRequestDTO dto, String expediteurEmail) {
+        return create(matricule, dto, expediteurEmail);
+    }
+
+    // ─── MODIFICATION ────────────────────────────────────────────────────────────
+
+    private EntretienDaccord updateWithPaqUpdate(Long id, String matricule, EntretienDaccordRequestDTO dto, String expediteurEmail) {
         EntretienDaccord existing = repo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
 
@@ -252,7 +122,6 @@ public class EntretienDaccordService {
         if (dto.getTypeFaute() != null) existing.setTypeFaute(dto.getTypeFaute());
         if (dto.getCauseFaute() != null) existing.setCauseFaute(dto.getCauseFaute());
         if (dto.getMesuresProposees() != null) existing.setMesuresProposees(dto.getMesuresProposees());
-        if (dto.getCommentaireQMSegment() != null) existing.setCommentaireQMSegment(dto.getCommentaireQMSegment());
 
         EntretienDaccord updated = repo.save(existing);
 
@@ -260,14 +129,11 @@ public class EntretienDaccordService {
         if (paqOpt.isPresent()) {
             PaqDossier paq = paqOpt.get();
             paq.setDeuxiemeEntretienNotes(dto.getMesuresProposees());
-
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
-                            " MODIFICATION ENTRETIEN D'ACCORD",
-                            String.format("Entretien d'accord modifié le %s", LocalDate.now())
-                    )
+            String dateFormatted = LocalDate.now().format(DATE_FORMATTER);
+            String historique = addHistorique(paq.getHistorique(),
+                    new PaqController.HistoriqueEvent(LocalDate.now(),
+                            "MODIFICATION ENTRETIEN D'ACCORD",
+                            String.format("Entretien d'accord modifié le %s par %s", dateFormatted, expediteurEmail))
             );
             paq.setHistorique(historique);
             paqRepository.save(paq);
@@ -276,6 +142,112 @@ public class EntretienDaccordService {
         return updated;
     }
 
+    public EntretienDaccord updateAvecNotification(Long id, String matricule, EntretienDaccordRequestDTO dto, String expediteurEmail) {
+        EntretienDaccord updated = updateWithPaqUpdate(id, matricule, dto, expediteurEmail);
+        log.info("Entretien d'accord modifié pour {}", matricule);
+        return updated;
+    }
+
+    // ─── VALIDATION SL ───────────────────────────────────────────────────────────
+    // SL soumet → valide=true + email QM + historique PAQ
+    // Le niveau du PAQ ne change PAS ici (reste 2)
+
+    public EntretienDaccord validerPremiere(Long id, String matricule, EntretienDaccordRequestDTO dto, String expediteurEmail) {
+        EntretienDaccord existing = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
+
+        String nomCollab = getCollaborateurNom(matricule);
+        String destinataireEmail = dto.getDestinataireEmail();
+
+        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
+        if (paqOpt.isPresent()) {
+            PaqDossier paq = paqOpt.get();
+            boolean alreadyDone = false;
+            if (paq.getHistorique() != null && !paq.getHistorique().isEmpty()) {
+                try {
+                    List<PaqController.HistoriqueEvent> hist = objectMapper.readValue(
+                            paq.getHistorique(), new TypeReference<List<PaqController.HistoriqueEvent>>() {});
+                    alreadyDone = hist.stream().anyMatch(ev -> "VALIDATION SL ENTRETIEN D'ACCORD".equals(ev.getAction()));
+                } catch (Exception ex) {
+                    log.warn("Erreur vérification historique", ex);
+                }
+            }
+            if (!alreadyDone) {
+                String dateFormatted = LocalDate.now().format(DATE_FORMATTER);
+                String historique = addHistorique(paq.getHistorique(),
+                        new PaqController.HistoriqueEvent(LocalDate.now(),
+                                "VALIDATION SL ENTRETIEN D'ACCORD",
+                                String.format("Entretien d'accord soumis par SL le %s ", dateFormatted))
+                );
+                paq.setHistorique(historique);
+                paqRepository.save(paq);
+            }
+        }
+
+        existing.setValide(true);
+        existing = repo.save(existing);
+
+        if (destinataireEmail != null && !destinataireEmail.isBlank()) {
+            envoyerEmailConvocation(expediteurEmail, destinataireEmail, nomCollab, matricule, dto);
+            log.info("Email de convocation envoyé à {} pour {}", destinataireEmail, matricule);
+        } else {
+            log.warn("Aucun email QM_SEGMENT fourni pour {}", matricule);
+        }
+
+        return existing;
+    }
+
+    // ─── VALIDATION QM_SEGMENT ───────────────────────────────────────────────────
+    public EntretienDaccord validerFinale(Long id, String matricule, EntretienDaccordRequestDTO dto, String expediteurEmail) {
+        EntretienDaccord existing = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
+
+        // Mise à jour des champs si fournis
+        if (dto.getDate() != null) existing.setDate(dto.getDate());
+        if (dto.getTypeFaute() != null) existing.setTypeFaute(dto.getTypeFaute());
+        if (dto.getCauseFaute() != null) existing.setCauseFaute(dto.getCauseFaute());
+        if (dto.getMesuresProposees() != null) existing.setMesuresProposees(dto.getMesuresProposees());
+
+        // Marquer validé par QM
+        existing.setValide(true);
+        existing.setValideQM(true);
+        EntretienDaccord updated = repo.save(existing);
+
+        log.info("Entretien d'accord {} validé par QM-Segment pour {}", id, matricule);
+
+        // Mise à jour du dossier PAQ
+        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
+        if (paqOpt.isPresent()) {
+            PaqDossier paq = paqOpt.get();
+
+            log.info("=== DEBUG: Niveau PAQ AVANT validation: {} ===", paq.getNiveau());
+
+            // Mise à jour des notes mesures
+            if (dto.getMesuresProposees() != null) {
+                paq.setDeuxiemeEntretienNotes(dto.getMesuresProposees());
+            }
+
+            // ✅ IMPORTANT: NE PAS CHANGER LE NIVEAU !
+            // Le niveau reste à 2 car l'entretien d'accord est validé
+            // C'est l'entretien de mesure qui passera le niveau à 3
+            // Donc on ne fait PAS paq.setNiveau()
+
+            String dateFormatted = LocalDate.now().format(DATE_FORMATTER);
+            String historique = addHistorique(paq.getHistorique(),
+                    new PaqController.HistoriqueEvent(LocalDate.now(),
+                            "VALIDATION QM-SEGMENT ENTRETIEN D'ACCORD",
+                            String.format("Entretien d'accord validé par QM-Segment le %s", dateFormatted))
+            );
+            paq.setHistorique(historique);
+            paqRepository.save(paq);
+
+            log.info("✅ PAQ mis à jour - niveau maintenu à {} pour {}", paq.getNiveau(), matricule);
+        } else {
+            log.warn("Aucun dossier PAQ actif trouvé pour {} lors de la validation QM-Segment", matricule);
+        }
+
+        return updated;
+    }
     public EntretienDaccord findById(Long id) {
         return repo.findById(id).orElseThrow(() -> new RuntimeException("Entretien introuvable id=" + id));
     }
@@ -298,58 +270,20 @@ public class EntretienDaccordService {
         }
     }
 
-    // ✅ Email quand SL soumet à QM_SEGMENT (avec message "Merci d'assister à l'entretien d'accord")
-    private void envoyerEmailPremiereValidation(String expediteur, String destinataire,
-                                                String nomCollab, String matricule,
-                                                EntretienDaccordRequestDTO dto) {
+    private void envoyerEmailConvocation(String expediteur, String destinataire,
+                                         String nomCollab, String matricule,
+                                         EntretienDaccordRequestDTO dto) {
         try {
-            String sujet = String.format("[PAQ] Entretien d'accord à valider - %s", nomCollab);
-            String htmlContent = buildEmailPremiereValidationContent(nomCollab, matricule, dto);
+            String sujet = String.format("[PAQ] Entretien d'accord  - %s", nomCollab);
+            String htmlContent = buildEmailConvocationContent(nomCollab, matricule, dto);
             emailService.sendEmail(expediteur, destinataire, sujet, htmlContent);
-            log.info("Email de convocation envoyé à {} pour {}", destinataire, matricule);
+            log.info("Email  envoyé à {} pour {}", destinataire, matricule);
         } catch (Exception e) {
-            log.error("Erreur lors de l'envoi de l'email à {}: {}", destinataire, e.getMessage());
+            log.error("Erreur envoi email à {}: {}", destinataire, e.getMessage());
         }
     }
 
-    private void envoyerEmailCreation(String expediteur, String destinataire,
-                                      String nomCollab, String matricule,
-                                      EntretienDaccordRequestDTO dto) {
-        try {
-            String sujet = String.format("[PAQ] Entretien d'accord créé - %s", nomCollab);
-            String htmlContent = buildEmailContent(nomCollab, matricule, dto, "créé");
-            emailService.sendEmail(expediteur, destinataire, sujet, htmlContent);
-        } catch (Exception e) {
-            log.error("Erreur lors de l'envoi de l'email: {}", e.getMessage());
-        }
-    }
-
-    private void envoyerEmailModification(String expediteur, String destinataire,
-                                          String nomCollab, String matricule,
-                                          EntretienDaccordRequestDTO dto) {
-        try {
-            String sujet = String.format("[PAQ] Entretien d'accord modifié - %s", nomCollab);
-            String htmlContent = buildEmailContent(nomCollab, matricule, dto, "modifié");
-            emailService.sendEmail(expediteur, destinataire, sujet, htmlContent);
-        } catch (Exception e) {
-            log.error("Erreur lors de l'envoi de l'email: {}", e.getMessage());
-        }
-    }
-
-    private void envoyerEmailSuppression(String expediteur, String destinataire,
-                                         String nomCollab, String matricule) {
-        try {
-            String sujet = String.format("[PAQ] Entretien d'accord supprimé - %s", nomCollab);
-            String htmlContent = buildEmailSuppressionContent(nomCollab, matricule);
-            emailService.sendEmail(expediteur, destinataire, sujet, htmlContent);
-        } catch (Exception e) {
-            log.error("Erreur lors de l'envoi de l'email de suppression: {}", e.getMessage());
-        }
-    }
-
-    // ✅ Contenu email pour validation (SL → QM_SEGMENT) avec le message demandé
-    private String buildEmailPremiereValidationContent(String nomCollab, String matricule,
-                                                       EntretienDaccordRequestDTO dto) {
+    private String buildEmailConvocationContent(String nomCollab, String matricule, EntretienDaccordRequestDTO dto) {
         return String.format("""
         <!DOCTYPE html>
         <html>
@@ -357,31 +291,24 @@ public class EntretienDaccordService {
         <body style="font-family: Arial, sans-serif;">
           <div style="max-width:600px;margin:auto;background:white;border-radius:8px;padding:20px;">
             <div style="background:#C8102E;padding:15px;border-radius:8px 8px 0 0;margin:-20px -20px 0 -20px;">
-              <h2 style="color:white;margin:0;">🎯 PAQ - Demande de validation</h2>
+              <h2 style="color:white;margin:0;">PAQ - Entretien d'accord</h2>
             </div>
             <div style="padding:20px 0;">
               <p>Bonjour,</p>
               <p><strong>Merci d'assister à l'entretien d'accord</strong></p>
-              <p>Un entretien d'accord a été soumis pour validation par SL pour le collaborateur :</p>
               <table style="width:100%%;border-collapse:collapse;margin:20px 0;">
                 <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Collaborateur</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td></tr>
                 <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Matricule</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td></tr>
                 <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Type de faute</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td></tr>
                 <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Date</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td></tr>
                 <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Cause de faute</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td></tr>
                 <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Mesures proposées</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
+                    <td style="padding:8px;border:1px solid #ddd;">%s</td></tr>
               </table>
               <p>Veuillez vous connecter au système PAQ pour valider cet entretien.</p>
             </div>
@@ -393,84 +320,5 @@ public class EntretienDaccordService {
                 dto.getDate() != null ? dto.getDate().toString() : "",
                 dto.getCauseFaute() != null ? dto.getCauseFaute() : "",
                 dto.getMesuresProposees() != null ? dto.getMesuresProposees() : "");
-    }
-
-    private String buildEmailContent(String nomCollab, String matricule,
-                                     EntretienDaccordRequestDTO dto, String action) {
-        return String.format("""
-        <!DOCTYPE html>
-        <html>
-        <head><meta charset="UTF-8"></head>
-        <body style="font-family: Arial, sans-serif;">
-          <div style="max-width:600px;margin:auto;background:white;border-radius:8px;padding:20px;">
-            <div style="background:#C8102E;padding:15px;border-radius:8px 8px 0 0;margin:-20px -20px 0 -20px;">
-              <h2 style="color:white;margin:0;">🏭 PAQ - Entretien d'accord</h2>
-            </div
-            <div style="padding:20px 0;">
-              <p>Bonjour,</p>
-            <p><strong>Merci d'assister à l'entretien d'accord</strong></p>
-
-              <p>L'entretien d'accord a été <strong>%s</strong> pour le collaborateur :</p>
-              <table style="width:100%%;border-collapse:collapse;margin:20px 0;">
-                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Collaborateur</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
-                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Matricule</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
-                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Type de faute</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
-                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Date</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
-                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Cause de faute</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
-                <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Mesures proposées</strong></td>
-                    <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                </tr>
-              </table>
-              <p>Veuillez vous connecter au système PAQ pour plus de détails.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-        """, action.equals("créé") ? "créé" : "modifié",
-                nomCollab, matricule,
-                dto.getTypeFaute() != null ? dto.getTypeFaute() : "",
-                dto.getDate() != null ? dto.getDate().toString() : "",
-                dto.getCauseFaute() != null ? dto.getCauseFaute() : "",
-                dto.getMesuresProposees() != null ? dto.getMesuresProposees() : "");
-    }
-
-    private String buildEmailSuppressionContent(String nomCollab, String matricule) {
-        return String.format("""
-            <!DOCTYPE html>
-            <html>
-            <head><meta charset="UTF-8"></head>
-            <body style="font-family: Arial, sans-serif;">
-              <div style="max-width:600px;margin:auto;background:white;border-radius:8px;padding:20px;">
-                <div style="background:#C8102E;padding:15px;border-radius:8px 8px 0 0;margin:-20px -20px 0 -20px;">
-                  <h2 style="color:white;margin:0;">🏭 PAQ - Suppression d'entretien d'accord</h2>
-                </div>
-                <div style="padding:20px 0;">
-                  <p>Bonjour,</p>
-                  <p>Merci d'assister à l'entretien d'accord</p>
-                  <p>L'entretien d'accord pour le collaborateur suivant a été supprimé :</p>
-                  <table style="width:100%%;border-collapse:collapse;margin:20px 0;">
-                    <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Collaborateur</strong></td>
-                        <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                    </tr>
-                    <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Matricule</strong></td>
-                        <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                    </tr>
-                  </table>
-                   <p style="color: #C8102E;">L'entretien a été supprimé du système.</p>
-                </div>
-              </div>
-            </body>
-            </html>
-            """, nomCollab, matricule);
     }
 }

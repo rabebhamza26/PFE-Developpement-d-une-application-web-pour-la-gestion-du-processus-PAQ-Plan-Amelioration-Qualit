@@ -26,20 +26,14 @@ public class EntretienExplicatifService {
 
     private final EntretienExplicatifRepository entretienRepo;
     private final CollaboratorRepository collaborateurRepo;
-    private final NotificationService notificationService;
-    private final EmailService emailService;
     private final PaqRepository paqRepository;
     private final ObjectMapper objectMapper;
 
     public EntretienExplicatifService(EntretienExplicatifRepository entretienRepo,
                                       CollaboratorRepository collaborateurRepo,
-                                      NotificationService notificationService,
-                                      EmailService emailService,
                                       PaqRepository paqRepository) {
         this.entretienRepo = entretienRepo;
         this.collaborateurRepo = collaborateurRepo;
-        this.notificationService = notificationService;
-        this.emailService = emailService;
         this.paqRepository = paqRepository;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
@@ -64,115 +58,24 @@ public class EntretienExplicatifService {
         }
     }
 
-    public EntretienExplicatif createAvecNotification(String matricule,
-                                                      EntretienExplicatifDTO dto,
-                                                      int niveau,
-                                                      String expediteurEmail) {
-        EntretienExplicatif entretien = create(matricule, dto);
-
-        String nomCollab = getCollaborateurNom(matricule);
-        String destinataireEmail = dto.getDestinataireEmail();
-
-        if (destinataireEmail != null && !destinataireEmail.isBlank()) {
-            envoyerEmailValidation(expediteurEmail, destinataireEmail, nomCollab, niveau, matricule, dto, "créé");
-            notificationService.envoyerNotification(
-                    expediteurEmail,
-                    "📧 Email envoyé",
-                    "Un email concernant l'entretien de " + nomCollab + " a été envoyé à " + destinataireEmail,
-                    "SUCCESS", matricule, getTypeEntretienString(niveau)
-            );
-        } else {
-            log.warn("Aucun email destinataire fourni pour l'entretien de {}", matricule);
-            notificationService.envoyerNotification(
-                    expediteurEmail, "⚠️ Email non envoyé",
-                    "Aucun email destinataire n'a été fourni pour l'entretien de " + nomCollab,
-                    "WARNING", matricule, getTypeEntretienString(niveau)
-            );
-        }
-
-        log.info("Entretien niveau {} créé pour {} - notifications envoyées", niveau, matricule);
-        return entretien;
-    }
-
-    public EntretienExplicatif updateAvecNotification(Long id,
-                                                      String matricule,
-                                                      EntretienExplicatifDTO dto,
-                                                      int niveau,
-                                                      String expediteurEmail) {
-        EntretienExplicatif entretien = updateWithPaqUpdate(id, matricule, dto);
-
-        String nomCollab = getCollaborateurNom(matricule);
-        String destinataireEmail = dto.getDestinataireEmail();
-
-        if (destinataireEmail != null && !destinataireEmail.isBlank()) {
-            envoyerEmailValidation(expediteurEmail, destinataireEmail, nomCollab, niveau, matricule, dto, "modifié");
-            notificationService.envoyerNotification(
-                    expediteurEmail,
-                    "📧 Email envoyé",
-                    "Un email concernant la modification de l'entretien de " + nomCollab + " a été envoyé à " + destinataireEmail,
-                    "SUCCESS", matricule, getTypeEntretienString(niveau)
-            );
-        }
-
-        log.info("Entretien niveau {} modifié pour {} - notifications envoyées", niveau, matricule);
-        return entretien;
-    }
-
-    public void deleteAvecNotification(Long id, String matricule, String expediteurEmail, String destinataireEmail, String nomCollab) {
-        // Récupérer l'entretien avant suppression pour les logs
-        EntretienExplicatif entretien = entretienRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
-
-        // Supprimer l'entretien
-        entretienRepo.deleteById(id);
-
-        // Mettre à jour le PAQ si nécessaire
-        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
-        if (paqOpt.isPresent()) {
-            PaqDossier paq = paqOpt.get();
-
-            // Ajouter à l'historique
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
-                            " SUPPRESSION ENTRETIEN EXPLICATIF",
-                            String.format("Entretien explicatif supprimé le %s", LocalDate.now())
-                    )
-            );
-            paq.setHistorique(historique);
-            paqRepository.save(paq);
-        }
-
-        // Envoyer email de notification de suppression
-        if (destinataireEmail != null && !destinataireEmail.isBlank()) {
-            envoyerEmailSuppression(expediteurEmail, destinataireEmail, nomCollab, matricule);
-        }
-
-        log.info("Entretien {} supprimé pour {}", id, matricule);
-    }
-
-    public EntretienExplicatif create(String matricule, EntretienExplicatifDTO dto) {
+    // Méthode create avec 3 paramètres (matricule, dto, expediteurEmail)
+    public EntretienExplicatif create(String matricule, EntretienExplicatifDTO dto, String expediteurEmail) {
         EntretienExplicatif e = new EntretienExplicatif();
         e.setMatricule(matricule);
         mapDtoToEntity(dto, e);
         EntretienExplicatif saved = entretienRepo.save(e);
 
-        Optional<PaqDossier> paqOpt =
-                paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
+        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(matricule);
 
         if (paqOpt.isPresent()) {
             PaqDossier paq = paqOpt.get();
 
-            // Permettre l'entretien explicatif si niveau 0 ou 1 (modification)
             if (paq.getNiveau() > 1) {
-                throw new RuntimeException(
-                        "Le niveau actuel (" + paq.getNiveau() + ") ne permet pas l'entretien explicatif");
+                throw new RuntimeException("Le niveau actuel (" + paq.getNiveau() + ") ne permet pas l'entretien explicatif");
             }
 
             LocalDate dateEntretien = dto.getDate() != null ? dto.getDate() : LocalDate.now();
 
-            // Ne mettre à jour le niveau que si c'est un nouvel entretien (niveau 0)
             if (paq.getNiveau() == 0) {
                 paq.setNiveau(1);
                 paq.setDatePremierEntretien(dateEntretien);
@@ -183,12 +86,13 @@ public class EntretienExplicatifService {
                     + " | Mesures: " + (dto.getMesuresCorrectives() != null ? dto.getMesuresCorrectives() : "");
             paq.setPremierEntretienNotes(notes);
 
+            // Pour la création, on ajoute "ENTRETIEN EXPLICATIF"
             String historique = addHistorique(
                     paq.getHistorique(),
                     new PaqController.HistoriqueEvent(
                             dateEntretien,
-                            " ENTRETIEN EXPLICATIF",
-                            String.format("Entretien explicatif validé le %s — Type de faute : %s",
+                            "ENTRETIEN EXPLICATIF",
+                            String.format("Entretien explicatif créé le %s — Faute : %s",
                                     dateEntretien, dto.getTypeFaute())
                     )
             );
@@ -203,14 +107,8 @@ public class EntretienExplicatifService {
         return saved;
     }
 
-    public EntretienExplicatif update(Long id, EntretienExplicatifDTO dto) {
-        EntretienExplicatif e = entretienRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
-        mapDtoToEntity(dto, e);
-        return entretienRepo.save(e);
-    }
-
-    public EntretienExplicatif updateWithPaqUpdate(Long id, String matricule, EntretienExplicatifDTO dto) {
+    // Méthode update avec 4 paramètres (id, matricule, dto, expediteurEmail)
+    public EntretienExplicatif update(Long id, String matricule, EntretienExplicatifDTO dto, String expediteurEmail) {
         EntretienExplicatif existing = entretienRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
 
@@ -227,19 +125,65 @@ public class EntretienExplicatifService {
                     + " | Mesures: " + (dto.getMesuresCorrectives() != null ? dto.getMesuresCorrectives() : "");
             paq.setPremierEntretienNotes(notes);
 
+            // UNIQUEMENT "MODIFICATION ENTRETIEN EXPLICATIF" - PAS DE VALIDATION SUPPLÉMENTAIRE
             String historique = addHistorique(
                     paq.getHistorique(),
                     new PaqController.HistoriqueEvent(
                             LocalDate.now(),
-                            " MODIFICATION ENTRETIEN EXPLICATIF",
-                            String.format("Entretien explicatif modifié le %s", LocalDate.now())
+                            "MODIFICATION ENTRETIEN EXPLICATIF",
+                            String.format("Entretien explicatif modifié le %s par %s", LocalDate.now(), expediteurEmail)
                     )
             );
             paq.setHistorique(historique);
             paqRepository.save(paq);
+
+            log.info("Historique mis à jour avec MODIFICATION pour l'entretien {} du matricule {}", id, matricule);
         }
 
         return updated;
+    }
+
+    // Méthode validate avec 2 paramètres (id, expediteurEmail)
+    public void validate(Long id, String expediteurEmail) {
+        EntretienExplicatif entretien = entretienRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
+
+        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(entretien.getMatricule());
+
+        if (paqOpt.isPresent()) {
+            PaqDossier paq = paqOpt.get();
+
+            // Vérifier si l'entretien a déjà été validé pour éviter les doublons
+            boolean alreadyValidated = false;
+            if (paq.getHistorique() != null && !paq.getHistorique().isEmpty()) {
+                try {
+                    List<PaqController.HistoriqueEvent> historique = objectMapper.readValue(
+                            paq.getHistorique(),
+                            new TypeReference<List<PaqController.HistoriqueEvent>>() {});
+                    alreadyValidated = historique.stream()
+                            .anyMatch(event -> "VALIDATION ENTRETIEN EXPLICATIF".equals(event.getAction()));
+                } catch (Exception e) {
+                    log.warn("Erreur lors de la vérification de l'historique", e);
+                }
+            }
+
+            // Ajouter la validation seulement si elle n'existe pas déjà
+            if (!alreadyValidated) {
+                String historique = addHistorique(
+                        paq.getHistorique(),
+                        new PaqController.HistoriqueEvent(
+                                LocalDate.now(),
+                                "VALIDATION ENTRETIEN EXPLICATIF",
+                                String.format("Entretien explicatif validé le %s par %s", LocalDate.now(), expediteurEmail)
+                        )
+                );
+                paq.setHistorique(historique);
+                paqRepository.save(paq);
+                log.info("Entretien explicatif {} validé par {}", id, expediteurEmail);
+            } else {
+                log.info("Entretien explicatif {} déjà validé, aucune nouvelle entrée d'historique ajoutée", id);
+            }
+        }
     }
 
     public List<EntretienExplicatif> findByMatricule(String matricule) {
@@ -261,144 +205,5 @@ public class EntretienExplicatifService {
         e.setDescription(dto.getDescription());
         e.setMesuresCorrectives(dto.getMesuresCorrectives());
         e.setCommentaire(dto.getNotes());
-
-    }
-
-    private String getTypeEntretienString(int niveau) {
-        return switch (niveau) {
-            case 1 -> "EXPLICATIF";
-            case 2 -> "ACCORD";
-            case 3 -> "MESURE";
-            case 4 -> "DECISION";
-            default -> "ENTRETIEN";
-        };
-    }
-
-    private String getCollaborateurNom(String matricule) {
-        try {
-            return collaborateurRepo.findByMatricule(matricule)
-                    .map(c -> c.getName() + " " + c.getPrenom())
-                    .orElse(matricule);
-        } catch (Exception e) {
-            return matricule;
-        }
-    }
-
-    private void envoyerEmailValidation(String expediteur, String destinataire,
-                                        String nomCollab, int niveau,
-                                        String matricule, EntretienExplicatifDTO dto, String action) {
-        try {
-            String typeEntretien = getTypeEntretienString(niveau);
-            String sujet = String.format("[PAQ] Entretien %s %s - %s", typeEntretien, action, nomCollab);
-            String htmlContent = buildEmailContent(nomCollab, typeEntretien, matricule, dto, action);
-            emailService.sendEmail(expediteur, destinataire, sujet, htmlContent);
-            log.info("Email envoyé à {} pour l'entretien {} de {}", destinataire, action, matricule);
-        } catch (Exception e) {
-            log.error("Erreur lors de l'envoi de l'email à {}: {}", destinataire, e.getMessage());
-        }
-    }
-
-    private void envoyerEmailSuppression(String expediteur, String destinataire,
-                                         String nomCollab, String matricule) {
-        try {
-            String sujet = String.format("[PAQ] Entretien explicatif supprimé - %s", nomCollab);
-            String htmlContent = buildEmailSuppressionContent(nomCollab, matricule);
-            emailService.sendEmail(expediteur, destinataire, sujet, htmlContent);
-            log.info("Email de suppression envoyé à {} pour {}", destinataire, matricule);
-        } catch (Exception e) {
-            log.error("Erreur lors de l'envoi de l'email de suppression à {}: {}", destinataire, e.getMessage());
-        }
-    }
-
-    /**
-     * Valider un entretien explicatif (uniquement pour SL)
-     */
-    @Transactional
-    public void validate(Long id, String expediteurEmail) {
-        EntretienExplicatif entretien = entretienRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Entretien introuvable: " + id));
-
-        // Mettre à jour le PAQ si nécessaire
-        Optional<PaqDossier> paqOpt = paqRepository.findFirstByCollaboratorMatriculeAndActifTrueAndArchivedFalse(entretien.getMatricule());
-
-        if (paqOpt.isPresent()) {
-            PaqDossier paq = paqOpt.get();
-
-            String historique = addHistorique(
-                    paq.getHistorique(),
-                    new PaqController.HistoriqueEvent(
-                            LocalDate.now(),
-                            " VALIDATION ENTRETIEN EXPLICATIF",
-                            String.format("Entretien explicatif validé le %s par %s", LocalDate.now(), expediteurEmail)
-                    )
-            );
-            paq.setHistorique(historique);
-            paqRepository.save(paq);
-
-            log.info("Entretien explicatif {} validé par {}", id, expediteurEmail);
-        }
-    }
-
-    private String buildEmailContent(String nomCollab, String typeEntretien,
-                                     String matricule, EntretienExplicatifDTO dto, String action) {
-        return String.format("""
-            <!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-            <body style="font-family: Arial, sans-serif;">
-              <div style="max-width:600px;margin:auto;background:white;border-radius:8px;padding:20px;">
-                <div style="background:#C8102E;padding:15px;border-radius:8px 8px 0 0;margin:-20px -20px 0 -20px;">
-                  <h2 style="color:white;margin:0;">🏭 PAQ - %s d'entretien</h2>
-                </div>
-                <div style="padding:20px 0;">
-                  <p>Bonjour,</p>
-                  <p>Un entretien <strong>%s</strong> a été <strong>%s</strong> pour :</p>
-                  <table style="width:100%%;border-collapse:collapse;margin:20px 0;">
-                    <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Collaborateur</strong></td>
-                        <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                    </tr>
-                    <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Matricule</strong></td>
-                        <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                    </tr>
-                    <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Type faute</strong></td>
-                        <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                    </tr>
-                    <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Description</strong></td>
-                        <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                    </tr>
-                    <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Mesures correctives</strong></td>
-                        <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                    </tr>
-                   </table>
-                </div>
-              </div>
-            </body></html>
-            """, action.equals("créé") ? "Validation" : "Modification",
-                typeEntretien, action, nomCollab, matricule,
-                dto.getTypeFaute(), dto.getDescription(), dto.getMesuresCorrectives());
-    }
-
-    private String buildEmailSuppressionContent(String nomCollab, String matricule) {
-        return String.format("""
-            <!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-            <body style="font-family: Arial, sans-serif;">
-              <div style="max-width:600px;margin:auto;background:white;border-radius:8px;padding:20px;">
-                <div style="background:#C8102E;padding:15px;border-radius:8px 8px 0 0;margin:-20px -20px 0 -20px;">
-                  <h2 style="color:white;margin:0;">🏭 PAQ - Suppression d'entretien</h2>
-                </div>
-                <div style="padding:20px 0;">
-                  <p>Bonjour,</p>
-                  <p>L'entretien explicatif pour le collaborateur suivant a été supprimé :</p>
-                  <table style="width:100%%;border-collapse:collapse;margin:20px 0;">
-                    <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Collaborateur</strong></td>
-                        <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                    </tr>
-                    <tr><td style="padding:8px;border:1px solid #ddd;"><strong>Matricule</strong></td>
-                        <td style="padding:8px;border:1px solid #ddd;">%s</td>
-                    </tr>
-                   </table>
-                   <p style="color: #C8102E;">L'entretien a été supprimé du système.</p>
-                </div>
-              </div>
-            </body></html>
-            """, nomCollab, matricule);
     }
 }

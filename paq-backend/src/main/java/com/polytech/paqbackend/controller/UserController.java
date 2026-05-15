@@ -43,16 +43,7 @@ public class UserController {
         this.tokenRepository = tokenRepository;
     }
 
-    @GetMapping("/emails")
-    public ResponseEntity<List<String>> getPublicEmails() {
-        List<User> users = userRepository.findAll();
-        List<String> emails = users.stream()
-                .map(User::getEmail)
-                .filter(email -> email != null && !email.trim().isEmpty())
-                .distinct()
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(emails);
-    }
+
 
     @GetMapping("/sl/emails")
     @PreAuthorize("isAuthenticated()")
@@ -295,5 +286,44 @@ public class UserController {
                 "name", auth != null ? auth.getName() : "null",
                 "authorities", auth != null ? auth.getAuthorities().toString() : "null"
         ));
+    }
+
+    @GetMapping("/emails")
+    public ResponseEntity<List<String>> getAllEmails() {
+        return ResponseEntity.ok(userService.getAllEmails());
+    }
+
+    @GetMapping("/emails/active")
+    public ResponseEntity<List<String>> getAllActiveUserEmails() {
+        return ResponseEntity.ok(userService.getAllActiveUserEmails());
+    }
+
+    // ⭐ NOUVEAU: Récupérer les emails par Site ET Plant
+    @GetMapping("/emails/by-site-plant")
+    public ResponseEntity<List<String>> getEmailsBySiteAndPlant(
+            @RequestParam Long siteId,
+            @RequestParam Long plantId) {
+        return ResponseEntity.ok(userService.getEmailsBySiteAndPlant(siteId, plantId));
+    }
+
+    // Récupérer les emails par Site uniquement
+    @GetMapping("/emails/by-site")
+    public ResponseEntity<List<String>> getEmailsBySite(@RequestParam Long siteId) {
+        return ResponseEntity.ok(userService.getEmailsBySite(siteId));
+    }
+
+    // Récupérer les emails par Plant uniquement
+    @GetMapping("/emails/by-plant")
+    public ResponseEntity<List<String>> getEmailsByPlant(@RequestParam Long plantId) {
+        return ResponseEntity.ok(userService.getEmailsByPlant(plantId));
+    }
+
+    // Récupérer les emails par plusieurs Sites et Plants
+    @PostMapping("/emails/by-sites-plants")
+    public ResponseEntity<List<String>> getEmailsBySitesAndPlants(
+            @RequestBody Map<String, List<Long>> request) {
+        List<Long> siteIds = request.get("siteIds");
+        List<Long> plantIds = request.get("plantIds");
+        return ResponseEntity.ok(userService.getEmailsBySitesAndPlants(siteIds, plantIds));
     }
 }

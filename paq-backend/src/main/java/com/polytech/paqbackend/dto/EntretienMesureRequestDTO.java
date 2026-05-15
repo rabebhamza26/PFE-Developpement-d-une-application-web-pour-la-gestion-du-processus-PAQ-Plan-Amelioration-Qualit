@@ -1,6 +1,7 @@
 package com.polytech.paqbackend.dto;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public class EntretienMesureRequestDTO {
     private String typeFaute;
@@ -11,6 +12,9 @@ public class EntretienMesureRequestDTO {
     private String destinataireEmail;
     private LocalDate dateRequalification;
     private String message;
+    private List<String> destinatairesEmails;
+
+    // Getters et Setters existants...
 
     public String getTypeFaute() { return typeFaute; }
     public void setTypeFaute(String typeFaute) { this.typeFaute = typeFaute; }
@@ -33,11 +37,9 @@ public class EntretienMesureRequestDTO {
     public LocalDate getDateRequalification() { return dateRequalification; }
     public void setDateRequalification(LocalDate dateRequalification) { this.dateRequalification = dateRequalification; }
 
-    public String getMessage() {
-        return message;
-    }
+    public String getMessage() { return message; }
+    public void setMessage(String message) { this.message = message; }
 
-    public void setMessage(String message) {
-        this.message = message;
-    }
+    public List<String> getDestinatairesEmails() { return destinatairesEmails; }
+    public void setDestinatairesEmails(List<String> destinatairesEmails) { this.destinatairesEmails = destinatairesEmails; }
 }

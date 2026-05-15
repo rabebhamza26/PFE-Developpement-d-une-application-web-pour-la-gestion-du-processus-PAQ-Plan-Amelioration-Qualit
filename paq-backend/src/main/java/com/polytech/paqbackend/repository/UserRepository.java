@@ -19,17 +19,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByCreatedAtAfter(LocalDateTime dateTime);
     User findByEmail(String email);
 
-
     @Query("select u.role, count(u) from User u group by u.role")
     List<Object[]> countUsersByRole();
 
     @Query("SELECT u.email FROM User u WHERE u.email IS NOT NULL AND u.email != ''")
     List<String> findAllEmails();
-
-
-
-    @Query("SELECT u.email FROM User u WHERE u.active = true AND u.email IS NOT NULL AND u.email != ''")
-    List<String> findAllActiveUserEmails();
 
     // Requêtes avec jointures pour récupérer toutes les relations
     @Query("SELECT DISTINCT u FROM User u " +
@@ -45,22 +39,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "LEFT JOIN FETCH u.segments")
     List<User> findAllWithAllRelations();
 
-
-
-    @Query("SELECT new com.polytech.paqbackend.dto.SiteUserDistributionDTO(s.id, s.name, COUNT(u)) " +
-            "FROM User u JOIN u.sites s GROUP BY s.id, s.name ORDER BY COUNT(u) DESC")
-    List<SiteUserDistributionDTO> findUserCountBySite();
-
-
-
-    Optional<User> findOptionalByEmail(String email);
-
-
-
-    @Query("SELECT u FROM User u WHERE u.role = 'ADMIN'")
-    List<User> findAllAdmins();
-
-
     @Query("SELECT DISTINCT u FROM User u " +
             "LEFT JOIN FETCH u.segments " +
             "LEFT JOIN FETCH u.plants " +
@@ -68,16 +46,37 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "WHERE u.email = :username OR u.login = :username")
     User findByEmailOrLoginWithPerimeter(@Param("username") String username);
 
-
     @Query("SELECT u FROM User u WHERE u.email = :username OR u.login = :username")
     User findByEmailOrLogin(@Param("username") String username);
 
-
-    @Query("SELECT u FROM User u WHERE u.role = :role")
-    List<User> findByRole(@Param("role") String role);
     @Query("SELECT u FROM User u WHERE u.role = 'SL'")
     List<User> findAllSL();
 
+    @Query("SELECT u.email FROM User u WHERE u.active = true AND u.email IS NOT NULL AND u.email != ''")
+    List<String> findAllActiveUserEmails();
 
+    // ⭐ NOUVEAU: Récupérer les emails par Site ET Plant
+    @Query("SELECT DISTINCT u.email FROM User u " +
+            "JOIN u.sites s " +
+            "JOIN u.plants p " +
+            "WHERE s.id = :siteId AND p.id = :plantId " +
+            "AND u.active = true " +
+            "AND u.email IS NOT NULL AND u.email != ''")
+    List<String> findEmailsBySiteAndPlant(@Param("siteId") Long siteId, @Param("plantId") Long plantId);
 
+    // Récupérer les emails par Site uniquement
+    @Query("SELECT DISTINCT u.email FROM User u " +
+            "JOIN u.sites s " +
+            "WHERE s.id = :siteId " +
+            "AND u.active = true " +
+            "AND u.email IS NOT NULL AND u.email != ''")
+    List<String> findEmailsBySite(@Param("siteId") Long siteId);
+
+    // Récupérer les emails par Plant uniquement
+    @Query("SELECT DISTINCT u.email FROM User u " +
+            "JOIN u.plants p " +
+            "WHERE p.id = :plantId " +
+            "AND u.active = true " +
+            "AND u.email IS NOT NULL AND u.email != ''")
+    List<String> findEmailsByPlant(@Param("plantId") Long plantId);
 }
