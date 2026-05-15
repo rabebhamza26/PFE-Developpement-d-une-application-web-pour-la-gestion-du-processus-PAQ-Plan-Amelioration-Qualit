@@ -11,7 +11,6 @@ import { showConfirmAlert, showErrorAlert, showInfoToast, showSuccessAlert, show
 import "../../styles/entretien-final.css";
 import "../../styles/paq-dossier.css";
 
-/* â”€â”€â”€ Constantes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const DECISIONS = ["Licenciement", "Avertissement", "Formation", "Mutation", "Suspension"];
 
 const buildDefaultForm = () => ({
@@ -43,7 +42,6 @@ export default function EntretienFinal({ niveau = 5 }) {
 
   const [formData, setFormData] = useState(buildDefaultForm());
 
-  /* â”€â”€ Chargement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   useEffect(() => {
     loadCollaborator();
     loadDraft();
@@ -131,7 +129,6 @@ export default function EntretienFinal({ niveau = 5 }) {
     } catch (err) { console.warn("Brouillon non chargeable:", err); }
   };
 
-  /* â”€â”€ Handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const handleChange = e => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const addTypeOption = async () => {
@@ -271,17 +268,17 @@ export default function EntretienFinal({ niveau = 5 }) {
         <div className="leoni-header">
           <div className="leoni-header-left">
             <button onClick={() => navigate(`/paq-dossier/${matricule}`)} className="leoni-btn-back">
-              â† Retour au dossier
+              Retour au dossier
             </button>
           </div>
           <div className="leoni-header-title">
             <div className="leoni-logo-bar">
               <div className="leoni-logo-accent" />
-              <h1>Entretien Final</h1>
+              <h1>Etape5: Entretien Final</h1>
             </div>
             {collaborator && (
               <span className="leoni-header-sub">
-                {collaborator.name} {collaborator.prenom} â€” {collaborator.matricule}
+                {collaborator.name} {collaborator.prenom} - {collaborator.matricule}
               </span>
             )}
           </div>
@@ -318,7 +315,7 @@ export default function EntretienFinal({ niveau = 5 }) {
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
                   <path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2"/>
                 </svg>
-                RÃ©sumÃ© â€” Entretien de DÃ©cision (N4)
+                Resume de  Entretien de Decision (N4)
               </div>
               <div className="ef-card-bd">
                 {resumeN4 ? (
@@ -369,7 +366,7 @@ export default function EntretienFinal({ niveau = 5 }) {
                 <form onSubmit={handleSubmit}>
 
                   <div className="ef-fg">
-                    <label className="ef-lbl">Type de faute <span className="req">*</span></label>
+                    <label className="ef-lbl">Type de faute <span className="req"></span></label>
                     <div className="ef-faute-row">
                       <div className="ef-dw">
                         <input type="text" className="ef-inp"
@@ -404,7 +401,7 @@ export default function EntretienFinal({ niveau = 5 }) {
                         value={formData.dateEntretien} onChange={handleChange}/>
                     </div>
                     <div className="ef-fg">
-                      <label className="ef-lbl">DÃ©cision RH <span className="req">*</span></label>
+                      <label className="ef-lbl">Decision RH <span className="req"></span></label>
                       <select name="decision" className="ef-sel"
                         value={formData.decision} onChange={handleChange}>
                         <option value="">â€” Choisir â€”</option>
@@ -428,14 +425,12 @@ export default function EntretienFinal({ niveau = 5 }) {
                     <button type="submit" className="ef-btn ef-btn-valider" disabled={saving}>
                       {saving ? "..." : "Valider"}
                     </button>
-                    <button type="button" className="ef-btn ef-btn-ajouter" onClick={handleAjouter}>Ajouter</button>
+
                     <button type="button" className="ef-btn ef-btn-modifier"
                       onClick={handleModifier} disabled={loadingDraft}>
                       {loadingDraft ? "..." : "Modifier"}
                     </button>
-                    <button type="button" className="ef-btn ef-btn-suppr" onClick={handleSupprimer} disabled={!currentId}>
-                      Supprimer
-                    </button>
+                    
                   </div>
 
                 </form>

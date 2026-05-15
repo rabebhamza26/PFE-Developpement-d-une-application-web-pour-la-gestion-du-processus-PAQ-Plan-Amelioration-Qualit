@@ -1,4 +1,7 @@
-// EntretienDeDecision.jsx - Version corrigée
+// EntretienDeDecision.jsx
+// Flux : SL valide → email HP, SGL, QM_PLANT + valideSL=true
+//        HP/SGL valide (1ère) → valideHPSGL=true
+//        QM_PLANT valide (2ème) → valideQMPlant=true + passage niveau PAQ à 4
 
 import React, { useEffect, useState } from "react";
 import {
@@ -15,31 +18,17 @@ import "../../styles/entretien-decision.css";
 import "../../styles/paq-dossier.css";
 import { showErrorAlert, showInfoToast, showSuccessAlert, showSuccessToast } from "../../utils/entretienAlerts";
 
-// Composant Modal Email pour sélection multiple avec filtres par rôle
-function EmailModal({ isOpen, onClose, onConfirm, usersList, loadingUsers, action = "création" }) {
+// ─── Modal Email pour sélection multiple (SL) ─────────────────────────────
+function EmailModal({ isOpen, onClose, onConfirm, usersList, loadingUsers }) {
   const [selectedEmails, setSelectedEmails] = useState([]);
-  const [message, setMessage] = useState("");
-  const [emailFilter, setEmailFilter] = useState("all");
 
-  // Réinitialiser la sélection quand la modale s'ouvre
   useEffect(() => {
     if (isOpen) {
       setSelectedEmails([]);
-      setMessage("");
-      setEmailFilter("all");
     }
   }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const isValidationSLAction = action === "validationSL";
-
-  const getFilteredUsers = () => {
-    if (emailFilter === "all") {
-      return usersList;
-    }
-    return usersList.filter(user => user.role === emailFilter);
-  };
 
   const toggleEmailSelection = (email) => {
     if (selectedEmails.includes(email)) {
@@ -50,122 +39,27 @@ function EmailModal({ isOpen, onClose, onConfirm, usersList, loadingUsers, actio
   };
 
   const toggleAllEmails = () => {
-    const filteredUsers = getFilteredUsers();
-    const allEmailsInList = filteredUsers.map(u => u.email);
-    if (selectedEmails.length === allEmailsInList.length && allEmailsInList.length > 0) {
+    if (selectedEmails.length === usersList.length && usersList.length > 0) {
       setSelectedEmails([]);
     } else {
-      setSelectedEmails(allEmailsInList);
+      setSelectedEmails(usersList.map(u => u.email));
     }
   };
 
-  const handleConfirm = () => {
-    if (selectedEmails.length === 0) {
-      showErrorAlert("Email requis", "Veuillez sélectionner au moins un destinataire");
-      return;
-    }
-    
-    if (isValidationSLAction) {
-      onConfirm(selectedEmails, message);
-    } else if (action === "suppression") {
-      onConfirm(selectedEmails[0], message);
-    } else {
-      onConfirm(selectedEmails, message);
-    }
-  };
-
-  const filteredUsers = getFilteredUsers();
-  const allSelected = filteredUsers.length > 0 && selectedEmails.length === filteredUsers.length;
+  const allSelected = usersList.length > 0 && selectedEmails.length === usersList.length;
 
   return (
     <div className="leoni-modal-overlay" onClick={onClose}>
       <div className="leoni-modal" style={{ maxWidth: "650px", maxHeight: "80vh", overflow: "auto" }} onClick={e => e.stopPropagation()}>
         <div className="leoni-modal-header">
-          <div className="leoni-modal-icon leoni-modal-icon-info">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="currentColor" strokeWidth="2"/>
-              <polyline points="22,6 12,13 2,6" stroke="currentColor" strokeWidth="2"/>
-            </svg>
-          </div>
           <div>
-            <h3>Envoyer un email - {action === "validationSL" ? "Validation SL" : action === "suppression" ? "Suppression" : action === "modification" ? "Modification" : "Création"}</h3>
-            <p>
-              {isValidationSLAction 
-                ? "Sélectionnez les destinataires (HP, SGL, QM_PLANT) pour la convocation"
-                : action === "suppression"
-                ? "Choisissez le destinataire pour notifier de la suppression"
-                : "Sélectionnez les destinataires pour notifier"}
-            </p>
+            <h3>Envoyer la convocation</h3>
+            <p>Sélectionnez les destinataires pour l'entretien de décision</p>
           </div>
           <button className="leoni-modal-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="leoni-modal-body">
-          {usersList.length > 0 && (
-            <div style={{ marginBottom: 16, display: "flex", gap: "10px", flexWrap: "wrap", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px" }}>
-              <button
-                type="button"
-                onClick={() => setEmailFilter("all")}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "20px",
-                  border: "1px solid #C8102E",
-                  background: emailFilter === "all" ? "#C8102E" : "white",
-                  color: emailFilter === "all" ? "white" : "#C8102E",
-                  cursor: "pointer",
-                  fontWeight: "500"
-                }}
-              >
-                Tous ({usersList.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setEmailFilter("HP")}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "20px",
-                  border: "1px solid #C8102E",
-                  background: emailFilter === "HP" ? "#C8102E" : "white",
-                  color: emailFilter === "HP" ? "white" : "#C8102E",
-                  cursor: "pointer",
-                  fontWeight: "500"
-                }}
-              >
-                HP ({usersList.filter(u => u.role === "HP").length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setEmailFilter("SGL")}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "20px",
-                  border: "1px solid #C8102E",
-                  background: emailFilter === "SGL" ? "#C8102E" : "white",
-                  color: emailFilter === "SGL" ? "white" : "#C8102E",
-                  cursor: "pointer",
-                  fontWeight: "500"
-                }}
-              >
-                SGL ({usersList.filter(u => u.role === "SGL").length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setEmailFilter("QM_PLANT")}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: "20px",
-                  border: "1px solid #C8102E",
-                  background: emailFilter === "QM_PLANT" ? "#C8102E" : "white",
-                  color: emailFilter === "QM_PLANT" ? "white" : "#C8102E",
-                  cursor: "pointer",
-                  fontWeight: "500"
-                }}
-              >
-                QM_PLANT ({usersList.filter(u => u.role === "QM_PLANT").length})
-              </button>
-            </div>
-          )}
-
           <div style={{ marginBottom: 20, border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
             <div style={{ 
               padding: "12px", 
@@ -181,14 +75,14 @@ function EmailModal({ isOpen, onClose, onConfirm, usersList, loadingUsers, actio
                 onChange={toggleAllEmails}
                 style={{ width: "18px", height: "18px", cursor: "pointer" }}
               />
-              <strong style={{ flex: 1 }}>Sélectionner tous les {filteredUsers.length} utilisateur(s)</strong>
+              <strong style={{ flex: 1 }}>Sélectionner tous les {usersList.length} utilisateur(s)</strong>
               <span style={{ fontSize: "12px", color: "#666" }}>
                 {selectedEmails.length} sélectionné(s)
               </span>
             </div>
             <div style={{ maxHeight: "300px", overflow: "auto" }}>
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((user, idx) => (
+              {usersList.length > 0 ? (
+                usersList.map((user, idx) => (
                   <div
                     key={idx}
                     style={{
@@ -218,44 +112,24 @@ function EmailModal({ isOpen, onClose, onConfirm, usersList, loadingUsers, actio
                 ))
               ) : (
                 <div style={{ padding: "40px", textAlign: "center", color: "#999" }}>
-                  Aucun utilisateur trouvé avec le rôle sélectionné
+                  {loadingUsers ? "Chargement des emails..." : "Aucun email trouvé dans la base de données"}
                 </div>
               )}
             </div>
           </div>
-
-          <div className="leoni-form-group">
-            <label>Message personnalisé (optionnel)</label>
-            <textarea
-              className="leoni-textarea"
-              rows="4"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ajoutez un message personnalisé qui sera inclus dans l'email..."
-              style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ddd" }}
-            />
-          </div>
         </div>
 
-        <div className="leoni-modal-footer" style={{ display: "flex", justifyContent: "flex-end", gap: "10px", padding: "16px", borderTop: "1px solid #e2e8f0" }}>
-          <button type="button" className="leoni-btn leoni-btn-outline" onClick={onClose} style={{ padding: "8px 16px" }}>
+        <div className="leoni-modal-footer">
+          <button type="button" className="leoni-btn leoni-btn-outline" onClick={onClose}>
             Annuler
           </button>
           <button 
             type="button" 
             className="leoni-btn leoni-btn-primary" 
-            onClick={handleConfirm}
+            onClick={() => onConfirm(selectedEmails)}
             disabled={selectedEmails.length === 0}
-            style={{
-              background: selectedEmails.length === 0 ? "#ccc" : "#C8102E",
-              color: "white",
-              padding: "8px 16px",
-              border: "none",
-              borderRadius: "6px",
-              cursor: selectedEmails.length === 0 ? "not-allowed" : "pointer"
-            }}
           >
-            {action === "suppression" ? "Confirmer la suppression" : `📧 Envoyer à ${selectedEmails.length} destinataire(s)`}
+            Valider & Envoyer ({selectedEmails.length} destinataire(s))
           </button>
         </div>
       </div>
@@ -263,6 +137,7 @@ function EmailModal({ isOpen, onClose, onConfirm, usersList, loadingUsers, actio
   );
 }
 
+// ─── Formulaire vide par défaut ──────────────────────────────────────────────
 const buildDefaultForm = () => ({
   typeFaute: "",
   dateEntretien: new Date().toISOString().split("T")[0],
@@ -270,34 +145,43 @@ const buildDefaultForm = () => ({
   justification: "",
 });
 
-export default function EntretienDeDecision({ niveau = 4 }) {
+// ─── Composant principal ──────────────────────────────────────────────────────
+export default function EntretienDeDecision() {
   const { matricule } = useParams();
   const navigate = useNavigate();
 
   const [userRole, setUserRole] = useState(null);
   const [collaborator, setCollaborator] = useState(null);
-  const [resumeN1, setResumeN1] = useState(null);
-  const [resumeN2, setResumeN2] = useState(null);
-  const [resumeN3, setResumeN3] = useState(null);
-  const [entretiensList, setEntretiensList] = useState([]);
-  const [currentEntretienId, setCurrentEntretienId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [error, setError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
+  const [resumeN1, setResumeN1] = useState(null);
+  const [resumeN2, setResumeN2] = useState(null);
+  const [resumeN3, setResumeN3] = useState(null);
+  const [currentEntretienId, setCurrentEntretienId] = useState(null);
+  const [entretiensList, setEntretiensList] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [typeOptions, setTypeOptions] = useState([]);
   const [showDefautModal, setShowDefautModal] = useState(false);
   const [defautTypeInput, setDefautTypeInput] = useState("");
-  const [typeOptions, setTypeOptions] = useState([]);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filteredFautes, setFilteredFautes] = useState([]);
+
+  // Email modal
   const [usersList, setUsersList] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
-  const [modalAction, setModalAction] = useState("création");
-  const [pendingSubmit, setPendingSubmit] = useState(false);
+
+  // Trois statuts distincts (comme entretien de mesure)
+  const [valideSL, setValideSL] = useState(false);
+  const [valideHPSGL, setValideHPSGL] = useState(false);
+  const [valideQMPlant, setValideQMPlant] = useState(false);
 
   const [formData, setFormData] = useState(buildDefaultForm());
 
+  // ── Rôle ──
   useEffect(() => {
     const userStr = sessionStorage.getItem("user");
     if (userStr) {
@@ -306,114 +190,151 @@ export default function EntretienDeDecision({ niveau = 4 }) {
     }
   }, []);
 
-  const loadAllUsersWithEmails = async () => {
+  const loadUsers = async () => {
     try {
       setLoadingUsers(true);
-      console.log("Chargement des utilisateurs...");
-      const response = await userService.getAllUsersWithEmails();
-      console.log("Utilisateurs chargés:", response.data);
+      const response = await userService.getAllEmails();
+      console.log("Emails récupérés:", response.data);
       
-      if (response.data && Array.isArray(response.data)) {
-        const relevantUsers = response.data.filter(user => 
-          user.role === "HP" || user.role === "SGL" || user.role === "QM_PLANT"
-        );
-        setUsersList(relevantUsers);
-        console.log("Utilisateurs filtrés:", relevantUsers);
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        const emailList = response.data.filter(email => email && email.includes('@')).map(email => ({
+          email: email,
+          nomUtilisateur: email.split('@')[0] || email,
+          role: "UTILISATEUR"
+        }));
+        setUsersList(emailList);
       } else {
         setUsersList([]);
       }
     } catch (err) {
-      console.error("Erreur chargement utilisateurs:", err);
-      try {
-        const emailResponse = await userService.getAllEmails();
-        const emailList = emailResponse.data.map(email => ({ 
-          email, 
-          nomUtilisateur: email, 
-          role: "UNKNOWN" 
-        }));
-        setUsersList(emailList);
-      } catch (e) {
-        setUsersList([]);
-      }
+      console.error("Erreur chargement emails:", err);
+      setUsersList([]);
     } finally {
       setLoadingUsers(false);
     }
   };
 
   useEffect(() => {
-    if (!matricule) return;
     loadData();
+    loadFautes();
+    loadUsers();
   }, [matricule]);
 
-  const loadData = async () => {
-    setLoading(true);
-    await Promise.all([
-      loadFautes(),
-      loadCollaborator(),
-      loadResumes(),
-      loadAllEntretiens(),
-      loadAllUsersWithEmails()
-    ]);
-    loadDraft();
-    setLoading(false);
-  };
+  useEffect(() => {
+    if (matricule) loadDraft();
+  }, [matricule]);
 
+  // ── Filtrage fautes ──
+  useEffect(() => {
+    const q = search.toLowerCase();
+    setFilteredFautes(typeOptions.filter(f => f.toLowerCase().includes(q)));
+  }, [search, typeOptions]);
+
+  // ── Reset ──
   const resetForm = () => {
     setFormData(buildDefaultForm());
     setCurrentEntretienId(null);
-    if (matricule) {
-      localStorage.removeItem(`entretien-decision-draft-${matricule}`);
-    }
+    setValideSL(false);
+    setValideHPSGL(false);
+    setValideQMPlant(false);
+    if (matricule) localStorage.removeItem(`entretien-decision-draft-${matricule}`);
   };
 
-  const loadCollaborator = async () => {
-    try {
-      const collab = await collaboratorService.getById(matricule);
-      setCollaborator(collab.data);
-    } catch (err) {
-      console.error(err);
-      setError("Impossible de charger les données du collaborateur.");
-    }
-  };
-
+  // ── Fautes ──
   const loadFautes = async () => {
     try {
       const res = await fauteService.getAll();
       setTypeOptions(res.data.map(f => f.nom));
-    } catch { setTypeOptions([]); }
+    } catch (err) {
+      console.error("Erreur chargement fautes:", err);
+    }
   };
 
-  const loadDraft = () => {
+  // ── Données principales ──
+  const loadData = async () => {
     try {
-      const draft = localStorage.getItem(`entretien-decision-draft-${matricule}`);
-      if (!draft) return;
-      const parsed = JSON.parse(draft);
-      setFormData(prev => ({ ...prev, ...parsed }));
-      if (parsed.id) setCurrentEntretienId(parsed.id);
-      setStatusMessage("Brouillon chargé avec succès.");
-    } catch (err) { console.warn("Brouillon non chargeable:", err); }
+      setLoading(true);
+      const collabRes = await collaboratorService.getById(matricule);
+      setCollaborator(collabRes.data);
+
+      try {
+        const res = await entretienService.getByMatricule(matricule);
+        const liste = Array.isArray(res.data) ? res.data : [];
+        if (liste.length > 0) {
+          const dernier = liste.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+          setResumeN1({
+            typeFaute: dernier.typeFaute || "–",
+            dateFaute: dernier.dateFaute,
+            causeFaute: dernier.description || "–",
+            mesuresCorrectives: dernier.mesuresCorrectives || "–",
+            commentaire: dernier.commentaire || "–",
+          });
+        } else {
+          setResumeN1(null);
+        }
+      } catch {
+        setResumeN1(null);
+      }
+
+      try {
+        const res = await entretienDaccordService.getByMatricule(matricule);
+        const liste = Array.isArray(res.data) ? res.data : [];
+        if (liste.length > 0) {
+          const dernier = liste.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+          setResumeN2({
+            typeFaute: dernier.typeFaute || "–",
+            date: dernier.date,
+            causeFaute: dernier.causeFaute || "–",
+            mesuresProposees: dernier.mesuresProposees || "–",
+          });
+        } else {
+          setResumeN2(null);
+        }
+      } catch {
+        setResumeN2(null);
+      }
+
+      try {
+        const res = await entretienMesureService.getByMatricule(matricule);
+        const liste = Array.isArray(res.data) ? res.data : [];
+        if (liste.length > 0) {
+          const dernier = liste.sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))[0];
+          setResumeN3({
+            typeFaute: dernier.typeFaute || "–",
+            date: dernier.dateEntretien,
+            planAction: dernier.planAction || "–",
+          });
+        } else {
+          setResumeN3(null);
+        }
+      } catch {
+        setResumeN3(null);
+      }
+
+      await loadAllEntretiens();
+    } catch (err) {
+      setError("Impossible de charger les informations.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const loadResumes = async () => {
-    try {
-      const n1 = await entretienService.getByMatricule(matricule);
-      const n2 = await entretienDaccordService.getByMatricule(matricule);
-      const n3 = await entretienMesureService.getByMatricule(matricule);
-      setResumeN1(n1.data?.at(-1) || null);
-      setResumeN2(n2.data?.at(-1) || null);
-      setResumeN3(n3.data?.at(-1) || null);
-    } catch (e) { console.error(e); }
-  };
-
+  // ── Liste entretiens ──
   const loadAllEntretiens = async () => {
     try {
       const res = await entretienDecisionService.getByMatricule(matricule);
       const list = Array.isArray(res.data) ? res.data : [];
       setEntretiensList(list);
-      
       if (list.length > 0) {
         const dernier = list.sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))[0];
         chargerEntretienDansFormulaire(dernier);
+        setValideSL(dernier.valideSL || false);
+        setValideHPSGL(dernier.valideHPSGL || false);
+        setValideQMPlant(dernier.valideQMPlant || false);
+        console.log("Statuts - valideSL:", dernier.valideSL, "valideHPSGL:", dernier.valideHPSGL, "valideQMPlant:", dernier.valideQMPlant);
+      } else {
+        resetForm();
       }
     } catch (err) {
       console.warn("Impossible de charger les entretiens de décision:", err);
@@ -422,7 +343,6 @@ export default function EntretienDeDecision({ niveau = 4 }) {
 
   const chargerEntretienDansFormulaire = (entretien) => {
     if (!entretien) return;
-    
     setCurrentEntretienId(entretien.id);
     setFormData({
       typeFaute: entretien.typeFaute || "",
@@ -430,639 +350,615 @@ export default function EntretienDeDecision({ niveau = 4 }) {
       decision: entretien.decision || "",
       justification: entretien.justification || "",
     });
-    
     if (entretien.typeFaute && !typeOptions.includes(entretien.typeFaute)) {
       setTypeOptions(prev => [...prev, entretien.typeFaute]);
     }
-    
-    setStatusMessage("Entretien chargé avec succès.");
-    setTimeout(() => setStatusMessage(""), 3000);
   };
 
-  const handleChange = (e) => {
+  // ── Brouillon ──
+  const loadDraft = () => {
+    try {
+      const draft = localStorage.getItem(`entretien-decision-draft-${matricule}`);
+      if (!draft) return;
+      const parsed = JSON.parse(draft);
+      setFormData(prev => ({ ...prev, ...parsed }));
+      if (parsed.id) setCurrentEntretienId(parsed.id);
+    } catch (err) {
+      console.warn("Brouillon non chargeable:", err);
+    }
+  };
+
+  const handleChange = e => {
+    if (!canModify && userRole !== "HP" && userRole !== "SGL" && userRole !== "QM_PLANT") {
+      showErrorAlert("Permission refusée", "Vous n'avez pas les droits.");
+      return;
+    }
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const addTypeOption = async () => {
-    if (!defautTypeInput.trim()) return;
-    try {
-      const res = await fauteService.create({ nom: defautTypeInput });
-      const nom = res.data.nom;
-      setTypeOptions(prev => [...prev, nom]);
-      setFormData(prev => ({ ...prev, typeFaute: nom }));
-      setShowDefautModal(false);
-      setDefautTypeInput("");
-      setStatusMessage("Type de faute ajouté avec succès.");
-      showSuccessToast("Faute ajoutée");
-    } catch { setError("Erreur ajout faute"); showErrorAlert("Ajout impossible", "Erreur lors de l'ajout du type de faute."); }
-  };
-
-  const handleEnregistrer = () => {
-    setSavingDraft(true);
-    try {
-      const payload = { ...formData, id: currentEntretienId };
-      localStorage.setItem(`entretien-decision-draft-${matricule}`, JSON.stringify(payload));
-      setStatusMessage("Brouillon enregistré avec succès.");
-      showSuccessToast("Brouillon enregistré");
-      setTimeout(() => setStatusMessage(""), 3000);
-    } catch { setError("Impossible d'enregistrer le brouillon."); showErrorAlert("Brouillon non enregistré", "Impossible d'enregistrer le brouillon."); }
-    finally { setSavingDraft(false); }
-  };
-
-  const handleAjouter = () => {
-    resetForm();
-    setStatusMessage("Nouveau formulaire prêt.");
-    showInfoToast("Formulaire réinitialisé");
-    setTimeout(() => setStatusMessage(""), 2000);
-  };
-
+  // ── Bouton MODIFIER (SL uniquement) ──
   const handleModifier = async () => {
+    if (!canModify) {
+      showErrorAlert("Permission refusée", "Seuls les SL peuvent modifier un entretien.");
+      return;
+    }
     if (entretiensList.length === 0) {
       setError("Aucun entretien de décision existant à modifier.");
       return;
     }
     const dernier = entretiensList.sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))[0];
     chargerEntretienDansFormulaire(dernier);
-    showInfoToast("Dernier entretien chargé");
+    showInfoToast("Dernier entretien chargé pour modification");
   };
 
-  const handleDeleteConfirm = async (destinataireEmail, message) => {
+  // ── Bouton BROUILLON (SL uniquement) ──
+  const handleEnregistrer = () => {
+    if (!canModify) {
+      showErrorAlert("Permission refusée", "Seuls les SL peuvent enregistrer un brouillon.");
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      const payload = { ...formData, id: currentEntretienId };
+      localStorage.setItem(`entretien-decision-draft-${matricule}`, JSON.stringify(payload));
+      setStatusMessage("Brouillon enregistré avec succès.");
+      showSuccessToast("Brouillon enregistré");
+    } catch {
+      showErrorAlert("Brouillon non enregistré", "Impossible d'enregistrer le brouillon.");
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  // ── Validation SL : création/modification + email aux destinataires ──
+  const handleSLValidation = async (destinatairesEmails) => {
     setShowEmailModal(false);
     setSaving(true);
-
     try {
-      const nomCollab = collaborator ? `${collaborator.name} ${collaborator.prenom}` : matricule;
-      
-      await entretienDecisionService.deleteWithNotification(matricule, currentEntretienId, destinataireEmail, nomCollab);
-      
-      resetForm();
+      const entretienData = {
+        typeFaute: formData.typeFaute,
+        dateEntretien: formData.dateEntretien,
+        decision: formData.decision,
+        justification: formData.justification || "",
+        destinatairesEmails: destinatairesEmails,
+      };
+
+      if (currentEntretienId) {
+        await entretienDecisionService.update(matricule, currentEntretienId, entretienData);
+        await entretienDecisionService.validerParSL(matricule, currentEntretienId, entretienData);
+      } else {
+        const response = await entretienDecisionService.create(matricule, entretienData);
+        if (response?.data?.id) {
+          await entretienDecisionService.validerParSL(matricule, response.data.id, entretienData);
+        }
+      }
+
+      const nbDestinataires = destinatairesEmails.length;
+      setStatusMessage(`Entretien validé. Email envoyé à ${nbDestinataires} destinataire(s).`);
+      await showSuccessAlert("Entretien soumis", `L'email de convocation a été envoyé à ${nbDestinataires} destinataire(s).`);
+      localStorage.removeItem(`entretien-decision-draft-${matricule}`);
       await loadAllEntretiens();
-      setStatusMessage("Entretien de décision supprimé avec succès. Email envoyé.");
-      await showSuccessAlert("Entretien supprimé", "L'entretien de décision a bien été supprimé.");
       setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
     } catch (err) {
-      setError("Erreur lors de la suppression : " + (err.response?.data?.message || err.message));
-      showErrorAlert("Suppression impossible", err.response?.data?.message || err.message);
+      console.error(err);
+      showErrorAlert("Enregistrement impossible", err.response?.data?.message || err.message);
     } finally {
       setSaving(false);
     }
   };
 
-  // ✅ CORRECTION: Fonction submitWithEmails corrigée
-  const submitWithEmails = async (emails, message) => {
-    console.log("=== submitWithEmails ===");
-    console.log("Emails sélectionnés:", emails);
-    console.log("Message:", message);
-    console.log("Modal action:", modalAction);
-    console.log("Current entretien ID:", currentEntretienId);
-    
-    setShowEmailModal(false);
-    setPendingSubmit(true);
-    
-    try {
-      if (!formData.typeFaute) {
-        throw new Error("Le type de faute est obligatoire");
-      }
-      if (!formData.decision) {
-        throw new Error("La décision est obligatoire");
-      }
-      
-      // ✅ Correction: Envoyer la liste d'emails directement (pas de join)
-      // ✅ Correction: Utiliser messageOptionnel au lieu de message
-      const payload = { 
-        typeFaute: formData.typeFaute,
-        dateEntretien: formData.dateEntretien,
-        decision: formData.decision,
-        justification: formData.justification || "",
-        destinatairesEmails: emails,  // Envoyer comme tableau
-        messageOptionnel: message || ""  // Nom correct du champ
-      };
-      
-      console.log("Payload envoyé:", JSON.stringify(payload, null, 2));
-      
-      let response;
-      
-      if (modalAction === "validationSL" && currentEntretienId) {
-        console.log("Appel à validerParSL");
-        response = await entretienDecisionService.validerParSL(matricule, currentEntretienId, payload);
-        setStatusMessage(`Entretien soumis. Emails envoyés à ${emails.length} destinataire(s).`);
-        await showSuccessAlert("Entretien soumis", `${emails.length} email(s) envoyé(s).`);
-      } 
-      else if (modalAction === "modification" && currentEntretienId) {
-        console.log("Appel à updateWithNotification");
-        response = await entretienDecisionService.updateWithNotification(matricule, currentEntretienId, payload);
-        setStatusMessage("Entretien modifié avec succès.");
-        await showSuccessAlert("Entretien modifié", "La modification a été enregistrée.");
-      }
-      else if (modalAction === "création" && !currentEntretienId) {
-        console.log("Appel à create");
-        response = await entretienDecisionService.create(matricule, payload);
-        if (response.data && response.data.id) {
-          setCurrentEntretienId(response.data.id);
-        }
-        setStatusMessage("Entretien créé avec succès.");
-        await showSuccessAlert("Entretien créé", "L'entretien de décision a été créé.");
-      }
-      else {
-        throw new Error(`Action non reconnue: ${modalAction}, currentId: ${currentEntretienId}`);
-      }
-      
-      console.log("Réponse backend:", response);
-      
-      localStorage.removeItem(`entretien-decision-draft-${matricule}`);
-      await loadAllEntretiens();
-      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 2000);
-      
-    } catch (err) {
-      console.error("Erreur détaillée:", err);
-      let errorMessage = "Erreur lors de la sauvegarde";
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      setError(errorMessage);
-      showErrorAlert("Enregistrement impossible", errorMessage);
-    } finally { 
-      setPendingSubmit(false);
-    }
-  };
-
-  const submitWithoutEmail = async () => {
-    console.log("=== submitWithoutEmail ===");
-    console.log("User role:", userRole);
-    console.log("Current entretien ID:", currentEntretienId);
-    
+  // ── Validation HP/SGL (1ère validation) ──
+  const handleValidationHPSGL = async () => {
     setSaving(true);
-    
     try {
-      if (!formData.typeFaute) {
-        throw new Error("Le type de faute est obligatoire");
-      }
-      if (!formData.decision) {
-        throw new Error("La décision est obligatoire");
-      }
-      
-      const payload = { 
+      const entretienData = {
         typeFaute: formData.typeFaute,
         dateEntretien: formData.dateEntretien,
         decision: formData.decision,
         justification: formData.justification || "",
       };
-      
-      console.log("Payload validation sans email:", payload);
 
-      if ((userRole === "HP" || userRole === "SGL") && currentEntretienId) {
-        console.log("Appel à valider1 (HP/SGL)");
-        await entretienDecisionService.valider1(matricule, currentEntretienId, payload);
-        setStatusMessage("Entretien de décision validé (1ère validation).");
-        await showSuccessAlert("Validation enregistrée", "Première validation effectuée.");
-      } 
-      else if (userRole === "QM_PLANT" && currentEntretienId) {
-        console.log("Appel à valider2 (QM_PLANT)");
-        await entretienDecisionService.valider2(matricule, currentEntretienId, payload);
-        setStatusMessage("Entretien de décision validé (2ème validation).");
-        await showSuccessAlert("Validation enregistrée", "L'entretien de décision est validé.");
-      }
-      else {
-        throw new Error(`Action non autorisée pour le rôle: ${userRole}`);
-      }
-      
+      await entretienDecisionService.valider1(matricule, currentEntretienId, entretienData);
+
+      setValideHPSGL(true);
+      setStatusMessage("Entretien de décision validé (1ère validation HP/SGL).");
+      await showSuccessAlert(
+        "Validation enregistrée",
+        "La validation HP/SGL a été enregistrée."
+      );
+
       localStorage.removeItem(`entretien-decision-draft-${matricule}`);
       await loadAllEntretiens();
-      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 2000);
-      
+      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
     } catch (err) {
-      console.error("Erreur détaillée:", err);
-      let errorMessage = "Erreur lors de la sauvegarde";
-      if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      setError(errorMessage);
-      showErrorAlert("Enregistrement impossible", errorMessage);
-    } finally { 
+      console.error(err);
+      showErrorAlert("Validation impossible", err.response?.data?.message || err.message);
+    } finally {
       setSaving(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(""); 
+  // ── Validation QM_PLANT (2ème validation) ──
+  const handleValidationQMPlant = async () => {
+    setSaving(true);
+    try {
+      const entretienData = {
+        typeFaute: formData.typeFaute,
+        dateEntretien: formData.dateEntretien,
+        decision: formData.decision,
+        justification: formData.justification || "",
+      };
+
+      await entretienDecisionService.valider2(matricule, currentEntretienId, entretienData);
+
+      setValideQMPlant(true);
+      setStatusMessage("Entretien de décision validé (2ème validation QM_PLANT).");
+      await showSuccessAlert(
+        "Validation enregistrée",
+        "La validation QM_PLANT a été enregistrée. Passage au niveau supérieur."
+      );
+
+      localStorage.removeItem(`entretien-decision-draft-${matricule}`);
+      await loadAllEntretiens();
+      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
+    } catch (err) {
+      console.error(err);
+      showErrorAlert("Validation impossible", err.response?.data?.message || err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Bouton VALIDER (dispatch selon rôle) ──
+  const handleValider = () => {
+    setError("");
     setStatusMessage("");
 
-    console.log("=== handleSubmit ===");
-    console.log("User role:", userRole);
-    console.log("Current entretien ID:", currentEntretienId);
-    console.log("Form data:", formData);
-
     if (!formData.typeFaute) {
-      setError("Veuillez sélectionner un type de faute.");
+      setError("Le type de faute est obligatoire");
       return;
     }
     if (!formData.decision) {
-      setError("Veuillez saisir une décision.");
+      setError("La décision est obligatoire");
       return;
     }
 
     if (userRole === "SL") {
-      if (currentEntretienId) {
-        console.log("SL: ouverture modale pour validation/modification");
-        setModalAction("validationSL");
-        setShowEmailModal(true);
-      } else {
-        console.log("SL: ouverture modale pour création");
-        setModalAction("création");
-        setShowEmailModal(true);
-      }
-    } else if ((userRole === "HP" || userRole === "SGL") && currentEntretienId) {
-      console.log("HP/SGL: validation sans email");
-      await submitWithoutEmail();
-    } else if (userRole === "QM_PLANT" && currentEntretienId) {
-      console.log("QM_PLANT: validation sans email");
-      await submitWithoutEmail();
+      setShowEmailModal(true);
+    } else if (userRole === "HP" || userRole === "SGL") {
+      handleValidationHPSGL();
+    } else if (userRole === "QM_PLANT") {
+      handleValidationQMPlant();
     } else {
-      setError(`Action non autorisée pour votre rôle: ${userRole}`);
+      showErrorAlert("Permission refusée", "Action non autorisée pour votre rôle.");
     }
   };
 
-  const canCreate = userRole === "SL" || userRole === "ADMIN";
-  const canModify = userRole === "SL" || userRole === "ADMIN";
-  const canDelete = userRole === "SL" || userRole === "ADMIN";
-  const canValidate1 = (userRole === "HP" || userRole === "SGL") || userRole === "ADMIN";
-  const canValidate2 = userRole === "QM_PLANT" || userRole === "ADMIN";
-  
-  const isEditable = () => {
-    if (userRole === "ADMIN") return true;
-    if (userRole === "SL") return true;
-    return false;
+  // ── Ajout type faute ──
+  const addTypeOption = async () => {
+    if (!canModify) {
+      showErrorAlert("Permission refusée", "Seuls les SL peuvent ajouter un type de faute.");
+      return;
+    }
+    const value = defautTypeInput.trim();
+    if (!value) return;
+    try {
+      const res = await fauteService.create({ nom: value });
+      const newFaute = res.data;
+      setTypeOptions(prev => prev.includes(newFaute.nom) ? prev : [...prev, newFaute.nom]);
+      setFormData(prev => ({ ...prev, typeFaute: newFaute.nom }));
+      setDefautTypeInput("");
+      setShowDefautModal(false);
+      showSuccessToast("Faute ajoutée");
+    } catch {
+      showErrorAlert("Ajout impossible", "Erreur lors de l'ajout du type de faute.");
+    }
   };
 
-  const showModifyButton = () => {
-    if (userRole === "ADMIN" && currentEntretienId) return true;
-    if (userRole === "SL" && currentEntretienId) return true;
-    return false;
-  };
+  // ── Permissions ──────────────────────────────────────────────────────────────
+  const canModify = userRole === "SL";
+  const isEditable = userRole === "SL";
 
-  const estValideParHPSGL = () => entretiensList.some(e => e.statusHpSgl === "VALIDE");
-  const estValideParQMPlant = () => entretiensList.some(e => e.statusQmPlant === "VALIDE");
+  // SL peut valider si QM_PLANT n'a pas encore validé
+  const showValiderSL = userRole === "SL" && !valideQMPlant;
+
+  // HP/SGL peut valider si SL a soumis ET que HP/SGL n'a pas encore validé
+  const showValiderHPSGL = (userRole === "HP" || userRole === "SGL") && !!currentEntretienId && valideSL && !valideHPSGL && !valideQMPlant;
+
+  // QM_PLANT peut valider si SL a soumis ET HP/SGL a validé ET QM_PLANT pas encore validé
+  const showValiderQMPlant = userRole === "QM_PLANT" && !!currentEntretienId && valideSL && valideHPSGL && !valideQMPlant;
+
+  const showModifier = canModify && !!currentEntretienId && !valideQMPlant;
+  const showBrouillon = canModify && !valideQMPlant;
+  const showValider = showValiderSL || showValiderHPSGL || showValiderQMPlant;
 
   const getValiderLabel = () => {
-    if (saving || pendingSubmit) return "Enregistrement...";
-    if (userRole === "SL") {
-      if (currentEntretienId) return "📝 Valider & Convoquer";
-      return "➕ Créer & Convoquer";
-    }
-    if (userRole === "HP" || userRole === "SGL") {
-      return estValideParHPSGL() ? "✅ Déjà validé (1ère)" : "🔵 Valider (1ère validation)";
-    }
-    if (userRole === "QM_PLANT") {
-      return estValideParQMPlant() ? "✅ Déjà validé (2ème)" : "🟢 Valider (2ème validation)";
-    }
-    return "Valider";
+    if (saving) return "Enregistrement...";
+    if (userRole === "QM_PLANT") return "Valider (2ème validation)";
+    if (userRole === "HP" || userRole === "SGL") return "Valider (1ère validation)";
+    if (currentEntretienId) return "Modifier et valider";
+    return "Créer et valider";
   };
 
-  const isValiderDisabled = () => {
-    if (userRole === "HP" || userRole === "SGL") {
-      if (estValideParHPSGL()) return true;
-    }
-    if (userRole === "QM_PLANT") {
-      if (estValideParQMPlant()) return true;
-      if (!estValideParHPSGL()) return true;
-    }
-    return false;
+  const formatDate = dateStr => {
+    if (!dateStr) return "–";
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("fr-FR");
   };
 
-  const fmt = d => { if (!d) return "—"; try { return new Date(d).toLocaleDateString("fr-FR"); } catch { return d; } };
+  // ── Rendu ─────────────────────────────────────────────────────────────────────
+  if (loading)
+    return (
+      <div className="leoni-loading">
+        <div className="leoni-spinner"></div>
+        <p>Chargement...</p>
+      </div>
+    );
 
-  if (loading) return <div className="fd-loading">Chargement...</div>;
+  if (userRole === "ADMIN")
+    return (
+      <div className="leoni-shell">
+        <div className="leoni-alert leoni-alert-error">
+          Accès non autorisé.
+        </div>
+        <button onClick={() => navigate("/dashboard")} className="leoni-btn leoni-btn-primary">
+          Retour au tableau de bord
+        </button>
+      </div>
+    );
 
   return (
-    <div className="decision-root">
+    <div className="leoni-shell">
+
+      {/* ── Header ── */}
       <div className="leoni-header">
         <div className="leoni-header-left">
           <button onClick={() => navigate(`/paq-dossier/${matricule}`)} className="leoni-btn-back">
-            ← Retour au dossier
+            Retour
           </button>
         </div>
+
         <div className="leoni-header-title">
           <div className="leoni-logo-bar">
-            <div className="leoni-logo-accent" />
-            <h1>Entretien de Décision</h1>
+            <div className="leoni-logo-accent"></div>
+            <h1>Etape 4 : Entretien de Décision</h1>
           </div>
           {collaborator && (
             <span className="leoni-header-sub">
-              {collaborator.name} {collaborator.prenom} — {collaborator.matricule}
+              {collaborator.name || ""} {collaborator.prenom || ""} — {collaborator.matricule || matricule}
             </span>
           )}
+
+          {/* Badges de statut */}
+          {userRole === "SL" && !currentEntretienId && !valideQMPlant && (
+            <span className="leoni-badge-sl">Mode création (SL)</span>
+          )}
+          {userRole === "SL" && currentEntretienId && !valideSL && (
+            <span className="leoni-badge-sl">Mode modification & validation (SL)</span>
+          )}
+          {userRole === "SL" && valideSL && !valideHPSGL && !valideQMPlant && (
+            <span className="leoni-badge-sl">Soumis — en attente validation HP/SGL</span>
+          )}
+          {userRole === "SL" && valideHPSGL && !valideQMPlant && (
+            <span className="leoni-badge-sl">Validé HP/SGL — en attente validation QM_PLANT</span>
+          )}
+          {userRole === "HP" && currentEntretienId && valideSL && !valideHPSGL && !valideQMPlant && (
+            <span className="leoni-badge-hp">1ère validation (HP)</span>
+          )}
+          {userRole === "SGL" && currentEntretienId && valideSL && !valideHPSGL && !valideQMPlant && (
+            <span className="leoni-badge-sgl">1ère validation (SGL)</span>
+          )}
+          {userRole === "QM_PLANT" && currentEntretienId && valideSL && valideHPSGL && !valideQMPlant && (
+            <span className="leoni-badge-qm-plant">2ème validation (QM_PLANT)</span>
+          )}
+          {(userRole === "HP" || userRole === "SGL" || userRole === "QM_PLANT") && (!currentEntretienId || !valideSL) && (
+            <span className="leoni-badge-consult">Mode consultation</span>
+          )}
+          {valideQMPlant && (
+            <span className="leoni-badge-success">Entretien validé</span>
+          )}
         </div>
+
         <div className="leoni-header-actions" />
       </div>
 
-      <div style={{ padding: "0 24px", marginBottom: 16 }}>
-        {userRole === "SL" && (
-          <div className="leoni-alert leoni-alert-info" style={{ background: "#e3f2fd", padding: "12px", borderRadius: "8px", borderLeft: "4px solid #C8102E" }}>
-            📝 <strong>Mode SL</strong> : Vous pouvez créer, modifier et valider l'entretien. 
-            La validation envoie une convocation par email aux destinataires sélectionnés.
-          </div>
-        )}
-        {(userRole === "HP" || userRole === "SGL") && (
-          <div className="leoni-alert leoni-alert-info" style={{ background: "#e3f2fd", padding: "12px", borderRadius: "8px", borderLeft: "4px solid #C8102E" }}>
-            🔵 <strong>Mode {userRole}</strong> : Vous pouvez effectuer la <strong>1ère validation</strong>.
-            {estValideParHPSGL() ? " Cet entretien a déjà été validé." : " Aucun email n'est envoyé."}
-          </div>
-        )}
-        {userRole === "QM_PLANT" && (
-          <div className="leoni-alert leoni-alert-info" style={{ background: "#e3f2fd", padding: "12px", borderRadius: "8px", borderLeft: "4px solid #C8102E" }}>
-            🟢 <strong>Mode QM_PLANT</strong> : Vous pouvez effectuer la <strong>2ème validation</strong>.
-            {!estValideParHPSGL() && " (La validation HP/SGL est requise d'abord)"}
-            {estValideParQMPlant() && " Cet entretien a déjà été validé."}
-          </div>
-        )}
-      </div>
+      {statusMessage && <div className="leoni-alert leoni-alert-success">{statusMessage}</div>}
+      {error && <div className="leoni-alert leoni-alert-error">{error}</div>}
 
-      <div className="decision-page">
-        <aside className="decision-sidebar">
-          <div className="sd-card">
-            <div className="sd-card-hd">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="currentColor" strokeWidth="2"/>
-                <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2"/>
-              </svg>
-              Informations Collaborateur
-            </div>
-            <div className="sd-card-bd">
-              <div className="sd-avatar">
-                {`${collaborator?.name?.[0]||""}${collaborator?.prenom?.[0]||""}`.toUpperCase() || "?"}
-              </div>
-              <div className="sd-name">{collaborator?.name} {collaborator?.prenom}</div>
-              <div className="sd-info-grid">
-                <div className="sd-info-cell">
-                  <span className="sd-info-label">Matricule</span>
-                  <span className="sd-info-value">{collaborator?.matricule || "–"}</span>
+      <div className="leoni-grid-main">
+
+        {/* ── Colonne gauche ── */}
+        <div className="leoni-col-left">
+          {collaborator && (
+            <div className="leoni-card">
+              <div className="leoni-card-header">Informations Collaborateur</div>
+              <div className="leoni-card-body">
+                <div className="leoni-collab-avatar">
+                  {`${collaborator.name?.[0] || ""}${collaborator.prenom?.[0] || ""}`.toUpperCase()}
                 </div>
-                <div className="sd-info-cell">
-                  <span className="sd-info-label">Segment</span>
-                  <span className="sd-info-value">{collaborator?.segment || "–"}</span>
+                <div className="leoni-collab-name">
+                  {collaborator.name || "–"} {collaborator.prenom || ""}
                 </div>
-                <div className="sd-info-cell">
-                  <span className="sd-info-label">Date embauche</span>
-                  <span className="sd-info-value">{fmt(collaborator?.hireDate)}</span>
-                </div>
-                <div className="sd-info-cell">
-                  <span className="sd-info-label">Statut</span>
-                  <span className="sd-info-value green">{collaborator?.status || "ACTIF"}</span>
+                <div className="leoni-collab-info-grid">
+                  <div className="leoni-info-item">
+                    <span className="leoni-info-label">Matricule</span>
+                    <span className="leoni-info-value leoni-mono">{collaborator.matricule || "–"}</span>
+                  </div>
+                  <div className="leoni-info-item">
+                    <span className="leoni-info-label">Segment</span>
+                    <span className="leoni-info-value">{collaborator.segment || "–"}</span>
+                  </div>
+                  <div className="leoni-info-item">
+                    <span className="leoni-info-label">Date d'embauche</span>
+                    <span className="leoni-info-value leoni-mono">{formatDate(collaborator.hireDate)}</span>
+                  </div>
+                  <div className="leoni-info-item">
+                    <span className="leoni-info-label">Statut</span>
+                    <span className="leoni-info-value">{collaborator.status || "–"}</span>
+                  </div>
                 </div>
               </div>
             </div>
+          )}
+
+          <div className="leoni-card">
+            <div className="leoni-card-header">Résumé — Entretien de mesure (N3)</div>
+            <div className="leoni-card-body">
+              {resumeN3 ? (
+                <div className="leoni-form-stack">
+                  <div className="leoni-form-group">
+                    <label>Type faute :</label>
+                    <p className="leoni-readonly">{resumeN3.typeFaute || "–"}</p>
+                  </div>
+                  <div className="leoni-form-group">
+                    <label>Date :</label>
+                    <p className="leoni-readonly">{formatDate(resumeN3.date)}</p>
+                  </div>
+                  <div className="leoni-form-group">
+                    <label>Plan d'action :</label>
+                    <p className="leoni-readonly">{resumeN3.planAction || "–"}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="leoni-muted">Aucun entretien de mesure trouvé.</p>
+              )}
+            </div>
           </div>
 
+          {/* Statut des validations */}
           {currentEntretienId && (
-            <div className="sd-card">
-              <div className="sd-card-hd">Statut des validations</div>
-              <div className="sd-card-bd">
-                <div className="sd-info-cell">
-                  <span className="sd-info-label">SL</span>
-                  <span className={`sd-info-value`}>
-                    {currentEntretienId ? "✅ Soumis" : "⏳ En attente"}
+            <div className="leoni-card">
+              <div className="leoni-card-header">Statut des validations</div>
+              <div className="leoni-card-body">
+                <div className="leoni-info-item">
+                  <span className="leoni-info-label">SL</span>
+                  <span className={`leoni-info-value ${valideSL ? 'text-success' : 'text-warning'}`}>
+                    {valideSL ? "✅ Soumis" : "⏳ En attente"}
                   </span>
                 </div>
-                <div className="sd-info-cell">
-                  <span className="sd-info-label">HP/SGL (1ère)</span>
-                  <span className={`sd-info-value ${estValideParHPSGL() ? 'text-success' : 'text-warning'}`}>
-                    {estValideParHPSGL() ? "✅ Validé" : "⏳ En attente"}
+                <div className="leoni-info-item">
+                  <span className="leoni-info-label">HP/SGL (1ère)</span>
+                  <span className={`leoni-info-value ${valideHPSGL ? 'text-success' : 'text-warning'}`}>
+                    {valideHPSGL ? "✅ Validé" : valideSL ? "⏳ En attente" : "🔒 Bloqué"}
                   </span>
                 </div>
-                <div className="sd-info-cell">
-                  <span className="sd-info-label">QM_PLANT (2ème)</span>
-                  <span className={`sd-info-value ${estValideParQMPlant() ? 'text-success' : 'text-warning'}`}>
-                    {estValideParQMPlant() ? "✅ Validé" : estValideParHPSGL() ? "⏳ En attente" : "🔒 Bloqué"}
+                <div className="leoni-info-item">
+                  <span className="leoni-info-label">QM_PLANT (2ème)</span>
+                  <span className={`leoni-info-value ${valideQMPlant ? 'text-success' : 'text-warning'}`}>
+                    {valideQMPlant ? "✅ Validé" : valideHPSGL ? "⏳ En attente" : "🔒 Bloqué"}
                   </span>
                 </div>
               </div>
             </div>
           )}
-        </aside>
+        </div>
 
-        <div className="decision-main">
-          <div className="resume-row">
-            {[
-              { title: "Entretien 1 — Explicatif", data: resumeN1, labelKey: "Mesures correctives", valKey: v => v.mesuresCorrectives || "–" },
-              { title: "Entretien 2 — Accord",     data: resumeN2, labelKey: "Mesures correctives proposées", valKey: v => v.mesuresProposees   || "–" },
-              { title: "Entretien 3 — Mesure",     data: resumeN3, labelKey: "Plan d'action", valKey: v => v.planAction || "–" },
-            ].map((r, i) => (
-              <div key={i} className="resume-mini-card">
-                <div className="resume-mini-hd">{r.title}</div>
-                <div className="resume-mini-bd">
-                  {r.data ? (
-                    <>
-                      <div className="resume-mini-line">
-                        <span className="resume-mini-lbl">Faute</span>
-                        <span className="resume-mini-val">{r.data.typeFaute || "–"}</span>
-                      </div>
-                      <div className="resume-mini-line">
-                        <span className="resume-mini-lbl">Date</span>
-                        <span className="resume-mini-val">{fmt(r.data.date || r.data.dateFaute || r.data.dateEntretien)}</span>
-                      </div>
-                      <div className="resume-mini-line">
-                        <span className="resume-mini-lbl">{r.labelKey}</span>
-                        <span className="resume-mini-val">{r.valKey(r.data)}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="resume-mini-none">Aucun entretien trouvé</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* ── Colonne droite : Formulaire ── */}
+        <div className="leoni-col-right">
+          <div className="leoni-card">
+            <div className="leoni-card-header">Formulaire</div>
+            <div className="leoni-card-body">
+              <div className="leoni-form-stack">
 
-          {statusMessage && (
-            <div className="fd-alert fd-alert-ok">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              {statusMessage}
-            </div>
-          )}
-          {error && (
-            <div className="fd-alert fd-alert-err">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              {error}
-            </div>
-          )}
-
-          <div className="form-main-card">
-            <div className="leoni-card-header">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              Formulaire
-            </div>
-
-            <div className="form-main-bd">
-              <form onSubmit={handleSubmit}>
-                <div className="fd-group">
-                  <label className="fd-label">Type de faute <span className="req">*</span></label>
-                  <div className="fd-faute-row">
-                    <div className="fd-dw">
-                      <input type="text" className="fd-inp" placeholder="Rechercher ou sélectionner une faute..."
+                {/* Type de faute */}
+                <div className="leoni-form-group">
+                  <label>Type de faute *</label>
+                  <div className="leoni-inline">
+                    {isEditable && !valideQMPlant && (
+                      <button
+                        type="button"
+                        className="leoni-btn leoni-btn-warning leoni-btn-sm"
+                        onClick={() => setShowDefautModal(true)}
+                      >
+                        + Ajouter faute
+                      </button>
+                    )}
+                    <div className="leoni-dropdown-container" style={{ flex: 1 }}>
+                      <input
+                        type="text"
+                        className="leoni-input"
+                        placeholder="Rechercher ou sélectionner une faute..."
                         value={formData.typeFaute}
-                        onChange={e => { setFormData(p => ({...p, typeFaute: e.target.value})); setShowDropdown(true); }}
+                        onChange={e => {
+                          setFormData(prev => ({ ...prev, typeFaute: e.target.value }));
+                          setSearch(e.target.value);
+                          setShowDropdown(true);
+                        }}
                         onFocus={() => setShowDropdown(true)}
-                        disabled={!isEditable()}
+                        disabled={valideQMPlant || (!isEditable && userRole !== "HP" && userRole !== "SGL" && userRole !== "QM_PLANT")}
                       />
-                      {showDropdown && typeOptions.length > 0 && (
-                        <div className="fd-dlist">
-                          {typeOptions.filter(o => o.toLowerCase().includes(formData.typeFaute.toLowerCase()))
-                            .map((o, i) => (
-                              <div key={i} className="fd-ditem" onMouseDown={() => { setFormData(p => ({...p, typeFaute: o})); setShowDropdown(false); }}>
-                                {o}
+                      {showDropdown && !valideQMPlant && (
+                        <div className="leoni-dropdown">
+                          {filteredFautes.length > 0 ? (
+                            filteredFautes.map((f, index) => (
+                              <div key={index} className="leoni-dropdown-item" onClick={() => {
+                                setFormData(prev => ({ ...prev, typeFaute: f }));
+                                setSearch(f);
+                                setShowDropdown(false);
+                              }}>
+                                {f}
                               </div>
-                            ))}
+                            ))
+                          ) : (
+                            <div className="leoni-dropdown-empty">Aucun résultat</div>
+                          )}
                         </div>
                       )}
                     </div>
-                    <button 
-                      type="button" 
-                      className="fd-btn-add" 
-                      onClick={() => setShowDefautModal(true)}
-                      disabled={!isEditable()}
-                    >
-                      + Ajouter Faute
-                    </button>
                   </div>
                 </div>
 
-                <div className="fd-row2">
-                  <div className="fd-group">
-                    <label className="fd-label">Date entretien</label>
-                    <input 
-                      type="date" 
-                      name="dateEntretien" 
-                      className="fd-inp" 
-                      value={formData.dateEntretien} 
-                      onChange={handleChange}
-                      disabled={!isEditable()}
-                    />
-                  </div>
-                  <div className="fd-group">
-                    <label className="fd-label">Décision <span className="req">*</span></label>
-                    <select 
-                      name="decision" 
-                      className="fd-sel" 
-                      value={formData.decision} 
-                      onChange={handleChange}
-                      disabled={!isEditable() && userRole !== "HP" && userRole !== "SGL" && userRole !== "QM_PLANT"}
-                    >
-                      <option value="">— Choisir —</option>
-                      <option>Avertissement</option>
-                      <option>Formation</option>
-                      <option>Mutation</option>
-                      <option>Suspension</option>
-                      <option>Licenciement</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="fd-group">
-                  <label className="fd-label">Justification</label>
-                  <textarea 
-                    name="justification" 
-                    className="fd-ta" 
-                    rows={3}
-                    value={formData.justification} 
+                {/* Date */}
+                <div className="leoni-form-group">
+                  <label>Date entretien *</label>
+                  <input
+                    type="date"
+                    name="dateEntretien"
+                    value={formData.dateEntretien}
                     onChange={handleChange}
-                    placeholder="Motivez la décision prise lors de cet entretien..."
-                    disabled={!isEditable()}
+                    className="leoni-input"
+                    disabled={valideQMPlant || (!isEditable && userRole !== "HP" && userRole !== "SGL" && userRole !== "QM_PLANT")}
+                    required
                   />
                 </div>
 
-                <div className="fd-actions">
-                  {(canCreate || canModify) && (
-                    <button type="button" className="fd-btn fd-btn-draft" onClick={handleEnregistrer} disabled={savingDraft}>
-                      {savingDraft ? "Enregistrement..." : "💾 Enregistrer Brouillon"}
+                {/* Décision */}
+                <div className="leoni-form-group">
+                  <label>Décision </label>
+                  <select
+                    name="decision"
+                    value={formData.decision}
+                    onChange={handleChange}
+                    className="leoni-input"
+                    disabled={valideQMPlant || (!isEditable && userRole !== "HP" && userRole !== "SGL" && userRole !== "QM_PLANT")}
+                    required
+                  >
+                    <option value="">— Sélectionnez une décision —</option>
+                    <option value="Avertissement">Avertissement</option>
+                    <option value="Formation">Formation</option>
+                    <option value="Mutation">Mutation</option>
+                    <option value="Suspension">Suspension</option>
+                    <option value="Licenciement">Licenciement</option>
+                  </select>
+                </div>
+
+                {/* Justification */}
+                <div className="leoni-form-group">
+                  <label>Justification</label>
+                  <textarea
+                    name="justification"
+                    value={formData.justification}
+                    onChange={handleChange}
+                    className="leoni-textarea"
+                    rows="3"
+                    disabled={valideQMPlant || (!isEditable && userRole !== "HP" && userRole !== "SGL" && userRole !== "QM_PLANT")}
+                    placeholder="Motivez la décision prise lors de cet entretien..."
+                  />
+                </div>
+
+                {/* Barre d'actions */}
+                <div className="leoni-form-actions">
+                  {showBrouillon && (
+                    <button
+                      type="button"
+                      className="leoni-btn leoni-btn-outline-dark"
+                      onClick={handleEnregistrer}
+                      disabled={savingDraft}
+                    >
+                      {savingDraft ? "Enregistrement..." : "Brouillon"}
                     </button>
                   )}
-                  
-                  {canCreate && !currentEntretienId && (
-                    <button type="button" className="fd-btn fd-btn-ajouter" onClick={handleAjouter}>
-                      ➕ Ajouter
-                    </button>
-                  )}
-                  
-                  {showModifyButton() && (
-                    <button type="button" className="fd-btn fd-btn-modifier" onClick={handleModifier} disabled={savingDraft}>
-                      📝 Modifier
-                    </button>
-                  )}
-                  
-                  {(canCreate || canValidate1 || canValidate2) && (
-                    <button 
-                      type="submit" 
-                      className="fd-btn fd-btn-valider" 
-                      disabled={saving || pendingSubmit || isValiderDisabled()}
-                      title={isValiderDisabled() ? "Validation déjà effectuée ou conditions non remplies" : ""}
-                      style={{
-                        background: "#C8102E",
-                        color: "white"
-                      }}
+                  {showValider && (
+                    <button
+                      type="button"
+                      className="leoni-btn leoni-btn-primary"
+                      onClick={handleValider}
+                      disabled={saving}
                     >
                       {getValiderLabel()}
                     </button>
                   )}
-                  
-                  {canDelete && currentEntretienId && (
-                    <button 
-                      type="button" 
-                      className="fd-btn fd-btn-supprimer" 
-                      onClick={() => {
-                        setModalAction("suppression");
-                        setShowEmailModal(true);
-                      }}
-                    >
-                      🗑️ Supprimer
-                    </button>
+
+                  {/* Messages consultation */}
+                  {(userRole === "HP" || userRole === "SGL") && currentEntretienId && !valideSL && (
+                    <div className="leoni-muted" style={{ padding: "8px 0" }}>
+                      En attente de la soumission par le SL.
+                    </div>
                   )}
-                  
-                  <button type="button" className="fd-btn fd-btn-annuler" onClick={() => navigate(`/paq-dossier/${matricule}`)}>
-                    Annuler
-                  </button>
+                  {(userRole === "HP" || userRole === "SGL") && currentEntretienId && valideSL && !valideHPSGL && !valideQMPlant && (
+                    <div className="leoni-muted" style={{ padding: "8px 0" }}>
+                      1ère validation disponible.
+                    </div>
+                  )}
+                  {userRole === "QM_PLANT" && currentEntretienId && valideSL && valideHPSGL && !valideQMPlant && (
+                    <div className="leoni-muted" style={{ padding: "8px 0" }}>
+                      2ème validation disponible.
+                    </div>
+                  )}
+                  {userRole === "QM_PLANT" && currentEntretienId && (!valideSL || !valideHPSGL) && (
+                    <div className="leoni-muted" style={{ padding: "8px 0" }}>
+                      En attente des validations précédentes.
+                    </div>
+                  )}
+                  {!currentEntretienId && !canModify && userRole !== "HP" && userRole !== "SGL" && userRole !== "QM_PLANT" && (
+                    <div className="leoni-muted" style={{ padding: "8px 0" }}>
+                      Aucun entretien de décision trouvé pour ce collaborateur.
+                    </div>
+                  )}
                 </div>
-              </form>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Modal Email (SL uniquement) */}
       <EmailModal
         isOpen={showEmailModal}
-        onClose={() => {
-          setShowEmailModal(false);
-          setModalAction("création");
-        }}
-        onConfirm={modalAction === "suppression" ? handleDeleteConfirm : submitWithEmails}
+        onClose={() => setShowEmailModal(false)}
+        onConfirm={handleSLValidation}
         usersList={usersList}
         loadingUsers={loadingUsers}
-        action={modalAction}
       />
 
+      {/* Modal Ajout faute */}
       {showDefautModal && (
-        <div className="fd-moverlay" onClick={() => setShowDefautModal(false)}>
-          <div className="fd-modal" onClick={e => e.stopPropagation()}>
-            <h3>Ajouter un type de faute</h3>
-            <label className="fd-label">Nom du type de faute</label>
-            <input className="fd-inp" style={{marginTop:6}} value={defautTypeInput}
-              onChange={e => setDefautTypeInput(e.target.value)} placeholder="Saisir un nouveau type de faute"
-              onKeyDown={e => e.key === "Enter" && addTypeOption()} autoFocus/>
-            <div className="fd-modal-acts">
-              <button className="fd-mbtn-cancel" onClick={() => setShowDefautModal(false)}>Annuler</button>
-              <button className="fd-mbtn-ok" onClick={addTypeOption} disabled={!defautTypeInput.trim()}>Ajouter</button>
+        <div className="leoni-modal-overlay" onClick={() => setShowDefautModal(false)}>
+          <div className="leoni-modal" onClick={e => e.stopPropagation()}>
+            <div className="leoni-modal-header">
+              <div>
+                <h3>Ajouter une faute</h3>
+                <p>Enregistrer un nouveau type de faute</p>
+              </div>
+              <button className="leoni-modal-close" onClick={() => setShowDefautModal(false)}>✕</button>
+            </div>
+            <div className="leoni-modal-body">
+              <div className="leoni-form-group">
+                <label>Type de faute</label>
+                <input
+                  type="text"
+                  value={defautTypeInput}
+                  onChange={e => setDefautTypeInput(e.target.value)}
+                  className="leoni-input"
+                  placeholder="Saisir un nouveau type de faute"
+                  onKeyDown={e => e.key === "Enter" && addTypeOption()}
+                />
+              </div>
+            </div>
+            <div className="leoni-modal-footer">
+              <button type="button" className="leoni-btn leoni-btn-outline" onClick={() => setShowDefautModal(false)}>
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="leoni-btn leoni-btn-warning"
+                onClick={addTypeOption}
+                disabled={!defautTypeInput.trim()}
+              >
+                Ajouter
+              </button>
             </div>
           </div>
         </div>

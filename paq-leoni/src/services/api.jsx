@@ -98,6 +98,22 @@ export const userService = {
       resetPassword: (userId, data) => API.patch(`/api/users/${userId}/reset-password`, data),
   resetPasswordByAdmin: (userId, newPassword) => 
     API.patch(`/api/users/${userId}/reset-password-admin`, { newPassword }),
+
+   // Récupérer les emails par Site et Plant
+  getEmailsBySiteAndPlant: (siteId, plantId) => 
+    API.get(`/api/users/emails/by-site-plant?siteId=${siteId}&plantId=${plantId}`),
+  
+  // Récupérer les emails par Site
+  getEmailsBySite: (siteId) => 
+    API.get(`/api/users/emails/by-site?siteId=${siteId}`),
+  
+  // Récupérer les emails par Plant
+  getEmailsByPlant: (plantId) => 
+    API.get(`/api/users/emails/by-plant?plantId=${plantId}`),
+  
+  // Récupérer les emails par plusieurs Sites et Plants
+  getEmailsBySitesAndPlants: (siteIds, plantIds) => 
+    API.post(`/api/users/emails/by-sites-plants`, { siteIds, plantIds }),
 };
 
 // ------------------ Segment Service ------------------
@@ -214,15 +230,12 @@ export const entretienDaccordService = {
   update: (matricule, id, data) =>
     API.put(`/api/entretiens-daccord/${matricule}/${id}`, data),
  
-  updateWithNotification: (matricule, id, data) =>
-    API.put(`/api/entretiens-daccord/${matricule}/${id}`, data),
- 
-  // ✅ SL soumet pour validation → email à QM_SEGMENT
+  // SL soumet pour validation (envoi email)
   validerPremiere: (matricule, id, data) =>
     API.post(`/api/entretiens-daccord/${matricule}/${id}/valider-premiere`, data),
  
-  // ✅ QM_SEGMENT valide finalement → email à SL
-  valider: (matricule, id, data) =>
+  // QM_SEGMENT valide finalement (sans email) - met à jour le PAQ
+  validerFinale: (matricule, id, data) =>
     API.post(`/api/entretiens-daccord/${matricule}/${id}/valider`, data),
  
   getByMatricule: (matricule) =>
@@ -230,21 +243,16 @@ export const entretienDaccordService = {
  
   getById: (id) =>
     API.get(`/api/entretiens-daccord/${id}`),
- 
- 
 };
-
 // ------------------ Entretien Explicatif Service ------------------
 const API_URL = "/api/entretiens";
 
 export const entretienService = {
-   create: (matricule, data) => API.post(`/api/entretiens/${matricule}?niveau=1`, data),
+ create: (matricule, data) => API.post(`/api/entretiens/${matricule}?niveau=1`, data),
   update: (matricule, id, data) => API.put(`/api/entretiens/${matricule}/${id}?niveau=1`, data),
-  updateWithNotification: (matricule, id, data) =>
-    API.put(`/api/entretiens/${matricule}/${id}?niveau=1`, data),
   getByMatricule: (matricule) => API.get(`/api/entretiens/matricule/${matricule}`),
   getById: (id) => API.get(`/api/entretiens/${id}`),
-  
+  validate: (id) => API.post(`/api/entretiens/${id}/validate`),
 
   
 };
@@ -257,54 +265,36 @@ export const entretienFinalService = {
   valider: (matricule, id, data) =>
     API.post(`/api/entretien-final/${matricule}/${id}/valider`, data),
   getByMatricule: (matricule) => API.get(`/api/entretien-final/${matricule}`),
-  delete: (id) => API.delete(`/api/entretien-final/${id}`),
-  
+  getById: (id) => API.get(`/api/entretien-final/${id}`),  
 };
 
 // ------------------ Entretien Mesure Service ------------------
 export const entretienMesureService = {
-   // Création (SL uniquement)
   create: (matricule, data) => API.post(`/api/entretiens-mesures/${matricule}`, data),
-  
-  // Mise à jour (SL uniquement) - utilise l'ID de l'entretien
   update: (matricule, id, data) => API.put(`/api/entretiens-mesures/${matricule}/${id}`, data),
   
-  // Validation QM_SEGMENT (1ère validation)
+  // SL soumet pour validation (envoi email à QM_SEGMENT et SGL)
+  validerPremiere: (matricule, id, data) =>
+    API.post(`/api/entretiens-mesures/${matricule}/${id}/valider-premiere`, data),
+  
+  // QM_SEGMENT 1ère validation
   valider1: (matricule, id, data) =>
     API.post(`/api/entretiens-mesures/${matricule}/${id}/valider1`, data),
   
-  // Validation SGL (2ème validation)
+  // SGL 2ème validation
   valider2: (matricule, id, data) =>
     API.post(`/api/entretiens-mesures/${matricule}/${id}/valider2`, data),
   
-  // Récupération de tous les entretiens
-  getByMatricule: (matricule) => API.get(`/api/entretiens-mesures/${matricule}`),
-
-   
- 
-  getById: (id) =>
-    API.get(`/api/entretiens-mesures/${id}`),
- 
+  getByMatricule: (matricule) => API.get(`/api/entretiens-mesures/matricule/${matricule}`),
+  getById: (id) => API.get(`/api/entretiens-mesures/${id}`),
   
-  // Suppression avec notification
   deleteWithNotification: (matricule, id, destinataireEmail, nomCollab) =>
     API.delete(`/api/entretiens-mesures/${matricule}/${id}`, {
       data: { destinataireEmail, nomCollab }
     }),
-
-     createWithNotification: (matricule, data, expediteurEmail) => {
-    return API.post(`/api/entretiens-mesures/${matricule}/with-notification`, data, {
-      params: { expediteurEmail }
-    });
-  },
   
-  updateWithNotification: (matricule, id, data, expediteurEmail) => {
-    return API.put(`/api/entretiens-mesures/${matricule}/${id}/with-notification`, data, {
-      params: { expediteurEmail }
-    });
-  },
+  
 };
-
 // ------------------ Entretien Positif Service ------------------
 export const entretienPositifService = {
 

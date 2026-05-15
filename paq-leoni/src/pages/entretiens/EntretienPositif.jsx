@@ -3,6 +3,9 @@ import { entretienPositifService } from "../../services/api";
 import { showErrorAlert, showSuccessToast } from "../../utils/entretienAlerts";
 import "../../styles/entretien-positif.css";
 
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 export default function EntretienPositif() {
   const [collaborateurs, setCollaborateurs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -92,6 +95,45 @@ export default function EntretienPositif() {
 
   const { type: statusType, msg: statusMsg } = parseStatus(emailStatus);
 
+  const handleExportPDF = () => {
+  const doc = new jsPDF();
+
+  doc.setFontSize(18);
+  doc.text("Entretien Positif", 14, 20);
+
+  doc.setFontSize(11);
+  doc.text(
+    `Date : ${new Date().toLocaleDateString("fr-FR")}`,
+    14,
+    30
+  );
+
+  const rows = collaborateurs.map((c) => {
+    const joursSF = getJoursSansFaute(c);
+
+    return [
+      `${c.nom} ${c.prenom}`,
+      c.matricule,
+      getPeriodeEnMois(c),
+      `${joursSF} jour${joursSF > 1 ? "s" : ""}`,
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 40,
+    head: [["Collaborateur", "Matricule", "Période", "Jours sans faute"]],
+    body: rows,
+    styles: {
+      fontSize: 10,
+    },
+    headStyles: {
+      fillColor: [41, 128, 185],
+    },
+  });
+
+  doc.save("entretien-positif.pdf");
+};
+
   return (
     <div className="ep-page">
       <div className="ep-topbar">
@@ -106,6 +148,14 @@ export default function EntretienPositif() {
             </svg>
             Actualiser
           </button>
+
+          <button
+  className="ep-btn ep-btn-outline"
+  onClick={handleExportPDF}
+  disabled={collaborateurs.length === 0}
+>
+   Exporter PDF
+</button>
         </div>
       </div>
 

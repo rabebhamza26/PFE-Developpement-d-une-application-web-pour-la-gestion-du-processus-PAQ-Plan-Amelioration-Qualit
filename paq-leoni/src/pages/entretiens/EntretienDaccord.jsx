@@ -1,5 +1,7 @@
-// EntretienDaccord.jsx — SL valide → email QM_SEGMENT "Merci d'assister à l'entretien"
-//                        QM_SEGMENT valide → pas d'email, historique PAQ mis à jour
+// EntretienDaccord.jsx
+// Flux : SL valide → email QM_SEGMENT + valide=true
+//        QM_SEGMENT valide → valideQM=true + enregistrement dossier PAQ
+
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -20,57 +22,103 @@ import {
   showSuccessToast,
 } from "../../utils/entretienAlerts";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Modal Email — utilisé uniquement par SL (convocation QM_SEGMENT)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Modal Email pour sélection multiple (SL uniquement) ─────────────────────────────
 function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails }) {
-  const [selectedEmail, setSelectedEmail] = useState("");
+  const [selectedEmails, setSelectedEmails] = useState([]);
+  const [emailFilter, setEmailFilter] = useState("all");
 
   useEffect(() => {
-    if (isOpen) setSelectedEmail("");
+    if (isOpen) {
+      setSelectedEmails([]);
+      setEmailFilter("all");
+    }
   }, [isOpen]);
 
   if (!isOpen) return null;
 
+  const toggleEmailSelection = (email) => {
+    if (selectedEmails.includes(email)) {
+      setSelectedEmails(selectedEmails.filter(e => e !== email));
+    } else {
+      setSelectedEmails([...selectedEmails, email]);
+    }
+  };
+
+  const toggleAllEmails = () => {
+    if (selectedEmails.length === emailsList.length && emailsList.length > 0) {
+      setSelectedEmails([]);
+    } else {
+      setSelectedEmails([...emailsList]);
+    }
+  };
+
+  const allSelected = emailsList.length > 0 && selectedEmails.length === emailsList.length;
+
   return (
     <div className="leoni-modal-overlay" onClick={onClose}>
-      <div
-        className="leoni-modal"
-        style={{ maxWidth: "500px" }}
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="leoni-modal" style={{ maxWidth: "600px", maxHeight: "80vh", overflow: "auto" }} onClick={e => e.stopPropagation()}>
         <div className="leoni-modal-header">
-          <div className="leoni-modal-icon leoni-modal-icon-info">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
-                stroke="currentColor" strokeWidth="2"
-              />
-              <polyline points="22,6 12,13 2,6" stroke="currentColor" strokeWidth="2" />
-            </svg>
-          </div>
           <div>
             <h3>Envoyer la convocation — QM-Segment</h3>
-            <p>Sélectionnez le QM-Segment à convoquer pour l'entretien d'accord</p>
+            <p>Sélectionnez les QM-Segment à convoquer pour l'entretien d'accord</p>
           </div>
           <button className="leoni-modal-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="leoni-modal-body">
-          <div className="leoni-form-group">
-            <label>Destinataire QM-Segment *</label>
-            <select
-              className="leoni-input"
-              value={selectedEmail}
-              onChange={e => setSelectedEmail(e.target.value)}
-              disabled={loadingEmails}
-            >
-              <option value="">-- Sélectionnez un email --</option>
-              {emailsList.map((email, idx) => (
-                <option key={idx} value={email}>{email}</option>
-              ))}
-            </select>
-            {loadingEmails && <small>Chargement des emails...</small>}
+          <div style={{ marginBottom: 20, border: "1px solid #e2e8f0", borderRadius: "8px", overflow: "hidden" }}>
+            <div style={{ 
+              padding: "12px", 
+              background: "#f8f9fa", 
+              borderBottom: "1px solid #e2e8f0",
+              display: "flex",
+              alignItems: "center",
+              gap: "12px"
+            }}>
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAllEmails}
+                style={{ width: "18px", height: "18px", cursor: "pointer" }}
+              />
+              <strong style={{ flex: 1 }}>Sélectionner tous les emails ({emailsList.length})</strong>
+              <span style={{ fontSize: "12px", color: "#666" }}>
+                {selectedEmails.length} sélectionné(s)
+              </span>
+            </div>
+            <div style={{ maxHeight: "300px", overflow: "auto" }}>
+              {emailsList.length > 0 ? (
+                emailsList.map((email, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: "12px",
+                      borderBottom: "1px solid #e2e8f0",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      background: selectedEmails.includes(email) ? "#f0f9ff" : "white",
+                      cursor: "pointer"
+                    }}
+                    onClick={() => toggleEmailSelection(email)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedEmails.includes(email)}
+                      onChange={() => toggleEmailSelection(email)}
+                      style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 500, color: "#1a202c" }}>{email}</div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ padding: "40px", textAlign: "center", color: "#999" }}>
+                  Aucun email trouvé dans la base de données
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -81,10 +129,10 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails }) {
           <button
             type="button"
             className="leoni-btn leoni-btn-primary"
-            onClick={() => onConfirm(selectedEmail)}
-            disabled={!selectedEmail}
+            onClick={() => onConfirm(selectedEmails)}
+            disabled={selectedEmails.length === 0}
           >
-            Valider &amp; Envoyer la convocation
+            Valider & Envoyer ({selectedEmails.length} destinataire(s))
           </button>
         </div>
       </div>
@@ -92,48 +140,48 @@ function EmailModal({ isOpen, onClose, onConfirm, emailsList, loadingEmails }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Formulaire par défaut
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── État initial formulaire ──────────────────────────────────────────────────
 const buildDefaultForm = () => ({
   typeFaute: "",
   dateEntretien: new Date().toISOString().split("T")[0],
   causeFaute: "",
   mesuresProposees: "",
-  commentaireQMSegment: "",
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Composant principal
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Composant principal ──────────────────────────────────────────────────────
 export default function EntretienDaccord({ niveau = 2 }) {
   const { matricule } = useParams();
   const navigate = useNavigate();
 
-  const [userRole, setUserRole] = useState(null);
-  const [collaborator, setCollaborator] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savingDraft, setSavingDraft] = useState(false);
-  const [error, setError] = useState("");
+  const [userRole, setUserRole]           = useState(null);
+  const [collaborator, setCollaborator]   = useState(null);
+  const [loading, setLoading]             = useState(true);
+  const [saving, setSaving]               = useState(false);
+  const [savingDraft, setSavingDraft]     = useState(false);
+  const [error, setError]                 = useState("");
   const [statusMessage, setStatusMessage] = useState("");
-  const [resumeN1, setResumeN1] = useState(null);
+  const [resumeN1, setResumeN1]           = useState(null);
   const [currentEntretienId, setCurrentEntretienId] = useState(null);
-  const [entretiensList, setEntretiensList] = useState([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [typeOptions, setTypeOptions] = useState([]);
+  const [entretiensList, setEntretiensList]         = useState([]);
+  const [showDropdown, setShowDropdown]   = useState(false);
+  const [typeOptions, setTypeOptions]     = useState([]);
   const [showDefautModal, setShowDefautModal] = useState(false);
   const [defautTypeInput, setDefautTypeInput] = useState("");
+  const [search, setSearch]               = useState("");
+  const [filteredFautes, setFilteredFautes] = useState([]);
 
-  // Email modal — uniquement pour SL
-  const [emailsList, setEmailsList] = useState([]);
+  // Email modal
+  const [emailsList, setEmailsList]       = useState([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
 
-  const [validationStatus, setValidationStatus] = useState(false);
+  // Deux statuts distincts
+  const [valideSL, setValideSL]   = useState(false); // SL a soumis
+  const [valideQM, setValideQM]   = useState(false); // QM a validé
+
   const [formData, setFormData] = useState(buildDefaultForm());
 
-  // ── Rôle utilisateur ──
+  // ── Rôle ──
   useEffect(() => {
     const userStr = sessionStorage.getItem("user");
     if (userStr) {
@@ -142,23 +190,23 @@ export default function EntretienDaccord({ niveau = 2 }) {
     }
   }, []);
 
-  // ── Chargement emails QM_SEGMENT (uniquement utile pour SL) ──
-  const loadQMEmails = async () => {
-    try {
-      setLoadingEmails(true);
-      const response = await userService.getAllEmails();
-      if (response?.data && Array.isArray(response.data)) {
-        setEmailsList(response.data);
-      } else {
-        setEmailsList([]);
-      }
-    } catch (err) {
-      console.error("Erreur chargement emails:", err);
-      setEmailsList([]);
-    } finally {
-      setLoadingEmails(false);
-    }
-  };
+  // ── Emails QM ──
+const loadQMEmails = async () => {
+  try {
+    setLoadingEmails(true);
+    const response = await userService.getAllEmails();
+    // Filtrer pour ne garder que les emails valides (contenant @)
+    const validEmails = Array.isArray(response?.data) 
+      ? response.data.filter(email => email && email.includes('@'))
+      : [];
+    setEmailsList(validEmails);
+  } catch (err) {
+    console.error("Erreur chargement emails:", err);
+    setEmailsList([]);
+  } finally {
+    setLoadingEmails(false);
+  }
+};
 
   useEffect(() => {
     loadData();
@@ -170,15 +218,22 @@ export default function EntretienDaccord({ niveau = 2 }) {
     if (matricule) loadDraft();
   }, [matricule]);
 
-  // ── Reset formulaire ──
+  // ── Filtrage fautes ──
+  useEffect(() => {
+    const q = search.toLowerCase();
+    setFilteredFautes(typeOptions.filter(f => f.toLowerCase().includes(q)));
+  }, [search, typeOptions]);
+
+  // ── Reset ──
   const resetForm = () => {
     setFormData(buildDefaultForm());
     setCurrentEntretienId(null);
-    setValidationStatus(false);
+    setValideSL(false);
+    setValideQM(false);
     if (matricule) localStorage.removeItem(`entretien-daccord-draft-${matricule}`);
   };
 
-  // ── Chargement fautes ──
+  // ── Fautes ──
   const loadFautes = async () => {
     try {
       const res = await fauteService.getAll();
@@ -188,7 +243,7 @@ export default function EntretienDaccord({ niveau = 2 }) {
     }
   };
 
-  // ── Chargement données principal ──
+  // ── Données principales ──
   const loadData = async () => {
     try {
       setLoading(true);
@@ -196,12 +251,10 @@ export default function EntretienDaccord({ niveau = 2 }) {
       setCollaborator(collabRes.data);
 
       try {
-        const entretienExplicatifRes = await entretienService.getByMatricule(matricule);
-        const liste = Array.isArray(entretienExplicatifRes.data) ? entretienExplicatifRes.data : [];
+        const res = await entretienService.getByMatricule(matricule);
+        const liste = Array.isArray(res.data) ? res.data : [];
         if (liste.length > 0) {
-          const dernier = liste.sort(
-            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-          )[0];
+          const dernier = liste.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
           setResumeN1({
             typeFaute: dernier.typeFaute || "–",
             dateFaute: dernier.dateFaute,
@@ -225,18 +278,18 @@ export default function EntretienDaccord({ niveau = 2 }) {
     }
   };
 
-  // ── Chargement liste entretiens ──
+  // ── Liste entretiens ──
   const loadAllEntretiens = async () => {
     try {
       const res = await entretienDaccordService.getByMatricule(matricule);
       const list = Array.isArray(res.data) ? res.data : [];
       setEntretiensList(list);
       if (list.length > 0) {
-        const dernier = list.sort(
-          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-        )[0];
+        const dernier = list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
         chargerEntretienDansFormulaire(dernier);
-        setValidationStatus(dernier.valide || false);
+        // Lire les deux statuts depuis le back
+        setValideSL(dernier.valide || false);
+        setValideQM(dernier.valideQM || false);
       } else {
         resetForm();
       }
@@ -249,18 +302,17 @@ export default function EntretienDaccord({ niveau = 2 }) {
     if (!entretien) return;
     setCurrentEntretienId(entretien.id);
     setFormData({
-      typeFaute: entretien.typeFaute || "",
-      dateEntretien: entretien.date || new Date().toISOString().split("T")[0],
-      causeFaute: entretien.causeFaute || "",
+      typeFaute:        entretien.typeFaute || "",
+      dateEntretien:    entretien.date || new Date().toISOString().split("T")[0],
+      causeFaute:       entretien.causeFaute || "",
       mesuresProposees: entretien.mesuresProposees || "",
-      commentaireQMSegment: entretien.commentaireQMSegment || "",
     });
     if (entretien.typeFaute && !typeOptions.includes(entretien.typeFaute)) {
       setTypeOptions(prev => [...prev, entretien.typeFaute]);
     }
   };
 
-  // ── Brouillon local ──
+  // ── Brouillon ──
   const loadDraft = () => {
     try {
       const draft = localStorage.getItem(`entretien-daccord-draft-${matricule}`);
@@ -274,6 +326,10 @@ export default function EntretienDaccord({ niveau = 2 }) {
   };
 
   const handleChange = e => {
+    if (!canModify && userRole !== "QM_SEGMENT") {
+      showErrorAlert("Permission refusée", "Vous n'avez pas les droits.");
+      return;
+    }
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -288,9 +344,7 @@ export default function EntretienDaccord({ niveau = 2 }) {
       setError("Aucun entretien d'accord existant à modifier.");
       return;
     }
-    const dernier = entretiensList.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-    )[0];
+    const dernier = entretiensList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
     chargerEntretienDansFormulaire(dernier);
     showInfoToast("Dernier entretien chargé pour modification");
   };
@@ -304,25 +358,93 @@ export default function EntretienDaccord({ niveau = 2 }) {
     setSavingDraft(true);
     try {
       const payload = { ...formData, id: currentEntretienId };
-      localStorage.setItem(
-        `entretien-daccord-draft-${matricule}`,
-        JSON.stringify(payload)
-      );
+      localStorage.setItem(`entretien-daccord-draft-${matricule}`, JSON.stringify(payload));
       setStatusMessage("Brouillon enregistré avec succès.");
       showSuccessToast("Brouillon enregistré");
     } catch {
-      setError("Impossible d'enregistrer le brouillon.");
       showErrorAlert("Brouillon non enregistré", "Impossible d'enregistrer le brouillon.");
     } finally {
       setSavingDraft(false);
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // BOUTON VALIDER
-  //   SL        → ouvre modal email → envoie convocation au QM_SEGMENT choisi
-  //   QM_SEGMENT → validation directe sans email → historique PAQ mis à jour
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── Validation SL : création/modification + email QM ──
+const handleSLValidation = async (destinatairesEmails) => {
+  setShowEmailModal(false);
+  setSaving(true);
+  try {
+    // ✅ Convertir le tableau d'emails en une chaîne séparée par des virgules
+    const destinataireEmailString = Array.isArray(destinatairesEmails) 
+      ? destinatairesEmails.join(",") 
+      : destinatairesEmails;
+
+    const entretienData = {
+      typeFaute:        formData.typeFaute,
+      date:             formData.dateEntretien,
+      causeFaute:       formData.causeFaute,
+      mesuresProposees: formData.mesuresProposees || "",
+      destinataireEmail: destinataireEmailString,  // ← Envoyer une string, pas un tableau
+    };
+
+    if (currentEntretienId) {
+      await entretienDaccordService.update(matricule, currentEntretienId, entretienData);
+      await entretienDaccordService.validerPremiere(matricule, currentEntretienId, entretienData);
+    } else {
+      const response = await entretienDaccordService.create(matricule, entretienData);
+      if (response?.data?.id) {
+        await entretienDaccordService.validerPremiere(matricule, response.data.id, entretienData);
+      }
+    }
+
+    const nbDestinataires = Array.isArray(destinatairesEmails) ? destinatairesEmails.length : 1;
+    setStatusMessage(`Entretien validé. Email de convocation envoyé à ${nbDestinataires} destinataire(s).`);
+    await showSuccessAlert("Entretien soumis", `L'email de convocation a été envoyé à ${nbDestinataires} destinataire(s).`);
+    localStorage.removeItem(`entretien-daccord-draft-${matricule}`);
+    await loadAllEntretiens();
+    setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
+  } catch (err) {
+    console.error(err);
+    showErrorAlert("Enregistrement impossible", err.response?.data?.message || err.message);
+  } finally {
+    setSaving(false);
+  }
+};
+
+  
+// ── Validation QM_SEGMENT : sans email, enregistrement PAQ ──
+const handleValidationQM = async () => {
+  setSaving(true);
+  try {
+    const entretienData = {
+      typeFaute:        formData.typeFaute,
+      date:             formData.dateEntretien,
+      causeFaute:       formData.causeFaute,
+      mesuresProposees: formData.mesuresProposees || "",
+    };
+
+    await entretienDaccordService.validerFinale(matricule, currentEntretienId, entretienData);
+
+    setValideQM(true);
+    setStatusMessage("Entretien d'accord validé par QM-Segment.");
+    await showSuccessAlert(
+      "Entretien validé",
+      "La validation QM-Segment a été enregistrée. Redirection vers le dossier PAQ..."
+    );
+
+    localStorage.removeItem(`entretien-daccord-draft-${matricule}`);
+    
+    // ✅ Redirection vers PaqDossier — qui va recharger les données avec niveau=3
+    // et afficher automatiquement le bouton "Etape 3: Entretien de Mesure"
+    navigate(`/paq-dossier/${matricule}`);
+  } catch (err) {
+    console.error(err);
+    showErrorAlert("Validation impossible", err.response?.data?.message || err.message);
+  } finally {
+    setSaving(false);
+  }
+};
+
+  // ── Bouton VALIDER (dispatch selon rôle) ──
   const handleValider = () => {
     setError("");
     setStatusMessage("");
@@ -333,102 +455,15 @@ export default function EntretienDaccord({ niveau = 2 }) {
     }
 
     if (userRole === "SL") {
-      // SL → ouvre la modal pour choisir le QM_SEGMENT à convoquer
       setShowEmailModal(true);
     } else if (userRole === "QM_SEGMENT") {
-      // QM_SEGMENT → validation directe, pas de modal email
       handleValidationQM();
     } else {
       showErrorAlert("Permission refusée", "Action non autorisée pour votre rôle.");
     }
   };
 
-  // ── SL confirme l'email de convocation ──
-  const handleConfirmEmailSL = async (destinataireEmail) => {
-    setShowEmailModal(false);
-    setSaving(true);
-
-    try {
-      const entretienData = {
-        typeFaute: formData.typeFaute,
-        date: formData.dateEntretien,
-        causeFaute: formData.causeFaute,
-        mesuresProposees: formData.mesuresProposees || "",
-        commentaireQMSegment: formData.commentaireQMSegment || "",
-        destinataireEmail,
-        message: "Merci d'assister à l'entretien d'accord",
-      };
-
-      if (currentEntretienId) {
-        // Entretien existant : mise à jour + soumission pour validation
-        await entretienDaccordService.validerPremiere(
-          matricule,
-          currentEntretienId,
-          entretienData
-        );
-      } else {
-        // Pas encore d'entretien : création
-        await entretienDaccordService.create(matricule, entretienData);
-      }
-
-      setStatusMessage("Entretien soumis. Email de convocation envoyé au QM-Segment.");
-      await showSuccessAlert(
-        "Convocation envoyée",
-        "L'email « Merci d'assister à l'entretien d'accord » a été envoyé au QM-Segment sélectionné."
-      );
-
-      localStorage.removeItem(`entretien-daccord-draft-${matricule}`);
-      await loadAllEntretiens();
-      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
-    } catch (err) {
-      console.error(err);
-      const msg = err.response?.data?.message || err.response?.data || err.message;
-      setError("Erreur : " + msg);
-      showErrorAlert("Enregistrement impossible", err.response?.data?.message || err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ── QM_SEGMENT valide directement (sans email) ──
-  const handleValidationQM = async () => {
-    setSaving(true);
-    try {
-      const entretienData = {
-        typeFaute: formData.typeFaute,
-        date: formData.dateEntretien,
-        causeFaute: formData.causeFaute,
-        mesuresProposees: formData.mesuresProposees || "",
-        commentaireQMSegment: formData.commentaireQMSegment || "",
-      };
-
-      await entretienDaccordService.valider(
-        matricule,
-        currentEntretienId,
-        entretienData
-      );
-
-      setValidationStatus(true);
-      setStatusMessage("Entretien d'accord validé par QM-Segment. Le dossier PAQ a été mis à jour.");
-      await showSuccessAlert(
-        "Entretien validé",
-        "La validation QM-Segment a été enregistrée dans le dossier PAQ."
-      );
-
-      localStorage.removeItem(`entretien-daccord-draft-${matricule}`);
-      await loadAllEntretiens();
-      setTimeout(() => navigate(`/paq-dossier/${matricule}`), 1500);
-    } catch (err) {
-      console.error(err);
-      const msg = err.response?.data?.message || err.response?.data || err.message;
-      setError("Erreur : " + msg);
-      showErrorAlert("Validation impossible", err.response?.data?.message || err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ── Ajout type de faute ──
+  // ── Ajout type faute ──
   const addTypeOption = async () => {
     if (!canModify) {
       showErrorAlert("Permission refusée", "Seuls les SL peuvent ajouter un type de faute.");
@@ -439,9 +474,7 @@ export default function EntretienDaccord({ niveau = 2 }) {
     try {
       const res = await fauteService.create({ nom: value });
       const newFaute = res.data;
-      setTypeOptions(prev =>
-        prev.includes(newFaute.nom) ? prev : [...prev, newFaute.nom]
-      );
+      setTypeOptions(prev => prev.includes(newFaute.nom) ? prev : [...prev, newFaute.nom]);
       setFormData(prev => ({ ...prev, typeFaute: newFaute.nom }));
       setDefautTypeInput("");
       setShowDefautModal(false);
@@ -451,19 +484,25 @@ export default function EntretienDaccord({ niveau = 2 }) {
     }
   };
 
-  // ── Permissions ──
-  const canModify   = userRole === "SL";
-  const canValidate = (userRole === "SL") || (userRole === "QM_SEGMENT" && !!currentEntretienId);
-  const isEditable  = userRole === "SL";
+  // ── Permissions ──────────────────────────────────────────────────────────────
+  const canModify = userRole === "SL";
+  const isEditable = userRole === "SL";
 
-  const showModifier  = canModify && !!currentEntretienId;
-  const showBrouillon = canModify;
-  const showValider   = canValidate && !validationStatus;
+  // SL peut valider si QM n'a pas encore validé
+  const showValiderSL = userRole === "SL" && !valideQM;
+
+  // QM peut valider si SL a soumis ET que QM n'a pas encore validé
+  const showValiderQM = userRole === "QM_SEGMENT" && !!currentEntretienId && valideSL && !valideQM;
+
+  const showModifier  = canModify && !!currentEntretienId && !valideQM;
+  const showBrouillon = canModify && !valideQM;
+  const showValider   = showValiderSL || showValiderQM;
 
   const getValiderLabel = () => {
     if (saving) return userRole === "QM_SEGMENT" ? "Validation..." : "Envoi...";
     if (userRole === "QM_SEGMENT") return "Valider (QM-Segment)";
-    return "Valider & Convoquer QM-Segment";
+    if (currentEntretienId) return "Modifier et valider";
+    return "Créer et valider";
   };
 
   const formatDate = dateStr => {
@@ -473,8 +512,7 @@ export default function EntretienDaccord({ niveau = 2 }) {
     return d.toLocaleDateString("fr-FR");
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-
+  // ── Rendu ─────────────────────────────────────────────────────────────────────
   if (loading)
     return (
       <div className="leoni-loading">
@@ -497,14 +535,11 @@ export default function EntretienDaccord({ niveau = 2 }) {
 
   return (
     <div className="leoni-shell">
+
       {/* ── Header ── */}
       <div className="leoni-header">
         <div className="leoni-header-left">
           <button onClick={() => navigate(`/paq-dossier/${matricule}`)} className="leoni-btn-back">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M19 12H5M5 12l7 7M5 12l7-7" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
             Retour
           </button>
         </div>
@@ -516,55 +551,47 @@ export default function EntretienDaccord({ niveau = 2 }) {
           </div>
           {collaborator && (
             <span className="leoni-header-sub">
-              {collaborator.name || ""} {collaborator.prenom || ""} —{" "}
-              {collaborator.matricule || matricule}
+              {collaborator.name || ""} {collaborator.prenom || ""} — {collaborator.matricule || matricule}
             </span>
           )}
 
-          {userRole === "SL" && currentEntretienId && !validationStatus && (
-            <span className="leoni-badge-sl">📝 Mode modification & validation (SL)</span>
+          {/* Badges de statut */}
+          {userRole === "SL" && !currentEntretienId && !valideQM && (
+            <span className="leoni-badge-sl">Mode création (SL)</span>
           )}
-          {userRole === "SL" && !currentEntretienId && (
-            <span className="leoni-badge-sl">📝 Mode création (SL)</span>
+          {userRole === "SL" && currentEntretienId && !valideSL && (
+            <span className="leoni-badge-sl">Mode modification & validation (SL)</span>
           )}
-          {userRole === "QM_SEGMENT" && currentEntretienId && !validationStatus && (
-            <span className="leoni-badge-qm">🔵 Mode validation finale (QM-Segment)</span>
+          {userRole === "SL" && valideSL && !valideQM && (
+            <span className="leoni-badge-sl">Soumis au QM-Segment — en attente de validation</span>
           )}
-          {userRole === "QM_SEGMENT" && !currentEntretienId && (
-            <span className="leoni-badge-consult">👁️ Mode consultation (QM-Segment)</span>
+          {userRole === "QM_SEGMENT" && currentEntretienId && valideSL && !valideQM && (
+            <span className="leoni-badge-qm">Mode validation finale (QM-Segment)</span>
           )}
-          {(userRole === "SGL" ||
-            (userRole !== "SL" && userRole !== "QM_SEGMENT" && userRole !== "ADMIN")) && (
-            <span className="leoni-badge-consult">👁️ Mode consultation</span>
+          {userRole === "QM_SEGMENT" && (!currentEntretienId || !valideSL) && !valideQM && (
+            <span className="leoni-badge-consult">Mode consultation (QM-Segment)</span>
           )}
-          {validationStatus && (
-            <span className="leoni-badge-success">✅ Entretien validé par QM-Segment</span>
+          {(userRole === "SGL" || (userRole !== "SL" && userRole !== "QM_SEGMENT" && userRole !== "ADMIN")) && (
+            <span className="leoni-badge-consult">Mode consultation</span>
+          )}
+          {valideQM && (
+            <span className="leoni-badge-success">Entretien validé par QM-Segment</span>
           )}
         </div>
 
         <div className="leoni-header-actions" />
       </div>
 
-      {statusMessage && (
-        <div className="leoni-alert leoni-alert-success">{statusMessage}</div>
-      )}
-      {error && (
-        <div className="leoni-alert leoni-alert-error">{error}</div>
-      )}
+      {statusMessage && <div className="leoni-alert leoni-alert-success">{statusMessage}</div>}
+      {error        && <div className="leoni-alert leoni-alert-error">{error}</div>}
 
       <div className="leoni-grid-main">
+
         {/* ── Colonne gauche ── */}
         <div className="leoni-col-left">
           {collaborator && (
             <div className="leoni-card">
-              <div className="leoni-card-header">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"
-                    stroke="currentColor" strokeWidth="2" />
-                  <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
-                </svg>
-                Informations Collaborateur
-              </div>
+              <div className="leoni-card-header">Informations Collaborateur</div>
               <div className="leoni-card-body">
                 <div className="leoni-collab-avatar">
                   {`${collaborator.name?.[0] || ""}${collaborator.prenom?.[0] || ""}`.toUpperCase()}
@@ -575,9 +602,7 @@ export default function EntretienDaccord({ niveau = 2 }) {
                 <div className="leoni-collab-info-grid">
                   <div className="leoni-info-item">
                     <span className="leoni-info-label">Matricule</span>
-                    <span className="leoni-info-value leoni-mono">
-                      {collaborator.matricule || "–"}
-                    </span>
+                    <span className="leoni-info-value leoni-mono">{collaborator.matricule || "–"}</span>
                   </div>
                   <div className="leoni-info-item">
                     <span className="leoni-info-label">Segment</span>
@@ -585,9 +610,7 @@ export default function EntretienDaccord({ niveau = 2 }) {
                   </div>
                   <div className="leoni-info-item">
                     <span className="leoni-info-label">Date d'embauche</span>
-                    <span className="leoni-info-value leoni-mono">
-                      {formatDate(collaborator.hireDate)}
-                    </span>
+                    <span className="leoni-info-value leoni-mono">{formatDate(collaborator.hireDate)}</span>
                   </div>
                   <div className="leoni-info-item">
                     <span className="leoni-info-label">Statut</span>
@@ -599,15 +622,7 @@ export default function EntretienDaccord({ niveau = 2 }) {
           )}
 
           <div className="leoni-card">
-            <div className="leoni-card-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 006.5 22H20V5a2 2 0 00-2-2H6a2 2 0 00-2 2v14.5z"
-                  stroke="currentColor" strokeWidth="2"
-                />
-              </svg>
-              Résumé — Entretien explicatif (N1)
-            </div>
+            <div className="leoni-card-header">Résumé — Entretien explicatif (N1)</div>
             <div className="leoni-card-body">
               {resumeN1 ? (
                 <div className="leoni-form-stack">
@@ -642,21 +657,15 @@ export default function EntretienDaccord({ niveau = 2 }) {
         {/* ── Colonne droite : Formulaire ── */}
         <div className="leoni-col-right">
           <div className="leoni-card">
-            <div className="leoni-card-header">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
-                  stroke="currentColor" strokeWidth="2" />
-              </svg>
-              Formulaire
-            </div>
+            <div className="leoni-card-header">Formulaire</div>
             <div className="leoni-card-body">
               <div className="leoni-form-stack">
 
                 {/* Type de faute */}
                 <div className="leoni-form-group">
                   <label>Type de faute *</label>
-                  <div className="leoni-inline leoni-inline-reverse">
-                    {isEditable && (
+                  <div className="leoni-inline">
+                    {isEditable && !valideQM && (
                       <button
                         type="button"
                         className="leoni-btn leoni-btn-warning leoni-btn-sm"
@@ -668,56 +677,53 @@ export default function EntretienDaccord({ niveau = 2 }) {
                     <div className="leoni-dropdown-container" style={{ flex: 1 }}>
                       <input
                         type="text"
-                        className="leoni-input leoni-dropdown-input"
+                        className="leoni-input"
                         placeholder="Rechercher ou sélectionner une faute..."
                         value={formData.typeFaute}
                         onChange={e => {
-                          setFormData(p => ({ ...p, typeFaute: e.target.value }));
+                          setFormData(prev => ({ ...prev, typeFaute: e.target.value }));
+                          setSearch(e.target.value);
                           setShowDropdown(true);
                         }}
                         onFocus={() => setShowDropdown(true)}
-                        disabled={!isEditable}
+                        disabled={valideQM || (!isEditable && userRole !== "QM_SEGMENT")}
                       />
-                      {showDropdown && typeOptions.length > 0 && (
-                        <ul className="leoni-dropdown-list">
-                          {typeOptions
-                            .filter(o =>
-                              o.toLowerCase().includes(
-                                (formData.typeFaute || "").toLowerCase()
-                              )
-                            )
-                            .map((opt, i) => (
-                              <li
-                                key={i}
-                                className="leoni-dropdown-item"
-                                onMouseDown={() => {
-                                  setFormData(p => ({ ...p, typeFaute: opt }));
-                                  setShowDropdown(false);
-                                }}
-                              >
-                                {opt}
-                              </li>
-                            ))}
-                        </ul>
+                      {showDropdown && !valideQM && (
+                        <div className="leoni-dropdown">
+                          {filteredFautes.length > 0 ? (
+                            filteredFautes.map((f, index) => (
+                              <div key={index} className="leoni-dropdown-item" onClick={() => {
+                                setFormData(prev => ({ ...prev, typeFaute: f }));
+                                setSearch(f);
+                                setShowDropdown(false);
+                              }}>
+                                {f}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="leoni-dropdown-empty">Aucun résultat</div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Date entretien */}
+                {/* Date */}
                 <div className="leoni-form-group">
-                  <label>Date entretien</label>
+                  <label>Date entretien </label>
                   <input
                     type="date"
                     name="dateEntretien"
                     value={formData.dateEntretien}
                     onChange={handleChange}
                     className="leoni-input"
-                    disabled={!isEditable}
+                    disabled={valideQM || (!isEditable && userRole !== "QM_SEGMENT")}
+                    required
                   />
                 </div>
 
-                {/* Cause de faute */}
+                {/* Cause */}
                 <div className="leoni-form-group">
                   <label>Cause de faute</label>
                   <textarea
@@ -726,11 +732,11 @@ export default function EntretienDaccord({ niveau = 2 }) {
                     onChange={handleChange}
                     className="leoni-textarea"
                     rows="3"
-                    disabled={!isEditable}
+                    disabled={valideQM || (!isEditable && userRole !== "QM_SEGMENT")}
                   />
                 </div>
 
-                {/* Mesures correctives */}
+                {/* Mesures */}
                 <div className="leoni-form-group">
                   <label>Mesures correctives proposées</label>
                   <textarea
@@ -739,64 +745,27 @@ export default function EntretienDaccord({ niveau = 2 }) {
                     onChange={handleChange}
                     className="leoni-textarea"
                     rows="3"
-                    disabled={!isEditable}
+                    disabled={valideQM || (!isEditable && userRole !== "QM_SEGMENT")}
                   />
                 </div>
 
-                {/* Commentaire QM — éditable par QM_SEGMENT pour sa validation */}
-                <div className="leoni-form-group">
-                  <label>Commentaire </label>
-                  <textarea
-                    name="commentaireQMSegment"
-                    value={formData.commentaireQMSegment}
-                    onChange={handleChange}
-                    className="leoni-textarea"
-                    rows="3"
-                    placeholder={
-                      userRole === "QM_SEGMENT"
-                        ? "Ajoutez votre commentaire avant de valider..."
-                        : "Commentaire du QM-Segment..."
-                    }
-                    // QM_SEGMENT peut toujours saisir son commentaire
-                    disabled={userRole !== "SL" && userRole !== "QM_SEGMENT"}
-                  />
-                </div>
-
-                {/* ── Barre d'actions ── */}
+                {/* Barre d'actions */}
                 <div className="leoni-form-actions">
-
-                  {/* Modifier : SL + entretien existant */}
-                  {showModifier && (
-                    <button
-                      type="button"
-                      className="leoni-btn leoni-btn-primary"
-                      onClick={handleModifier}
-                    >
-                      Modifier
-                    </button>
-                  )}
-
-                  {/* Brouillon : SL uniquement */}
+                 
                   {showBrouillon && (
                     <button
                       type="button"
-                      className="leoni-btn leoni-btn-primary"
+                      className="leoni-btn leoni-btn-outline-dark"
                       onClick={handleEnregistrer}
                       disabled={savingDraft}
                     >
                       {savingDraft ? "Enregistrement..." : "Brouillon"}
                     </button>
                   )}
-
-                  {/*
-                   * Valider :
-                   *   SL        → ouvre modal email → convoque QM_SEGMENT
-                   *   QM_SEGMENT → validation directe → met à jour historique PAQ
-                   */}
                   {showValider && (
                     <button
                       type="button"
-                      className="leoni-btn leoni-btn-success"
+                      className="leoni-btn leoni-btn-primary"
                       onClick={handleValider}
                       disabled={saving}
                     >
@@ -804,6 +773,12 @@ export default function EntretienDaccord({ niveau = 2 }) {
                     </button>
                   )}
 
+                  {/* Message consultation QM en attente */}
+                  {userRole === "QM_SEGMENT" && currentEntretienId && !valideSL && !valideQM && (
+                    <div className="leoni-muted" style={{ padding: "8px 0" }}>
+                      En attente de la soumission par le SL.
+                    </div>
+                  )}
                   {!currentEntretienId && !canModify && userRole !== "QM_SEGMENT" && (
                     <div className="leoni-muted" style={{ padding: "8px 0" }}>
                       Aucun entretien d'accord trouvé pour ce collaborateur.
@@ -816,35 +791,25 @@ export default function EntretienDaccord({ niveau = 2 }) {
         </div>
       </div>
 
-      {/* ── Modal Email (SL uniquement) ── */}
+      {/* Modal Email */}
       <EmailModal
         isOpen={showEmailModal}
         onClose={() => setShowEmailModal(false)}
-        onConfirm={handleConfirmEmailSL}
+        onConfirm={handleSLValidation}
         emailsList={emailsList}
         loadingEmails={loadingEmails}
       />
 
-      {/* ── Modal Ajout faute ── */}
+      {/* Modal Ajout faute */}
       {showDefautModal && (
         <div className="leoni-modal-overlay" onClick={() => setShowDefautModal(false)}>
           <div className="leoni-modal" onClick={e => e.stopPropagation()}>
             <div className="leoni-modal-header">
-              <div className="leoni-modal-icon leoni-modal-icon-warning">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
-                    stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                  />
-                </svg>
-              </div>
               <div>
                 <h3>Ajouter une faute</h3>
                 <p>Enregistrer un nouveau type de faute</p>
               </div>
-              <button className="leoni-modal-close" onClick={() => setShowDefautModal(false)}>
-                ✕
-              </button>
+              <button className="leoni-modal-close" onClick={() => setShowDefautModal(false)}>✕</button>
             </div>
             <div className="leoni-modal-body">
               <div className="leoni-form-group">
@@ -860,11 +825,7 @@ export default function EntretienDaccord({ niveau = 2 }) {
               </div>
             </div>
             <div className="leoni-modal-footer">
-              <button
-                type="button"
-                className="leoni-btn leoni-btn-outline"
-                onClick={() => setShowDefautModal(false)}
-              >
+              <button type="button" className="leoni-btn leoni-btn-outline" onClick={() => setShowDefautModal(false)}>
                 Annuler
               </button>
               <button

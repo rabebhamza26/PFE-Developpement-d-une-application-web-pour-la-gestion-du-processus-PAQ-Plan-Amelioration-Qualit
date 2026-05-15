@@ -98,12 +98,12 @@ export default function UsersManagement() {
   const loadRoles = () => {
     setRoles([
       { value: "ADMIN", label: "Administrateur" },
-      { value: "SL", label: "SL" },
-      { value: "QM_SEGMENT", label: "QM Segment" },
-      { value: "QM_PLANT", label: "QM Plant" },
-      { value: "SGL", label: "SGL" },
-      { value: "HP", label: "HP" },
-      { value: "RH", label: "RH" },
+      { value: "SL", label: "SL(Chef de ligne) " },
+      { value: "QM_SEGMENT", label: "QM Segment(Chef d’équipe qualité) " },
+      { value: "QM_PLANT", label: "QM Plant(Chef service qualité) " },
+      { value: "SGL", label: "SGL(Chef segment) " },
+      { value: "HP", label: "HP(Directeur d’usine / Head of Plant Production) " },
+      { value: "RH", label: "RH(Ressources Humaines) " },
     ]);
   };
 

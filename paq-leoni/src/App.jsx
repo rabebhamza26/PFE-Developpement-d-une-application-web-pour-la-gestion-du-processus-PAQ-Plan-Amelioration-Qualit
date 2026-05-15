@@ -77,7 +77,7 @@ function App() {
             <Route path="entretien-explicatif/:matricule/*" element={<EntretienExplicatif niveau={1} />} />
             <Route path="entretien-daccord/:matricule" element={<EntretienDaccord niveau={2} />} />
             <Route path="entretien-de-mesure/:matricule" element={<EntretienDeMesure niveau={3} />} />
-            <Route path="entretien-de-decision/:matricule" element={<EntretienDeDecision niveau={4} />} />
+<Route path="entretien-de-decision/:matricule" element={<EntretienDeDecision niveau={4} />} />
             <Route path="entretien-final/:matricule" element={<EntretienFinal niveau={5} />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="notifications/:matricule" element={<Notifications />} />

@@ -135,13 +135,17 @@ export default function PaqDossier() {
 const getProchainEntretien = () => {
   if (!peutVoirEntretiens()) return null;
   const map = {
-    0: { nom: "Etape1: Entretien Explication",  route: `/entretien-explicatif/${matricule}` },
-    1: { nom: "Etape2: Entretien d'Accord",     route: `/entretien-daccord/${matricule}` },
-    2: { nom: "Etape3: Entretien de Mesure",    route: `/entretien-de-mesure/${matricule}` },
-    3: { nom: "Etape4: Entretien de Décision",  route: `/entretien-de-decision/${matricule}` },
-    4: { nom: "Etape5: Entretien Décision Final",        route: `/entretien-final/${matricule}` },
+      0: { nom: "Etape 1: Entretien Explicatif",  route: `/entretien-explicatif/${matricule}` },
+    1: { nom: "Etape 2: Entretien d'Accord",     route: `/entretien-daccord/${matricule}` },
+    2: { nom: "Etape 3: Entretien de Mesure",    route: `/entretien-de-mesure/${matricule}` },  // ← niveau 2 = entretien de mesure
+    3: { nom: "Etape 4: Entretien de Décision",  route: `/entretien-de-decision/${matricule}` },
+    4: { nom: "Etape 5: Entretien Final",        route: `/entretien-final/${matricule}` },
   };
-  return map[currentPaq.niveau] || null;
+  
+  console.log("=== DEBUG: Niveau PAQ =", currentPaq?.niveau);
+  console.log("=== DEBUG: Prochain entretien =", map[currentPaq?.niveau]);
+  
+  return map[currentPaq?.niveau] || null;
 };
 
   /** Peut créer un PAQ ? (pas de PAQ actif + ancienneté OK) */
@@ -452,18 +456,19 @@ const getProchainEntretien = () => {
                 </div>
 
                 {/* Description état */}
-                <div className="leoni-niveau-desc">
-                  {currentPaq.niveau === 0 && (
-                    <span>📋 En attente de la réalisation de l'entretien explicatif</span>
-                  )}
-                  {currentPaq.niveau === 1 && "Entretien explicatif réalisé"}
-                  {currentPaq.niveau === 2 && "Entretien d'accord réalisé"}
-                  {currentPaq.niveau === 3 && "Entretien de mesure réalisé"}
-                  {currentPaq.niveau === 4 && "Entretien de décision réalisé"}
-                  {currentPaq.niveau === 5 && "Entretien Final réalisé"}
-                  {aEuEntretienPositif() && "✨ Entretien positif réalisé - Félicitations !"}
-                  {estEligibleEntretienPositif() && !aEuEntretienPositif() && "🏆 Éligible à l'entretien positif !"}
-                </div>
+                {/* Description état */}
+<div className="leoni-niveau-desc">
+  {currentPaq.niveau === 0 && (
+    <span> En attente de la réalisation de l'entretien explicatif</span>
+  )}
+  {currentPaq.niveau === 1 && " Entretien explicatif réalisé"}
+  {currentPaq.niveau === 2 && " Entretien d'accord réalisé - Passer à l'entretien de mesure"}
+  {currentPaq.niveau === 3 && " Entretien de mesure réalisé"}
+  {currentPaq.niveau === 4 && " Entretien de décision réalisé"}
+  {currentPaq.niveau === 5 && " Entretien Final réalisé"}
+  {aEuEntretienPositif() && " Entretien positif réalisé - Félicitations !"}
+  {estEligibleEntretienPositif() && !aEuEntretienPositif() && " Éligible à l'entretien positif !"}
+</div>
 
                 {/* Barre de progression période */}
                 <div className="leoni-periode-bar">
